@@ -3,6 +3,7 @@ from playwright.async_api import async_playwright
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROME = os.environ.get('CHROME') or ('/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None)
+TEMPO_URL = os.environ.get('TEMPO_URL') or 'file://' + ROOT + '/dist/Tempo.html'
 SAMPLE = {"repertoires": [{"id": "white-e4", "name": "White: 1.e4 with the Italian", "side": "w", "summary": "Open games with quick development.",
   "intro": "Take the center with e4, develop knights and bishops, castle, then build slowly with c3 and d3.",
   "lines": [{"id": "giuoco", "name": "Giuoco Piano", "moves": "e4 e5 Nf3 Nc6 Bc4 Bc5 c3 Nf6 d3 d6 O-O O-O", "notes": {"0": "Take the center.", "2": "Attack e5 and develop.", "4": "Aim at f7."}},
@@ -21,7 +22,7 @@ async def main():
         errs = []
         pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
         pg.on('console', lambda m: errs.append(m.type + ': ' + m.text[:200]) if m.type == 'error' else None)
-        await pg.goto('file://' + ROOT + '/dist/Tempo.html'); await pg.wait_for_timeout(1200)
+        await pg.goto(TEMPO_URL); await pg.wait_for_timeout(1200)
         await pg.evaluate("(s) => { document.getElementById('d-reps').textContent = s; }", json.dumps(SAMPLE))
         await pg.evaluate("App.go('openings')"); await pg.wait_for_timeout(300)
         await pg.screenshot(path=ROOT + '/build/shots/openings-menu.png')

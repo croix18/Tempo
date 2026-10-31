@@ -3,6 +3,7 @@ from playwright.async_api import async_playwright
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROME = os.environ.get('CHROME') or ('/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None)
+TEMPO_URL = os.environ.get('TEMPO_URL') or 'file://' + ROOT + '/dist/Tempo.html'
 FAKE = """
 (() => {
   const docs = {}; const subs = {};
@@ -28,7 +29,7 @@ async def main():
         pg = await ctx.new_page()
         errs = []
         pg.on('pageerror', lambda e: errs.append(str(e)))
-        await pg.goto('file://' + ROOT + '/dist/Tempo.html'); await pg.wait_for_timeout(1500)
+        await pg.goto(TEMPO_URL); await pg.wait_for_timeout(1500)
         print('synced flag', await pg.evaluate('Store.synced()'))
         # make a change
         await pg.evaluate("Store.state.learn.done['x-test'] = {stars: 2, ts: Date.now()}; Store.touch('learn');")

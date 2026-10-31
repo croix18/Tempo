@@ -5,7 +5,8 @@ from playwright.async_api import async_playwright
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CHROME = os.environ.get('CHROME') or ('/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None)
-URL = 'file://' + ROOT + '/dist/Tempo.html'
+TEMPO_URL = os.environ.get('TEMPO_URL') or 'file://' + ROOT + '/dist/Tempo.html'
+URL = TEMPO_URL
 ONLY = set(sys.argv[1:])
 PAGES = 4
 

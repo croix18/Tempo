@@ -42,7 +42,8 @@ for name, src in [('core', core), ('bots', bots), ('engine', engine), ('ui', ui)
     if '</script' in src.lower():
         sys.exit('script %s contains </script' % name)
 
-css = rd('src/ui/styles.css')
+# styles.css first, then any styles-<area>.css files in name order
+css = '\n'.join([rd('src/ui/styles.css')] + [rd(os.path.relpath(f, ROOT)) for f in sorted(glob.glob(os.path.join(ROOT, 'src/ui/styles-*.css')))])
 fonts = """@font-face { font-family: 'Tempo Sans'; font-style: normal; font-weight: 100 1000; font-display: swap; src: url(data:font/woff2;base64,%s) format('woff2'); }
 @font-face { font-family: 'Tempo Serif'; font-style: normal; font-weight: 400; font-display: swap; src: url(data:font/woff2;base64,%s) format('woff2'); }
 """ % (b64['dmsans'], b64['dmserif'])
@@ -67,16 +68,17 @@ body = """<div id="app"></div>
 """ % dict(sfjs=b64['sfjs'], sfwasm=b64['sfwasm'], puzzles=b64['puzzles'], openings=b64['openings'],
            lessons=safe_json(lessons_json), reps=safe_json(reps_json), core=core, bots=bots, engine=engine, ui=ui, boot=boot)
 
-os.makedirs(os.path.join(ROOT, 'dist'), exist_ok=True)
+OUT = os.environ.get('TEMPO_OUT') or os.path.join(ROOT, 'dist')  # a separate output folder lets parallel work build without clashing
+os.makedirs(OUT, exist_ok=True)
 # artifact variant: the host adds the document skeleton
 artifact = head_bits + style + body
-open(os.path.join(ROOT, 'dist/tempo-artifact.html'), 'w', encoding='utf-8').write(artifact)
+open(os.path.join(OUT, 'tempo-artifact.html'), 'w', encoding='utf-8').write(artifact)
 # standalone file: full document with the same small reset the host would add
 standalone = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'
               '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
               '<meta name="theme-color" content="#1B2A4A">\n' + head_bits +
               '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style>\n' +
               style + '</head>\n<body>\n' + body + '</body>\n</html>\n')
-open(os.path.join(ROOT, 'dist/Tempo.html'), 'w', encoding='utf-8').write(standalone)
+open(os.path.join(OUT, 'Tempo.html'), 'w', encoding='utf-8').write(standalone)
 print('lessons:', len(json.loads(lessons_json)), 'units;', 'reps:', len(json.loads(reps_json).get('repertoires', [])),
       '| artifact %.2f MB, standalone %.2f MB' % (len(artifact.encode()) / 1e6, len(standalone.encode()) / 1e6))

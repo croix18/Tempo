@@ -281,7 +281,8 @@ var Board = (function () {
       if (self.opts.onMove) self.opts.onMove(C.uci(m), m, { dragged: dragged });
     };
     if (cands.length > 1) {
-      if (Board.autoQueen) { done(cands.filter(function (m) { return ((m >> 14) & 7) === 5; })[0]); return; }
+      // exercises pass { autoQueen: false } so an underpromotion can still be the answer
+      if (Board.autoQueen && this.opts.autoQueen !== false) { done(cands.filter(function (m) { return ((m >> 14) & 7) === 5; })[0]); return; }
       this.askPromotion(to, function (pt) { done(pt ? cands.filter(function (m) { return ((m >> 14) & 7) === pt; })[0] : null); });
       return;
     }
