@@ -203,13 +203,19 @@ var Explain = (function () {
     if (ours && line.mate != null && line.mate > 0) return { san: san, kind: line.mate === 1 ? 'mate1' : 'mate', n: line.mate };
     var pv = ours && line.pv && line.pv.length ? line.pv : [best];
     var po = playOut(before, pv, mover, 6), gain = po.end - po.start;
-    if (gain >= 3) {
+    if (gain >= 2) {
       var after = before.clone(); after.make(bm);
       var direct = before.moveCaptured(bm), t = attacksFrom(after, (bm >> 7) & 127, 2);
-      if (t.length >= 2 && !(direct && PIECE_VAL[Math.abs(direct)] >= 3)) return { san: san, kind: 'fork', targets: t };
-      var won = null;
-      po.list.forEach(function (x) { if (x.i % 2 === 0 && x.cap && PIECE_VAL[Math.abs(x.cap)] >= 3 && (!won || PIECE_VAL[Math.abs(x.cap)] > PIECE_VAL[Math.abs(won.cap)])) won = x; });
-      if (won) return { san: san, kind: 'piece', piece: Math.abs(won.cap) };
+      if (gain >= 3 && t.length >= 2 && !(direct && PIECE_VAL[Math.abs(direct)] >= 3)) return { san: san, kind: 'fork', targets: t };
+      // the biggest piece won, and the biggest thing given back for it on the way ("wins your bishop for a pawn")
+      var won = null, gave = null;
+      po.list.forEach(function (x) {
+        if (!x.cap) return;
+        var v = PIECE_VAL[Math.abs(x.cap)];
+        if (x.i % 2 === 0) { if (v >= 3 && (!won || v > PIECE_VAL[Math.abs(won.cap)])) won = x; }
+        else if (!gave || v > PIECE_VAL[Math.abs(gave.cap)]) gave = x;
+      });
+      if (won) return { san: san, kind: 'piece', piece: Math.abs(won.cap), gave: gave && PIECE_VAL[Math.abs(won.cap)] > gain ? Math.abs(gave.cap) : 0 };
       return { san: san, kind: 'material' };
     }
     if (gain >= 1) return { san: san, kind: 'pawn' };
@@ -219,6 +225,9 @@ var Explain = (function () {
     var t = targets.slice().sort(function (a, b) { return (b.type === 6 ? 99 : PIECE_VAL[b.type]) - (a.type === 6 ? 99 : PIECE_VAL[a.type]); });
     return t.slice(0, 2).map(function (x) { return PIECE_NAME[x.type]; }).join(' and ');
   }
+
+  /* " for a pawn" when part of the win is given back on the way */
+  function forWhat(g) { return g.gave ? ' for ' + (g.gave === 1 ? 'a pawn' : 'a ' + PIECE_NAME[g.gave]) : ''; }
 
   /* What did the best move achieve? (for missed wins). text keeps the short form other screens use;
      sentence names who missed it: "Pip missed fxg5, which wins your bishop." */
@@ -231,7 +240,7 @@ var Explain = (function () {
       case 'mate1': text = g.san + ' was checkmate.'; what = 'is checkmate'; break;
       case 'mate': text = g.san + ' started a forced checkmate.'; what = 'forces checkmate in ' + plural(g.n, 'move'); break;
       case 'fork': text = g.san + ' is a fork that wins material.'; what = 'attacks ' + them.poss + ' ' + forkNames(g.targets) + ' at the same time'; break;
-      case 'piece': text = g.san + ' wins a ' + PIECE_NAME[g.piece] + '.'; what = 'wins ' + them.poss + ' ' + PIECE_NAME[g.piece]; break;
+      case 'piece': text = g.san + ' wins a ' + PIECE_NAME[g.piece] + forWhat(g) + '.'; what = 'wins ' + them.poss + ' ' + PIECE_NAME[g.piece] + forWhat(g); break;
       case 'material': text = g.san + ' wins material.'; what = 'wins material'; break;
       case 'pawn': text = g.san + ' wins a pawn.'; what = 'wins a pawn'; break;
       default: text = g.san + ' was stronger.'; what = 'was much stronger';
@@ -260,7 +269,7 @@ var Explain = (function () {
     if (g && g.kind === 'mate1') return ['is checkmate'];
     if (g && g.kind === 'mate') return ['forces checkmate in ' + plural(g.n, 'move')];
     var after = pos.clone(); after.make(m);
-    if (g && g.kind === 'piece') out.push('wins a ' + PIECE_NAME[g.piece]);
+    if (g && g.kind === 'piece') out.push('wins a ' + PIECE_NAME[g.piece] + forWhat(g));
     else if (g && g.kind === 'fork') out.push('attacks two pieces at once');
     else if (g && g.kind === 'material') out.push('wins material');
     else if (g && g.kind === 'pawn') out.push('wins a pawn');
@@ -793,11 +802,26 @@ var Review = (function () {
       board.setBadge(null); board.setMarks([]);
       board.setArrows([arrow(e0.best, 'green')]);
       paintEval();
+      var text = h('p', { class: 'rv-text' }, (bestWas(i) + ' ' + bestLine(i)).trim());
       cardBody(function (body) {
         body.appendChild(moveHead('best', 'Best move', 'Instead of ' + moveLabel(i)));
-        body.appendChild(h('p', { class: 'rv-text' }, (bestWas(i) + ' ' + bestLine(i)).trim()));
+        body.appendChild(text);
         body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null, backBtn(i)));
       });
+      // a search cut short can leave no line to show: look a few moves past the best move, then add where it leads
+      if (!bestLine(i)) {
+        var tok = st.token, after = a.pos.clone(), bm = after.parseMove(e0.best);
+        if (!bm) return;
+        after.make(bm);
+        if (after.status().over) return;
+        Engines.analyse({ fen: after.fen(), depth: Engines.strong ? 12 : 6, movetime: 600 }).then(function (r) {
+          var l = r && r.lines && r.lines[0];
+          if (tok !== st.token || !l || !l.pv || !l.pv.length) return;
+          e0.pv = [e0.best].concat(l.pv);
+          var more = bestLine(i);
+          if (more) text.textContent = (bestWas(i) + ' ' + more).trim();
+        });
+      }
     }
 
     /* ---------- find a better move ---------- */
