@@ -138,13 +138,15 @@ var Play = (function () {
     var board = new Board({ orient: G.color, movable: null, coords: S.settings.coords !== false, onMove: userMove });
     st.board = board;
     var oppBar = h('div', { class: 'player' }), youBar = h('div', { class: 'player' });
-    var bubble = h('div', { class: 'bubble', hidden: true });
+    // the bot's chat floats in its own name strip, beside its picture, so nothing else on the screen moves when it talks
+    var bubble = h('div', { class: 'bubble', role: 'status', hidden: true });
+    oppBar.appendChild(bubble);
     var coach = h('div', { class: 'coach', hidden: true });
     var movesBox = h('div');
     var controls = h('div', { class: 'controls' });
     var boardCol = h('div', { class: 'board-col' }, oppBar, board.el, youBar);
-    var arena = h('div', { class: 'arena' }, boardCol,
-      h('div', { class: 'panel' }, controls, coach, bubble, movesBox));
+    var panel = h('div', { class: 'panel' }, controls, coach, movesBox);
+    var arena = h('div', { class: 'arena' }, boardCol, panel);
     root.appendChild(arena);
     /* the name strip next to each side's pieces follows the board when it flips */
     function placeBars() {
@@ -161,17 +163,21 @@ var Play = (function () {
 
     function bars() {
       var mat = UI.material(st.pos);
-      U.clear(oppBar); U.clear(youBar);
+      // rebuild the strips, but leave the chat bubble where it is so it doesn't flash
+      Array.prototype.slice.call(oppBar.childNodes).forEach(function (n) { if (n !== bubble) oppBar.removeChild(n); });
+      U.clear(youBar);
+      function opp(el) { oppBar.insertBefore(el, bubble.parentNode === oppBar ? bubble : null); }
+      oppBar.classList.toggle('timed', !!G.times);
       var oppCaps = G.color === 'w' ? mat.byBlack : mat.byWhite, myCaps = G.color === 'w' ? mat.byWhite : mat.byBlack;
       var bal = mat.balance * you;
-      oppBar.appendChild(UI.avatar(bot, 'sm'));
-      oppBar.appendChild(h('div', { class: 'who' }, h('div', { class: 'name' }, bot.name, h('span', { class: 'rating' }, bot.id === 'stockfish' ? '' : String(bot.rating)),
+      opp(UI.avatar(bot, 'sm'));
+      opp(h('div', { class: 'who' }, h('div', { class: 'name' }, bot.name, h('span', { class: 'rating' }, bot.id === 'stockfish' ? '' : String(bot.rating)),
         st.thinking ? h('span', { class: 'thinking', 'aria-label': 'thinking' }, h('i'), h('i'), h('i')) : null), UI.capturedRow(oppCaps, bal < 0 ? -bal : 0)));
       youBar.appendChild(h('span', { class: 'avatar sm tone-you', 'aria-hidden': 'true' }, 'Y'));
       youBar.appendChild(h('div', { class: 'who' }, h('div', { class: 'name' }, 'You', h('span', { class: 'rating' }, String(Store.state.play.rating))), UI.capturedRow(myCaps, bal > 0 ? bal : 0)));
       if (G.times) {
         var oppC = G.color === 'w' ? 'b' : 'w';
-        oppBar.appendChild(h('div', { class: 'clock' + (clockRunning(oppC) ? ' run' : '') + (G.times[oppC] < 20000 ? ' low' : ''), id: 'clock-opp' }, U.clockText(G.times[oppC])));
+        opp(h('div', { class: 'clock' + (clockRunning(oppC) ? ' run' : '') + (G.times[oppC] < 20000 ? ' low' : ''), id: 'clock-opp' }, U.clockText(G.times[oppC])));
         youBar.appendChild(h('div', { class: 'clock' + (clockRunning(G.color) ? ' run' : '') + (G.times[G.color] < 20000 ? ' low' : ''), id: 'clock-you' }, U.clockText(G.times[G.color])));
       }
     }
@@ -238,19 +244,28 @@ var Play = (function () {
       controls.appendChild(tool('flag', 'Resign', resign, busy, 'Resign the game', 'resign'));
     }
 
+    // the moves under the coach's note glide out of its way as it comes and goes
     function say(text, kind) {
-      if (!text) { coach.hidden = true; return; }
-      U.clear(coach);
-      coach.className = 'coach' + (kind ? ' ' + kind : '');
-      coach.appendChild(U.icon(kind === 'alert' ? 'shield' : kind === 'good' ? 'check' : 'hint'));
-      coach.appendChild(h('div', { class: 'grow' }, text));
-      coach.hidden = false;
+      if (!text && coach.hidden) return;
+      U.glide(panel, function () {
+        if (!text) { coach.hidden = true; coach.className = 'coach'; return; }
+        U.clear(coach);
+        coach.className = 'coach' + (kind ? ' ' + kind : '');
+        coach.appendChild(U.icon(kind === 'alert' ? 'shield' : kind === 'good' ? 'check' : 'hint'));
+        coach.appendChild(h('div', { class: 'grow' }, text));
+        coach.hidden = false;
+      });
     }
     function botSays(text) {
       if (!text || Store.state.settings.botChat === false) return;
-      U.clear(bubble); bubble.appendChild(h('b', null, bot.name + ': ')); bubble.appendChild(document.createTextNode(text));
-      bubble.hidden = false;
-      clearTimeout(st.bubbleT); st.bubbleT = setTimeout(function () { bubble.hidden = true; }, 5000);
+      U.clear(bubble); bubble.appendChild(h('span', { class: 'sr-only' }, bot.name + ' says: ')); bubble.appendChild(document.createTextNode(text));
+      bubble.classList.remove('out'); bubble.hidden = false;
+      oppBar.classList.add('talking'); // the name steps aside while the bot talks
+      clearTimeout(st.bubbleT);
+      st.bubbleT = setTimeout(function () {
+        bubble.classList.add('out'); oppBar.classList.remove('talking'); // fade away as the name comes back, then hide
+        st.bubbleT = setTimeout(function () { bubble.hidden = true; bubble.classList.remove('out'); }, 260);
+      }, 5000);
     }
 
     function myTurn() { return !G.result && (st.pos.side === 1 ? 'w' : 'b') === G.color && st.viewPly == null; }
@@ -355,7 +370,7 @@ var Play = (function () {
         var tok = ++st.token;
         // show the move right away, then check it
         var temp = before.clone(); temp.make(m);
-        board.setPosition(temp, { last: m, animate: false });
+        board.setPosition(temp, { last: m, animate: true });
         st.checking = true; renderControls();
         Coach.check(before, m, st.pre).then(function (res) {
           if (tok !== st.token || view !== st || !G) return;
@@ -387,15 +402,17 @@ var Play = (function () {
     function warnInline(res, temp, cb) {
       st.deciding = true; renderControls();
       if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
-      U.clear(coach);
-      coach.className = 'coach alert decide';
-      coach.appendChild(U.icon('shield'));
       var take = h('button', { class: 'btn primary', type: 'button', onclick: function () { choose(true); } }, 'Take it back');
-      coach.appendChild(h('div', { class: 'grow' },
-        h('b', null, res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
-        h('div', { class: 'row', style: { marginTop: '10px' } }, take,
-          h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
-      coach.hidden = false;
+      U.glide(panel, function () {
+        U.clear(coach);
+        coach.className = 'coach alert decide';
+        coach.appendChild(U.icon('shield'));
+        coach.appendChild(h('div', { class: 'grow' },
+          h('b', null, res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
+          h('div', { class: 'row', style: { marginTop: '10px' } }, take,
+            h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
+        coach.hidden = false;
+      });
       setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
       function choose(v) { if (!st.deciding) return; st.deciding = false; say(null); cb(v); }
     }

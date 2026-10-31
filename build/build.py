@@ -32,7 +32,14 @@ ui_order = ['inflate.js', 'ui/pieces.js', 'ui/util.js', 'ui/store.js', 'ui/engin
 ui = '\n;\n'.join(rd('src/' + f) for f in ui_order)
 boot = """
 (function () {
-  function start() { App.boot(); }
+  // draw the first screen in Tempo's own type, so nothing shifts when the fonts arrive; they are in the page, so this is a moment at most
+  function start() {
+    var fonts = document.fonts, began = false;
+    function go() { if (!began) { began = true; App.boot(); } }
+    if (!fonts || typeof fonts.load !== 'function') { go(); return; }
+    try { Promise.all([fonts.load('400 16px "Tempo Sans"'), fonts.load('16px "Tempo Serif"')]).then(go, go); } catch (e) { go(); return; }
+    setTimeout(go, 400);
+  }
   var hot = window.claude && window.claude.hot;
   try { if (hot && hot.snapshot) hot.snapshot(function () { return { hash: location.hash }; }); } catch (e) { /* ignore */ }
   if (hot && hot.ready) hot.ready(start); else start();

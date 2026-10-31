@@ -219,7 +219,27 @@ var U = (function () {
     });
   }
 
+  function calm() { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); }
+  /* Change what a box holds without the rest jumping: note where each child sits, make the change,
+     then play every child from its old place to its new one. Children that only now appear fade in. */
+  function glide(box, change) {
+    if (box.__gliding) { change(); return; } // already inside a glide of this box: the outer one plays the whole change
+    var kids = [].slice.call(box.children), was = kids.map(function (k) { return k.getClientRects().length ? k.getBoundingClientRect().top : null; });
+    box.__gliding = true;
+    try { change(); } finally { box.__gliding = false; }
+    if (calm() || !box.animate) return;
+    [].slice.call(box.children).forEach(function (k) {
+      if (!k.getClientRects().length) return;
+      var i = kids.indexOf(k), top = k.getBoundingClientRect().top;
+      try {
+        if (i < 0 || was[i] == null) k.animate([{ opacity: 0, transform: 'translateY(8px)' }, { opacity: 1, transform: 'none' }], { duration: 300, delay: 80, easing: 'ease-out', fill: 'backwards' });
+        else if (Math.abs(was[i] - top) > 1) k.animate([{ transform: 'translateY(' + (was[i] - top) + 'px)' }, { transform: 'none' }], { duration: 340, easing: 'cubic-bezier(.3, .7, .3, 1)' });
+      } catch (e) { /* ignore */ }
+    });
+  }
+
   return { h: h, clear: clear, $: $, rich: rich, touchWords: touchWords, icon: icon, pct: pct, plural: plural, dateShort: dateShort, dayKey: dayKey,
     clockText: clockText, evalText: evalText, rng: rng, pick: pick, shuffle: shuffle, debounce: debounce, sleep: sleep, uid: uid,
-    winPct: winPct, sound: sound, copyText: copyText, saveFile: saveFile, canSaveFile: canSaveFile, readFile: readFile, framed: framed };
+    winPct: winPct, sound: sound, copyText: copyText, saveFile: saveFile, canSaveFile: canSaveFile, readFile: readFile, framed: framed,
+    calm: calm, glide: glide };
 })();

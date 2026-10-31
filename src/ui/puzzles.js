@@ -349,7 +349,7 @@ var Puzzles = (function () {
       if (uci === expected || mateAlt) {
         st.pos.make(m); st.idx++; st.last = m;
         sound(st.pos, m);
-        board.setPosition(st.pos, { last: m, animate: false });
+        board.setPosition(st.pos, { last: m, animate: true });
         board.setArrows([]); board.setMarks([]);
         st.hint = 0; st.hintText = null;
         if (st.idx >= p.moves.length) return solved();
@@ -369,7 +369,7 @@ var Puzzles = (function () {
       }
       U.sound.bad();
       board.setMovable(null);
-      board.setPosition(after, { last: m, animate: false });
+      board.setPosition(after, { last: m, animate: true });
       st.why = wrongReason(st.pos, m);
       var first = !st.failed;
       st.failed = true;

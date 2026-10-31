@@ -30,17 +30,18 @@ var Learn = (function () {
       // the unit you're working through starts open; any unit stays the way you left it while the app is open
       var isOpen = openUnits[u.id] != null ? openUnits[u.id] : !!(nx && nx.unit.id === u.id);
       var card = h('div', { class: 'card unit-card' });
-      var body = h('div', { class: 'unit-body', id: 'unit-' + u.id });
-      body.hidden = !isOpen;
+      // the body folds smoothly: an outer grid row eases between 0 and its content's height, the inner box clips
+      var inner = h('div', { class: 'unit-inner' });
+      var body = h('div', { class: 'unit-body' + (isOpen ? ' open' : ''), id: 'unit-' + u.id }, inner);
       var head = h('button', { class: 'unit-head', type: 'button', 'aria-expanded': isOpen ? 'true' : 'false', 'aria-controls': 'unit-' + u.id,
-        onclick: function () { var on = body.hidden; body.hidden = !on; head.setAttribute('aria-expanded', on ? 'true' : 'false'); openUnits[u.id] = on; } },
+        onclick: function () { var on = !body.classList.contains('open'); body.classList.toggle('open', on); head.setAttribute('aria-expanded', on ? 'true' : 'false'); openUnits[u.id] = on; } },
         h('span', { class: 'unit-num' + (all ? ' done' : '') }, all ? U.icon('check') : String(ui + 1)),
         h('span', { class: 'txt' }, h('span', { class: 't' }, u.title),
           h('span', { class: 's' }, all ? 'All ' + u.lessons.length + ' lessons done' : n ? n + ' of ' + u.lessons.length + ' lessons done' : U.plural(u.lessons.length, 'lesson'))),
         U.icon('next', 'chev'));
       card.appendChild(head);
-      body.appendChild(h('p', { class: 'muted', style: { margin: '0 0 10px' } }, u.summary));
-      if (n && !all) body.appendChild(h('div', { style: { margin: '0 0 6px' } }, UI.meter(n / u.lessons.length, 'green')));
+      inner.appendChild(h('p', { class: 'muted', style: { margin: '0 0 10px' } }, u.summary));
+      if (n && !all) inner.appendChild(h('div', { style: { margin: '0 0 6px' } }, UI.meter(n / u.lessons.length, 'green')));
       var list = h('div', { class: 'list' });
       u.lessons.forEach(function (l) {
         var d = done(l.id);
@@ -49,7 +50,7 @@ var Learn = (function () {
           h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, l.title), h('div', { class: 'muted small' }, l.summary)),
           d ? UI.stars(d.stars) : h('span', { class: 'faint small' }, l.steps.length + ' steps')));
       });
-      body.appendChild(list);
+      inner.appendChild(list);
       card.appendChild(body);
       col.appendChild(card);
     });
@@ -177,7 +178,7 @@ var Learn = (function () {
         st.mistakes++; st.tries++;
         U.sound.bad();
         board.setMovable(null);
-        board.setPosition(after, { last: m, animate: false });
+        board.setPosition(after, { last: m, animate: true });
         var msg = (s.wrong && s.wrong[uci]) || wrongWhy(m, after);
         if (!(s.wrong && s.wrong[uci]) && st.tries >= 2 && s.hint && st.hintLevel === 0) { msg += ' Hint: ' + s.hint; st.hintLevel = 1; }
         fb('no', msg);
@@ -187,7 +188,7 @@ var Learn = (function () {
       }
       st.pos.make(m);
       if (after.inCheck()) U.sound.check(); else if ((m >>> 17) & 1) U.sound.capture(); else U.sound.move();
-      board.setPosition(st.pos, { last: m, animate: false });
+      board.setPosition(st.pos, { last: m, animate: true });
       board.setMarks([]); board.setArrows([]);
       st.ply++;
       if (st.ply >= s.line.length) { complete(s); return; }
@@ -285,7 +286,7 @@ var Learn = (function () {
       board.setArrows([]);
       board.setMovable(null);
       if (st.pos.inCheck()) U.sound.check(); else U.sound.move();
-      board.setPosition(st.pos, { last: m, animate: false });
+      board.setPosition(st.pos, { last: m, animate: true });
       if (s.box) board.setMarks(boxMarks(s, st.pos));
       var status = st.pos.status();
       if (status.over) return judge(status);

@@ -55,7 +55,7 @@
 .v-review .rv-evalbar.flip i { background: var(--rv-black); }
 
 /* the card under the board */
-.rv-card { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; }
+.rv-card { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; min-height: 160px; } /* tall enough for an ordinary move, so stepping through quiet moves moves nothing below it */
 .rv-nav { display: flex; align-items: center; gap: 6px; margin: -4px -8px 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
 .rv-nav .btn { width: 40px; min-height: 40px; flex: none; color: var(--ink); }
 .rv-nav .btn[disabled] { opacity: 0.3; }
@@ -99,22 +99,7 @@
 .rv-key .sw-black { background: var(--rv-black); }
 .rv-key .rv-key-tip { color: var(--ink-3); }
 
-/* details: accuracy, counts and the PGN, folded away */
-.rv-details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
-.rv-details > summary {
-  list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  min-height: 48px; padding: 0 16px; font-weight: 600; cursor: pointer; border-radius: var(--radius);
-}
-.rv-details > summary::-webkit-details-marker { display: none; }
-.rv-details > summary:hover { background: var(--surface-2); }
-.rv-details > summary .chev { width: 16px; height: 16px; color: var(--ink-3); transition: transform 0.15s ease; }
-.rv-details[open] > summary .chev { transform: rotate(90deg); }
-.rv-details-body { padding: 0 16px 14px; }
-.rv-counts { margin-top: 2px; }
-.rv-counts .rv-opp { display: inline-block; max-width: 8.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
-.rv-counts .rv-acc th { display: table-cell; font-weight: 600; }
-.rv-counts .rv-acc th, .rv-counts .rv-acc td { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
-.rv-counts .rv-acc + tr th, .rv-counts .rv-acc + tr td { padding-top: 8px; }
+/* Copy PGN and Save PGN, under the moves */
 .rv-pgn { margin-top: 10px; gap: 4px; }
 
 /* big enough to tap */
@@ -122,7 +107,4 @@
   .v-review .rv-card .btn, .v-review .rv-controls .btn, .v-review .rv-pgn .btn { min-height: 44px; }
   .v-review .rv-nav .btn { width: 44px; min-height: 44px; }
   .v-review .rv-movelist .mv { min-height: 34px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  .rv-details > summary .chev { transition: none; }
 }

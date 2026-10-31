@@ -3,6 +3,11 @@ var Board = (function () {
   'use strict';
   var C = TempoCore, h = U.h;
   var CODES = ' pnbrqk';
+  var KEY_LABEL = 'Chess board. Use the arrow keys to move between squares and Enter to pick up or put down a piece.';
+  // how the last thing on the page was reached, so the board can tell a click from a Tab
+  var lastInput = 'key';
+  document.addEventListener('keydown', function () { lastInput = 'key'; }, true);
+  document.addEventListener('pointerdown', function () { lastInput = 'pointer'; }, true);
 
   function Board(opts) {
     this.opts = opts || {};
@@ -12,8 +17,7 @@ var Board = (function () {
     this.marks = []; this.arrows = []; this.picked = []; this.badge = null; this.hover = -1;
     this.movable = this.opts.movable || null; // 'w' | 'b' | 'both' | null
     var self = this;
-    this.el = h('div', { class: 'board', role: 'application', tabindex: '0', 'aria-roledescription': 'chess board',
-        'aria-label': 'Chess board. Use the arrow keys to move between squares and Enter to pick up or put down a piece.' },
+    this.el = h('div', { class: 'board', role: 'application', tabindex: '0', 'aria-roledescription': 'chess board', 'aria-label': KEY_LABEL },
       this.sqLayer = h('div', { class: 'b-sq' }),
       this.coordLayer = h('div', { class: 'b-coords', 'aria-hidden': 'true' }),
       this.hlLayer = h('div', { class: 'b-hl' }),
@@ -22,6 +26,7 @@ var Board = (function () {
       this.overLayer = h('div', { class: 'b-over' })
     );
     this.arrowLayer.setAttribute('class', 'b-arrows');
+    if (!this.movable) this.el.setAttribute('aria-label', 'Chess board');
     this.el.__board = this;
     for (var r = 0; r < 8; r++) for (var f = 0; f < 8; f++) {
       if ((r + f) % 2) this.sqLayer.appendChild(h('div', { class: 'dk', style: { left: (f * 12.5) + '%', top: (r * 12.5) + '%' } }));
@@ -35,9 +40,10 @@ var Board = (function () {
     // keyboard: arrows move a cursor, Enter or Space acts like a tap on that square
     this.live = h('div', { class: 'sr-only', 'aria-live': 'polite' });
     this.el.appendChild(this.live);
-    this.cursor = -1; this.kbd = false;
+    this.cursor = -1; this.kbd = false; this.viaPointer = false;
     this.el.addEventListener('keydown', function (e) { self.key(e); });
-    this.el.addEventListener('pointerdown', function () { if (self.kbd) { self.kbd = false; self.paint(); } }, true);
+    this.el.addEventListener('focus', function () { self.viaPointer = lastInput === 'pointer'; });
+    this.el.addEventListener('pointerdown', function () { self.viaPointer = true; if (self.kbd) { self.kbd = false; self.paint(); } }, true);
     this.el.addEventListener('blur', function () { if (self.kbd) { self.kbd = false; self.paint(); } });
     this.drawCoords();
   }
@@ -81,6 +87,10 @@ var Board = (function () {
     this.el.classList.remove('anim');
     for (var k in this.pieces) this.place(this.pieces[k], +k);
     this.paint();
+    // turning the board around: a quick cross-fade instead of every piece jumping at once
+    if (Board.animate && this.pcLayer.animate && !(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      try { this.pcLayer.animate([{ opacity: 0.15 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' }); } catch (e) { /* ignore */ }
+    }
   };
   B.flip = function () { this.setOrientation(this.orient === 'w' ? 'b' : 'w'); };
 
@@ -89,7 +99,11 @@ var Board = (function () {
     if (this.movable === 'both') return true;
     return (this.movable === 'w') === (this.pos.side === 1);
   };
-  B.setMovable = function (m) { this.movable = m; this.legal = this.canMove() ? this.pos.legalMoves() : []; if (!this.canMove()) this.select(-1); };
+  B.setMovable = function (m) {
+    this.movable = m; this.legal = this.canMove() ? this.pos.legalMoves() : [];
+    if (!this.canMove()) { this.kbd = false; this.select(-1); }
+    this.el.setAttribute('aria-label', this.movable ? KEY_LABEL : 'Chess board');
+  };
 
   /* Show a position. o: { last: move int or {from,to}, animate } */
   B.setPosition = function (pos, o) {
@@ -109,6 +123,14 @@ var Board = (function () {
       if (p) want[sq] = (p > 0 ? 'w' : 'b') + CODES.charAt(Math.abs(p));
     }
     var old = this.pieces, next = {}, freeOld = [], k;
+    // a jump of more than a few moves would send pieces gliding along odd paths at once; changed squares cross-fade instead
+    var glide = animate;
+    if (animate) {
+      var changed = 0;
+      for (k in old) if (old[k].dataset.code !== want[k]) changed++;
+      for (k in want) if (!old[k]) changed++;
+      glide = changed <= 6;
+    }
     for (k in old) {
       if (want[k] && old[k].dataset.code === want[k]) { next[k] = old[k]; delete want[k]; }
       else freeOld.push(+k);
@@ -123,14 +145,14 @@ var Board = (function () {
         var d = Math.abs((os & 7) - (sq & 7)) + Math.abs((os >> 4) - (sq >> 4));
         if (d < bestD) { bestD = d; best = i; }
       }
-      if (best >= 0) {
+      if (best >= 0 && glide) {
         var el = old[freeOld[best]]; freeOld[best] = -1;
         this.place(el, sq); next[sq] = el;
       } else {
-        var ne = h('div', { class: 'pc ' + code, dataset: { code: code } });
+        var ne = h('div', { class: 'pc ' + code + (animate ? ' fade-in' : ''), dataset: { code: code } });
         this.place(ne, sq);
-        if (animate) { ne.classList.add('fade-in'); setTimeout(function (x) { return function () { x.classList.remove('fade-in'); }; }(ne), 20); }
         this.pcLayer.appendChild(ne); next[sq] = ne;
+        if (animate) { void ne.offsetWidth; ne.classList.remove('fade-in'); } // style it once hidden, then let it fade in
       }
     }
     freeOld.forEach(function (os) {
@@ -241,8 +263,14 @@ var Board = (function () {
   B.key = function (e) {
     if (this.promoOpen) return;
     var dirs = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }, d = dirs[e.key];
-    if (d || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
-    else return;
+    if (!d && e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return;
+    // Steering with the keys is for a board you reached with the keyboard and that can take a move. Otherwise the
+    // keys belong to the page, so after a click on the board the arrows still step through the game.
+    if (!this.kbd && (this.viaPointer || !this.canMove())) {
+      if (e.key === 'Escape' && this.sel >= 0) { e.preventDefault(); this.select(-1); }
+      return;
+    }
+    e.preventDefault(); e.stopPropagation();
     if (this.cursor < 0) this.cursor = C.sqIndex(this.orient === 'w' ? 'e2' : 'e7');
     this.kbd = true;
     if (d) {
@@ -326,7 +354,7 @@ var Board = (function () {
   };
   B.cancelDrag = function () {
     var d = this.drag; this.drag = null; this.hover = -1;
-    if (d && d.el) { d.el.classList.remove('dragging'); this.place(d.el, d.sq); }
+    if (d && d.el) { d.el.classList.remove('dragging'); if (d.started) this.el.classList.add('anim'); this.place(d.el, d.sq); } // a cancelled drag glides home like a refused one
     this.paint();
   };
 

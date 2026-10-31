@@ -171,9 +171,18 @@ var App = (function () {
       if (first) try { first.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
     }, 0);
     openSheet = api;
+    var closed = false;
     function close(val) {
-      if (!scrim.parentNode) return;
-      scrim.remove(); box.remove(); document.removeEventListener('keydown', esc);
+      if (closed || !scrim.parentNode) return;
+      closed = true;
+      document.removeEventListener('keydown', esc);
+      var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      if (calm) { scrim.remove(); box.remove(); }
+      else {
+        scrim.className = 'scrim-out'; box.className = 'sheet-out';
+        box.setAttribute('aria-hidden', 'true'); box.inert = true;
+        setTimeout(function () { scrim.remove(); box.remove(); }, 180);
+      }
       if (opener && opener.focus && document.contains(opener)) try { opener.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
       if (openSheet === api) openSheet = null;
       if (opts.onClose) opts.onClose(val);
@@ -198,7 +207,7 @@ var App = (function () {
     var old = layer.querySelector('.toast'); if (old) old.remove();
     var t = h('div', { class: 'toast', role: 'status' }, text);
     layer.appendChild(t);
-    clearTimeout(toastT); toastT = setTimeout(function () { t.remove(); }, 2600);
+    clearTimeout(toastT); toastT = setTimeout(function () { t.classList.add('out'); setTimeout(function () { t.remove(); }, 200); }, 2600);
   }
 
   /* ---------- settings ---------- */
@@ -470,6 +479,7 @@ App.register('home', {
       fig.appendChild(h('figcaption', null, caption));
     }
     fig.appendChild(h('div', { class: 'home-board placeholder', 'aria-hidden': 'true' }));
+    fig.appendChild(h('figcaption', { 'aria-hidden': 'true' }, '\u00a0')); // holds the caption's line, so nothing below moves when the board arrives
     var dueMistake = Mistakes.due()[0];
     var game = curBot ? replayCurrent(cur) : null;
     if (game) {

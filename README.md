@@ -5,7 +5,7 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 ## What's in it
 
 - **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Each win unlocks the next bot, or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board, threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
-- **Review** any game with Stockfish: your mistakes first, move-by-move labels (best, inaccuracy, mistake, blunder and so on) double-checked before a move is called bad, plain-language explanations, a retry of each mistake graded against the best move, and where the game left an opening line you've learned (that line goes first in your drills).
+- **Review** any game with Stockfish: a summary up top with both sides' accuracy and a count of every kind of move from brilliant to blunder (tap one to step through those moves), your mistakes first, move-by-move labels (best, inaccuracy, mistake, blunder and so on) double-checked before a move is called bad, plain-language explanations, a retry of each mistake graded against the best move, and where the game left an opening line you've learned (that line goes first in your drills).
 - **Puzzles**: about 9,000 rated Lichess puzzles, a daily puzzle, and practice by theme.
 - **Learn**: 8 units, 42 interactive lessons, from the basics through tactics, mates, opening principles, endgames, strategy and how to think during a game.
 - **Openings**: three repertoires (1.e4 with the Italian, and 1...e5 and 1...d5 as Black) with drills on spaced repetition, plus 10 traps to spring or avoid.

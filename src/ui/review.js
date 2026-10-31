@@ -625,9 +625,10 @@ var Review = (function () {
     var card = h('section', { class: 'card rv-card', 'aria-label': 'This move' });
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
     var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
+    var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Game summary', hidden: true });
+    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, graphBox, movesBox, detailsBox);
     root.appendChild(h('div', { class: 'arena rv-arena' },
-      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls),
-      h('div', { class: 'panel' }, card, openingBox, graphBox, movesBox, detailsBox)));
+      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls), panel));
 
     /* ---------- positions and moves ---------- */
     var ints = (function () { var p = new C.Pos(startFen); return moves.map(function (u) { var m = p.parseMove(u); p.make(m); return m; }); })();
@@ -796,12 +797,17 @@ var Review = (function () {
       row.appendChild(h('button', { class: 'btn icon-only quiet', type: 'button', 'aria-label': 'Next mistake', 'data-repeat': '', disabled: next == null, onclick: function () { jump(next); } }, U.icon('next')));
       return row;
     }
+    // when the card grows or shrinks, whatever sits below it glides to its new place (not while the screen is first drawn)
+    var still = false;
     function cardBody(fill) {
-      U.clear(card);
-      card.appendChild(navigator());
-      var body = h('div', { class: 'rv-body', 'aria-live': 'polite' });
-      card.appendChild(body);
-      fill(body);
+      function draw() {
+        U.clear(card);
+        card.appendChild(navigator());
+        var body = h('div', { class: 'rv-body', 'aria-live': 'polite' });
+        card.appendChild(body);
+        fill(body);
+      }
+      if (still) draw(); else U.glide(panel, draw);
     }
     function moveHead(kind, label, sub) {
       return h('div', { class: 'rv-move' }, h('span', { class: 'chip rv-chip' }, h('span', { class: 'dot-k k-' + kind }), label), sub ? h('span', { class: 'rv-who' }, sub) : null);
@@ -880,7 +886,7 @@ var Review = (function () {
       var before = posAt(i).pos, after = before.clone(); after.make(m);
       var san = before.san(m);
       board.setMovable(null);
-      board.setPosition(after, { last: m, animate: false });
+      board.setPosition(after, { last: m, animate: true });
       cardBody(function (body) { body.appendChild(h('p', { class: 'rv-text' }, 'Checking ' + san, h('span', { class: 'thinking', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')))); });
       if (uci === moves[i]) return sameMove(i);
       var stx = after.status();
@@ -1028,28 +1034,52 @@ var Review = (function () {
     function paintCursor() { if (st.cur) { var xx = st.gx(st.ply); st.cur.setAttribute('x1', xx); st.cur.setAttribute('x2', xx); } }
 
     /* ---------- details: accuracy, move counts and the PGN ---------- */
-    function renderDetails() {
-      U.clear(detailsBox);
+    /* accuracy and how many moves of each kind, yours beside your opponent's, always in view.
+       Every kind is listed, so a game with no blunders says 0 rather than leaving the row out.
+       Tapping a kind steps through those moves, yours first. */
+    var KIND_COLS = [['brilliant', 'great', 'best', 'excellent', 'good'], ['book', 'inaccuracy', 'mistake', 'miss', 'blunder']];
+    var SHORT = { great: 'Great', best: 'Best' }; // the summary's narrow columns; the move card keeps the full names
+    function renderSummary() {
+      U.clear(summaryBox);
+      summaryBox.hidden = !st.res;
       if (!st.res) return;
       var me = you, them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
       function accText(side) { return acc[side] == null ? 'No moves' : Math.round(acc[side]) + '%'; }
-      var tbl = h('table', { class: 'counts rv-counts' }), body = h('tbody');
-      tbl.appendChild(h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Move type')),
-        h('th', { scope: 'col' }, 'You'), h('th', { scope: 'col', title: opp }, h('span', { class: 'rv-opp' }, opp)))));
-      body.appendChild(h('tr', { class: 'rv-acc' }, h('th', { scope: 'row' }, 'Accuracy'), h('td', { class: 'num' }, accText(me)), h('td', { class: 'num' }, accText(them))));
-      ORDER.forEach(function (k) {
-        var a = st.res.counts[me][k] || 0, b = st.res.counts[them][k] || 0;
-        if (!a && !b) return;
-        body.appendChild(h('tr', null, h('th', { scope: 'row' }, h('span', { class: 'dot-k k-' + k }), KINDS[k].label), h('td', { class: 'num' }, String(a)), h('td', { class: 'num' }, String(b))));
+      summaryBox.appendChild(h('div', { class: 'rv-acc-row' },
+        h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, accText(me))),
+        h('div', { class: 'stat rv-acc-opp' }, h('span', { class: 'label rv-opp-name', title: opp }, opp), h('b', null, accText(them)))));
+      var grid = h('div', { class: 'rv-kinds', role: 'table', 'aria-label': 'Moves by kind' });
+      KIND_COLS.forEach(function (col) {
+        var group = h('div', { class: 'rv-kind-col', role: 'rowgroup' });
+        group.appendChild(h('div', { class: 'rv-kind-head', role: 'row' }, h('span', { role: 'columnheader', class: 'sr-only' }, 'Kind'),
+          h('span', { role: 'columnheader', class: 'rv-n' }, 'You'), h('span', { role: 'columnheader', class: 'rv-n', title: opp, 'aria-label': oppShort }, 'Them')));
+        col.forEach(function (k) {
+          var a = st.res.counts[me][k] || 0, b = st.res.counts[them][k] || 0;
+          group.appendChild(h('button', { class: 'rv-kind' + (a + b ? '' : ' none'), type: 'button', role: 'row', 'data-kind': k, disabled: !(a + b), 'data-repeat': '',
+              'aria-label': KINDS[k].label + ': you ' + a + ', ' + oppShort + ' ' + b, onclick: function () { stepKind(k); } },
+            h('span', { class: 'rv-kind-name', role: 'rowheader' }, h('span', { class: 'dot-k k-' + k }), SHORT[k] || KINDS[k].label),
+            h('span', { class: 'rv-n' + (a ? '' : ' zero'), role: 'cell' }, String(a)),
+            h('span', { class: 'rv-n rv-them' + (b ? '' : ' zero'), role: 'cell' }, String(b))));
+        });
+        grid.appendChild(group);
       });
-      tbl.appendChild(body);
-      var pgnRow = h('div', { class: 'row rv-pgn' },
+      summaryBox.appendChild(grid);
+    }
+    /* the next move of a kind after the one on the board, yours first, going round */
+    function stepKind(k) {
+      if (!st.res) return;
+      var mineList = [], theirs = [];
+      st.res.cls.forEach(function (c, i) { if (c === k) (isMine(i) ? mineList : theirs).push(i + 1); });
+      var list = mineList.length ? mineList : theirs;
+      if (!list.length) return;
+      jump(list.filter(function (p) { return p > st.ply; })[0] || list[0]);
+    }
+    function renderDetails() {
+      U.clear(detailsBox);
+      if (!st.res) return;
+      detailsBox.appendChild(h('div', { class: 'row rv-pgn' },
         btn('Copy PGN', function () { U.copyText(pgnText(), null).then(function (ok) { App.toast(ok ? 'PGN copied' : 'Copying isn’t allowed here'); }); }, 'quiet', 'copy'),
-        U.canSaveFile() ? btn('Save PGN', function () { U.saveFile('tempo-game.pgn', pgnText(), 'application/x-chess-pgn'); }, 'quiet', 'download') : null);
-      var d = h('details', { class: 'rv-details' }, h('summary', null, h('span', null, 'Details'), U.icon('next', 'chev')), h('div', { class: 'rv-details-body' }, tbl, pgnRow));
-      if (st.details) d.open = true;
-      d.addEventListener('toggle', function () { st.details = d.open; });
-      detailsBox.appendChild(d);
+        U.canSaveFile() ? btn('Save PGN', function () { U.saveFile('tempo-game.pgn', pgnText(), 'application/x-chess-pgn'); }, 'quiet', 'download') : null));
     }
     function pgnText() {
       if (src.pgn) return src.pgn;
@@ -1087,12 +1117,17 @@ var Review = (function () {
     buildMoves();
     goPly(moves.length);
 
-    function done() {
+    /* fresh: the review has just finished while you watched, so the summary and graph ease in rather than shoving the panel down */
+    function done(fresh) {
       st.keyPlies = [];
       st.res.cls.forEach(function (k, i) { if (isMine(i) && SERIOUS.indexOf(k) >= 0) st.keyPlies.push(i + 1); });
       st.why = {};
-      buildMoves(); renderGraph(); renderDetails(); renderOpening();
-      goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
+      function show() {
+        buildMoves(); renderGraph(); renderSummary(); renderDetails(); renderOpening();
+        goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
+      }
+      if (fresh) U.glide(panel, show);
+      else { still = true; try { show(); } finally { still = false; } }
     }
 
     // use a saved review if it was made the current way
@@ -1120,7 +1155,7 @@ var Review = (function () {
         save();
         var ri = repInfo();
         if (ri && ri.kind === 'you') st.repQueued = Openings.queueLine(st.rep.key);
-        done();
+        done(true);
       });
     }).catch(function (e) {
       if (st.cancelled) return;

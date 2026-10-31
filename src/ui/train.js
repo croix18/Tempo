@@ -296,7 +296,7 @@ var Train = (function () {
       var tok = ++st.tok;
       board.setMovable(null);
       board.setArrows([]); board.setMarks([]);
-      board.setPosition(after, { last: m, animate: false });
+      board.setPosition(after, { last: m, animate: true });
       if (uci === it.best || after.status().reason === 'checkmate') return right(uci, m, null);
       feedback('info', 'Checking your move…');
       var depth = Engines.strong ? 13 : 8;

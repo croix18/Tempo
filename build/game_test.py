@@ -43,8 +43,8 @@ async def main():
             await click_sq(pg, mv[:2]); await pg.wait_for_timeout(100); await click_sq(pg, mv[2:])
             await pg.wait_for_timeout(2600)
             # the coach's warning sits under the board and waits for a choice
-            if await pg.locator('.coach.decide').count():
-                print('coach warned:', (await pg.locator('.coach.decide').inner_text()).split('\n')[0])
+            if await pg.locator('.coach.decide:not([hidden])').count():
+                print('coach warned:', (await pg.locator('.coach.decide:not([hidden])').inner_text()).split('\n')[0])
                 await pg.locator('.coach.decide button', has_text='Play it anyway').click(); await pg.wait_for_timeout(2500)
         print('moves', await pg.evaluate("Store.state.current.sans"))
         await pg.locator('button', has_text='Hint').click(); await pg.wait_for_timeout(1800)

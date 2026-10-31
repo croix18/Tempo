@@ -236,12 +236,13 @@ async def test_long_names(browser):
     sw = await pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")
     check('long names: no horizontal scroll at 390px while reviewing', sw[0] <= sw[1], sw)
     await wait_review(pg)
-    await pg.locator('.rv-details summary').click(); await pg.wait_for_timeout(300)
+    summary = await pg.evaluate("(() => { const s = document.querySelector('.rv-summary'); return s && !s.hidden ? s.innerText : ''; })()")
+    check('summary: accuracy and every kind of move are on screen, blunders included', 'Your accuracy' in summary and 'Blunder' in summary and 'Book' in summary and 'Brilliant' in summary, summary[:160])
     for p in range(1, 8):
         await go(pg, p)
         sw = await pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")
         if sw[0] > sw[1]: break
-    check('long names: no horizontal scroll after the review, on every move, details open', sw[0] <= sw[1], sw)
+    check('long names: no horizontal scroll after the review, on every move, with the summary showing', sw[0] <= sw[1], sw)
     fill = await pg.evaluate("getComputedStyle(document.querySelector('.evalgraph .eg-white')).fill")
     check('dark mode: the graph’s White share is a muted cream, not the bright light-mode cream', fill.replace(' ', '') != 'rgb(244,239,228)', fill)
     key = await pg.evaluate("(() => { const k = document.querySelector('.rv-key'); return k ? [k.innerText.replace(/\\s+/g, ' '), k.getBoundingClientRect().height] : null; })()")
