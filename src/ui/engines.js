@@ -1,0 +1,204 @@
+/* Tempo engines: the built-in engine in a worker, embedded Stockfish, and one analysis interface. */
+var Engines = (function () {
+  'use strict';
+  var C = TempoCore;
+
+  function scriptText(id) { var el = document.getElementById(id); return el ? el.textContent : ''; }
+
+  /* ---------- built-in engine ---------- */
+  var tw = null, seq = 0, waiting = {}, inline = false, answered = false;
+  function runInline(msg) {
+    return U.sleep(30).then(function () { try { return TempoEngine.handle(msg); } catch (e) { return { error: String(e) }; } });
+  }
+  function startTempo() {
+    if (tw || inline) return;
+    try {
+      var src = scriptText('src-core') + '\n;\n' + scriptText('src-bots') + '\n;\n' + scriptText('src-engine');
+      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      tw = new Worker(url);
+      tw.onmessage = function (e) {
+        answered = true;
+        var d = e.data || {}, w = waiting[d.id];
+        if (w) { delete waiting[d.id]; clearTimeout(w.timer); w.resolve(d); }
+      };
+      tw.onerror = function (e) {
+        if (e.preventDefault) e.preventDefault();
+        // a worker that never answered is blocked here: switch to running on the page
+        if (!answered) inline = true;
+        failTempo();
+      };
+    } catch (e) { inline = true; tw = null; }
+  }
+  function failTempo() {
+    try { if (tw) tw.terminate(); } catch (e) { /* ignore */ }
+    tw = null;
+    Object.keys(waiting).forEach(function (k) {
+      var w = waiting[k]; delete waiting[k]; clearTimeout(w.timer);
+      if (inline) runInline(w.msg).then(w.resolve); else w.resolve({ error: 'engine restarted' });
+    });
+  }
+  function tempo(msg) {
+    startTempo();
+    if (!tw) return runInline(msg);
+    var id = ++seq; msg.id = id;
+    var limit = (msg.movetime || 4000) + 25000;
+    return new Promise(function (resolve) {
+      waiting[id] = { msg: msg, resolve: resolve, timer: setTimeout(function () { failTempo(); resolve({ error: 'timeout' }); }, limit) };
+      tw.postMessage(msg);
+    });
+  }
+  function resetTempo() { failTempo(); startTempo(); }
+
+  /* ---------- Stockfish ---------- */
+  var SF = { status: 'idle', worker: null, queue: [], cur: null, opts: { skill: 20, multipv: 1 }, readyP: null };
+  function b64FromBytes(bytes) {
+    var parts = [], CH = 0x8000;
+    for (var i = 0; i < bytes.length; i += CH) parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CH)));
+    return btoa(parts.join(''));
+  }
+  function sfInit() {
+    if (SF.readyP) return SF.readyP;
+    SF.status = 'loading';
+    SF.readyP = Promise.all([
+      TempoInflate.unpackText(scriptText('d-sfjs')),
+      TempoInflate.unpackBytes(scriptText('d-sfwasm'))
+    ]).then(function (res) {
+      var js = res[0], wasm = res[1];
+      var src = 'self.__SFWASM=(function(b){var s=atob(b),u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;})("' + b64FromBytes(wasm) + '");\n' + js;
+      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      return new Promise(function (resolve) {
+        var w;
+        try { w = new Worker(url); } catch (e) { resolve(false); return; }
+        var t = setTimeout(function () { try { w.terminate(); } catch (e) { /* ignore */ } resolve(false); }, 12000);
+        w.onerror = function (e) { if (e.preventDefault) e.preventDefault(); clearTimeout(t); resolve(false); };
+        w.onmessage = function (e) {
+          var line = String(e.data);
+          if (line.indexOf('uciok') === 0) { w.postMessage('setoption name Hash value 16'); w.postMessage('isready'); }
+          else if (line.indexOf('readyok') === 0) {
+            clearTimeout(t);
+            SF.worker = w; w.onmessage = sfLine; w.onerror = function (ev) { if (ev.preventDefault) ev.preventDefault(); sfDead(); };
+            resolve(true);
+          }
+        };
+        w.postMessage('uci');
+      });
+    }).then(function (ok) { SF.status = ok ? 'ready' : 'failed'; return ok; }, function () { SF.status = 'failed'; return false; });
+    return SF.readyP;
+  }
+  function sfDead() {
+    SF.status = 'failed';
+    try { if (SF.worker) SF.worker.terminate(); } catch (e) { /* ignore */ }
+    SF.worker = null;
+    if (SF.cur) { clearTimeout(SF.cur.timer); SF.cur.resolve(null); SF.cur = null; }
+    SF.queue.forEach(function (j) { j.resolve(null); }); SF.queue = [];
+  }
+  var MV_RE = /^[a-h][1-8][a-h][1-8][qrbn]?$/;
+  function sfLine(e) {
+    var line = String(e.data), j = SF.cur;
+    if (!j) return;
+    if (line.indexOf('info ') === 0 && line.indexOf(' pv ') > 0) {
+      if (/ (lowerbound|upperbound) /.test(line)) return;
+      var mp = /multipv (\d+)/.exec(line), k = mp ? +mp[1] : 1;
+      var d = /\bdepth (\d+)/.exec(line), cp = /score cp (-?\d+)/.exec(line), mt = /score mate (-?\d+)/.exec(line);
+      var pv = line.split(' pv ')[1].trim().split(/\s+/).filter(function (t) { return MV_RE.test(t); });
+      j.lines[k] = { depth: d ? +d[1] : 0, cp: cp ? +cp[1] : null, mate: mt ? +mt[1] : null, pv: pv };
+      if (j.onInfo) j.onInfo(j.lines);
+    } else if (line.indexOf('bestmove') === 0) {
+      clearTimeout(j.timer);
+      var best = line.split(/\s+/)[1];
+      var lines = Object.keys(j.lines).sort(function (a, b) { return a - b; }).map(function (k2) { return j.lines[k2]; });
+      SF.cur = null;
+      j.resolve({ best: MV_RE.test(best) ? best : (lines[0] && lines[0].pv[0]) || null, lines: lines, engine: 'stockfish' });
+      sfNext();
+    }
+  }
+  function sfNext() {
+    if (SF.cur || !SF.queue.length || !SF.worker) return;
+    var j = SF.queue.shift(), w = SF.worker;
+    SF.cur = j; j.lines = {};
+    if (j.cancelled) { SF.cur = null; j.resolve(null); sfNext(); return; }
+    var skill = j.skill == null ? 20 : j.skill, mpv = j.multipv || 1;
+    if (skill !== SF.opts.skill) { w.postMessage('setoption name Skill Level value ' + skill); SF.opts.skill = skill; }
+    if (mpv !== SF.opts.multipv) { w.postMessage('setoption name MultiPV value ' + mpv); SF.opts.multipv = mpv; }
+    if (j.newGame) w.postMessage('ucinewgame');
+    w.postMessage('position fen ' + (j.fen || C.START_FEN) + (j.moves && j.moves.length ? ' moves ' + j.moves.join(' ') : ''));
+    var go = 'go';
+    if (j.depth) go += ' depth ' + j.depth;
+    if (j.movetime) go += ' movetime ' + j.movetime;
+    if (!j.depth && !j.movetime) go += ' depth 12';
+    w.postMessage(go);
+    j.timer = setTimeout(function () { sfDead(); }, (j.movetime || 6000) + 20000);
+  }
+  function sfRun(job) {
+    return new Promise(function (resolve) {
+      job.resolve = resolve;
+      SF.queue.push(job);
+      sfNext();
+    });
+  }
+  function sfStop() {
+    SF.queue.forEach(function (j) { j.cancelled = true; });
+    if (SF.cur && SF.worker) SF.worker.postMessage('stop');
+  }
+
+  /* ---------- one interface ---------- */
+  function sfReady() { return SF.status === 'ready' && !!SF.worker; }
+
+  /* opts: fen (start), moves (uci list), depth, movetime, multipv. Scores are from the side to move. */
+  function analyse(opts) {
+    if (sfReady()) {
+      return sfRun({ fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo })
+        .then(function (r) { return r || tempoAnalyse(opts); });
+    }
+    return tempoAnalyse(opts);
+  }
+  function tempoAnalyse(opts) {
+    var depth = opts.depth ? Math.min(opts.depth, opts.fast ? 7 : 11) : 0;
+    if (opts.multipv && opts.multipv > 1) {
+      return tempo({ cmd: 'scoremoves', fen: opts.fen, moves: opts.moves, depth: Math.min(4, depth || 4) }).then(function (r) {
+        var list = (r.list || []).slice(0, opts.multipv);
+        return { best: list[0] ? list[0].move : null, engine: 'tempo', lines: list.map(function (x) { return toLine(x.score, [x.move], 4); }) };
+      });
+    }
+    return tempo({ cmd: 'analyse', fen: opts.fen, moves: opts.moves, depth: depth || 0, movetime: opts.movetime || (depth ? 0 : 600) }).then(function (r) {
+      if (!r || r.error) return { best: null, lines: [], engine: 'tempo' };
+      var line = toLine(r.score, r.pv || [], r.depth);
+      return { best: r.best, lines: [line], engine: 'tempo' };
+    });
+  }
+  function toLine(score, pv, depth) {
+    var M = TempoEngine.MATE, MB = TempoEngine.MATE_BOUND;
+    if (Math.abs(score) > MB) { var n = Math.ceil((M - Math.abs(score)) / 2); return { cp: null, mate: score > 0 ? n : -n, pv: pv, depth: depth }; }
+    return { cp: score, mate: null, pv: pv, depth: depth };
+  }
+
+  /* Bot move. game: { fen (start), moves (uci), sans }. Returns a UCI string. */
+  function botMove(bot, game, rng) {
+    var cfg = bot.cfg || {};
+    if (cfg.book && (game.fen || C.START_FEN) === C.START_FEN && game.sans.length < 16) {
+      var bm = TempoBots.bookMove(game.sans.map(function (s) { return s.replace(/[+#]/g, ''); }), cfg.book, rng || Math.random);
+      if (bm) {
+        var p = TempoEngine.posFrom(game.fen, game.moves), m = p.parseMove(bm);
+        if (m) return Promise.resolve(C.uci(m));
+      }
+    }
+    if (bot.sf && sfReady()) {
+      return sfRun({ fen: game.fen, moves: game.moves, movetime: bot.sf.movetime, skill: bot.sf.skill, multipv: 1 }).then(function (r) {
+        if (r && r.best) return r.best;
+        return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (x) { return x.move; });
+      });
+    }
+    return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (r) { return r.move; });
+  }
+
+  function stopAll() { sfStop(); }
+
+  return {
+    init: function () { startTempo(); return sfInit(); },
+    analyse: analyse, botMove: botMove, stopAll: stopAll, resetTempo: resetTempo,
+    tempo: tempo,
+    get strong() { return sfReady(); },
+    get status() { return SF.status; },
+    sfReady: function () { return SF.readyP || sfInit(); }
+  };
+})();

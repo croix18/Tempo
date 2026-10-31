@@ -1,0 +1,18 @@
+# secrets
+.github-token
+
+# build scratch
+build/logs/
+build/shots/
+build/csp/
+build/sftest/
+build/ovr*.json
+
+# only the standalone build is tracked
+dist/*
+!dist/Tempo.html
+
+node_modules/
+__pycache__/
+*.pyc
+.DS_Store
