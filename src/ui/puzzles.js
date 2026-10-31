@@ -386,6 +386,15 @@ var Puzzles = (function () {
     },
     themed: function (t) { mode = 'theme'; theme = t; startLoop(); },
     dailyInfo: function () { return Data.puzzles().then(function (list) { var p = dailyPuzzle(list); return p ? { rating: p.rating, themes: p.themes.filter(function (t) { return NAMES[t] && !/^(short|long|veryLong|oneMove|middlegame|endgame|opening|advantage|crushing|master|masterVsMaster|superGM|mate)$/.test(t); }).map(function (t) { return NAMES[t]; }) } : null; }); },
+    /* the position the solver sees for today's puzzle */
+    dailyPosition: function () {
+      return Data.puzzles().then(function (list) {
+        var p = dailyPuzzle(list); if (!p) return null;
+        var pos = new C.Pos(p.fen), m = pos.parseMove(p.moves[0]); if (!m) return null;
+        pos.make(m);
+        return { fen: pos.fen(), side: pos.side, last: m, rating: p.rating };
+      });
+    },
     _cur: function () { return P && P.p ? { id: P.p.id, moves: P.p.moves, idx: P.idx } : null; },
     NAMES: NAMES
   };

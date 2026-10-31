@@ -418,12 +418,57 @@ body.focus .tabs { display: none; }
 .heat i.l2 { background: color-mix(in srgb, var(--gold-fill) 65%, var(--surface-2)); }
 .heat i.l3 { background: var(--gold-fill); }
 
-/* home */
-.hero-card { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; }
-@media (max-width: 560px) { .hero-card { grid-template-columns: auto 1fr; } .hero-card .btn { grid-column: 1 / -1; } }
-.stats-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .mini-board { width: 100%; max-width: 220px; }
 .mini-board .board { box-shadow: none; border-radius: 6px; }
+.sr-only { position: absolute !important; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* home: the next opponent's name, a real board, what's due, and the ladder.
+   One column on phones (in that order); two columns from tablet width up. */
+.home { display: flex; flex-direction: column; gap: 30px; }
+.home-col { display: contents; }
+.home-hero { order: 1; padding-top: 4px; }
+.home-fig { order: 2; margin: 0; }
+.home-todo { order: 3; }
+.home-ladder { order: 4; }
+@media (min-width: 760px) {
+  .home { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); column-gap: clamp(32px, 5vw, 64px); align-items: start; max-width: 1040px; }
+  .home-col { display: flex; flex-direction: column; gap: 36px; }
+  .home-hero { padding-top: 10px; }
+}
+.home-hero h2 { font-size: clamp(50px, 7.4vw, 78px); line-height: 0.92; letter-spacing: -0.015em; }
+.home-hero p { font-size: 17px; line-height: 1.5; color: var(--ink-2); max-width: 34ch; margin: 16px 0 24px; }
+.home-hero .btn { min-width: 172px; }
+
+.home-board { display: block; width: 100%; max-width: 460px; padding: 0; border: 0; background: none; border-radius: 10px; cursor: pointer; }
+.home-board .mini-board { max-width: none; }
+.home-board .board { border-radius: 10px; box-shadow: 0 1px 0 rgba(22, 34, 61, 0.05), 0 18px 36px -22px rgba(22, 34, 61, 0.55); }
+.home-board.placeholder { aspect-ratio: 1 / 1; background: var(--surface-2); cursor: default; }
+.home-board:focus-visible { outline: 3px solid var(--gold-fill); outline-offset: 4px; }
+.home-fig figcaption { margin-top: 12px; max-width: 460px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
+
+.home-todo { display: flex; flex-direction: column; max-width: 460px; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.todo-row { position: relative; display: flex; align-items: center; gap: 14px; min-height: 52px; padding: 12px 14px 12px 16px; border: 0; background: none; color: var(--ink); font-size: 15.5px; font-weight: 500; line-height: 1.35; text-align: left; }
+.todo-row + .todo-row::before { content: ""; position: absolute; top: 0; left: 50px; right: 0; height: 1px; background: var(--line); }
+.todo-row:hover { background: var(--surface-2); }
+.todo-row > .ic:first-child { color: var(--ink-2); }
+.todo-row .chev { width: 16px; height: 16px; color: var(--ink-3); }
+
+.rungs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-width: 520px; }
+.rung { display: grid; grid-template-columns: 24px minmax(0, 1fr) 96px 20px; align-items: center; column-gap: 14px; width: 100%; min-height: 46px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--ink); font-size: 16px; text-align: left; }
+.rung:hover { background: var(--surface-2); }
+.rung .n { font-size: 13px; color: var(--ink-3); text-align: right; }
+.rung .nm { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rung .r { font-size: 15px; color: var(--ink-2); text-align: right; }
+.rung .ic { width: 18px; height: 18px; justify-self: end; color: var(--ink-3); }
+.rung .ic.won { color: var(--green); }
+.rung.locked .nm, .rung.locked .r { color: var(--ink-3); font-weight: 500; }
+.rung.next { background: var(--surface); box-shadow: inset 3px 0 0 var(--gold-fill); }
+.rung.next .n { color: var(--gold); font-weight: 700; }
+.you-mark { display: flex; align-items: center; gap: 8px; padding: 7px 12px 7px 50px; color: var(--ink); font-size: 13px; font-weight: 700; }
+.you-mark span:first-child { color: var(--ink-2); font-weight: 600; }
+.you-mark::after { content: ""; flex: 1; height: 2px; margin-left: 6px; border-radius: 1px; background: var(--gold-fill); }
+.all-link { align-self: flex-start; margin-top: 8px; padding: 8px 12px; border: 0; border-radius: 8px; background: none; color: var(--ink-2); font-size: 14.5px; font-weight: 600; }
+.all-link:hover { color: var(--ink); background: var(--surface-2); }
 
 @media (prefers-reduced-motion: reduce) {
   .board.anim .pc { transition: none; }

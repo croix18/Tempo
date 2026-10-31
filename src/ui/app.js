@@ -297,67 +297,112 @@ var UI = (function () {
   return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon };
 })();
 
-/* ---------- Home ---------- */
+/* ---------- Home ----------
+   The opponent you're climbing toward, a real board (today's puzzle, or your unfinished game),
+   the few things that are due, and your place on the ladder. */
 App.register('home', {
   render: function (root) {
-    var h = U.h, S = Store.state, bots = TempoBots.BOTS;
-    var next = bots[Math.min(S.play.unlocked || 0, bots.length - 1)];
-    root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, greeting()), h('div', { class: 'sub' }, todayLine()))));
-    var col = h('div', { class: 'stack' });
-    root.appendChild(col);
+    var h = U.h, S = Store.state, C = TempoCore, BOTS = TempoBots.BOTS;
+    var nextIdx = Math.min(S.play.unlocked || 0, BOTS.length - 1), next = BOTS[nextIdx];
     var cur = S.current, curBot = cur && !cur.result && cur.moves && cur.moves.length ? TempoBots.byId(cur.bot) : null;
-    if (curBot) col.appendChild(h('div', { class: 'card row between' },
-      h('div', { class: 'row' }, UI.avatar(curBot, 'sm'), h('div', null, h('b', null, 'Game in progress'), h('div', { class: 'muted small' }, 'vs ' + curBot.name + ' \u00b7 move ' + (Math.floor(cur.moves.length / 2) + 1)))),
-      h('button', { class: 'btn primary small', type: 'button', onclick: function () { Play.resume(); } }, 'Resume')));
-    col.appendChild(h('div', { class: 'card raised pad-lg hero-card' },
-      UI.avatar(next, 'lg'),
-      h('div', null, h('div', { class: 'label' }, 'Next opponent'), h('h2', null, next.name), h('div', { class: 'muted small' }, 'About ' + next.rating + ' · ' + next.bio)),
-      h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.setup(next); } }, U.icon('play'), 'Play')));
-    var grid = h('div', { class: 'grid two' });
-    col.appendChild(grid);
-    // learning
-    var nextLesson = Learn.nextLesson();
-    grid.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'label' }, nextLesson ? 'Continue learning' : 'Lessons'),
-      nextLesson ? h('h3', { style: { margin: '6px 0 4px' } }, nextLesson.lesson.title) : h('h3', { style: { margin: '6px 0 4px' } }, 'All lessons complete'),
-      h('p', { class: 'muted small' }, nextLesson ? nextLesson.unit.title + ' · ' + nextLesson.lesson.summary : 'Replay any lesson from the Learn tab.'),
-      h('div', { class: 'row', style: { marginTop: '12px' } }, h('button', { class: 'btn', type: 'button', onclick: function () { if (nextLesson) Learn.open(nextLesson.lesson.id); else App.go('learn'); } }, U.icon('learn'), nextLesson ? 'Start lesson' : 'Open Learn'))));
-    var dailyLine = h('p', { class: 'muted small' }, S.puzzles.daily === U.dayKey() ? 'A new one arrives tomorrow.' : '\u00a0');
-    if (S.puzzles.daily !== U.dayKey()) Puzzles.dailyInfo().then(function (d) { if (d) dailyLine.textContent = 'Rated ' + d.rating + '. Find the best move.'; });
-    grid.appendChild(h('div', { class: 'card' },
-      h('div', { class: 'label' }, 'Daily puzzle'),
-      h('h3', { style: { margin: '6px 0 4px' } }, S.puzzles.daily === U.dayKey() ? 'Solved today' : 'Today\u2019s puzzle'),
-      dailyLine,
-      h('div', { class: 'row', style: { marginTop: '12px' } }, h('button', { class: 'btn', type: 'button', onclick: function () { Puzzles.daily(); } }, U.icon('puzzle'), S.puzzles.daily === U.dayKey() ? 'More puzzles' : 'Solve'))));
-    col.appendChild(h('div', { class: 'stats-row' },
-      statCard('Game rating', S.play.rating, S.play.hist.length ? 'from ' + U.plural(S.play.hist.length, 'game') : 'play a bot to start'),
-      statCard('Puzzle rating', S.puzzles.rating, S.puzzles.count ? U.plural(S.puzzles.count, 'puzzle') : 'not rated yet'),
-      statCard('Streak', Store.streak(), Store.streak() === 1 ? 'day' : 'days')));
-    var last = S.games.list[0];
-    if (last) {
-      var bot = TempoBots.byId(last.bot);
-      col.appendChild(h('button', { class: 'card list-row', type: 'button', style: { borderBottom: '1px solid var(--line)' }, onclick: function () { Review.openGame(last.id); } },
-        bot ? UI.avatar(bot, 'sm') : null,
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, 'Last game: ' + resultWord(last) + ' vs ' + (bot ? bot.name : 'opponent')),
-          h('div', { class: 'muted small' }, last.reviewed ? 'Accuracy ' + Math.round(last.acc) + '%' : 'Review it to see your mistakes')),
-        U.icon('next')));
+    var solved = S.puzzles.daily === U.dayKey();
+
+    root.appendChild(h('h1', { class: 'sr-only' }, 'Home'));
+    var hero = h('section', { class: 'home-hero' }), fig = h('figure', { class: 'home-fig' }),
+      todo = h('nav', { class: 'home-todo', 'aria-label': 'Due now' }), ladder = h('section', { class: 'home-ladder', 'aria-label': 'Opponents' });
+    root.appendChild(h('div', { class: 'home' },
+      h('div', { class: 'home-col' }, hero, ladder),
+      h('div', { class: 'home-col' }, fig, todo)));
+
+    /* hero: your unfinished game, or the next opponent on the ladder */
+    if (curBot) {
+      var moveNo = Math.floor(cur.moves.length / 2) + 1;
+      hero.appendChild(h('h2', null, curBot.name));
+      hero.appendChild(h('p', null, 'Your game is still going. You’re on move ' + moveNo + '.'));
+      hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.resume(); } }, 'Resume game'));
+    } else {
+      hero.appendChild(h('h2', null, next.name));
+      hero.appendChild(h('p', null, (next.id === 'stockfish' ? 'Full strength. ' : 'About ' + next.rating + '. ') + next.bio));
+      hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.setup(next); } }, 'Play ' + next.name));
     }
-    function statCard(label, value, sub) {
-      return h('div', { class: 'card stat' }, h('span', { class: 'label' }, label), h('b', { class: 'num' }, String(value)), h('span', { class: 'faint small' }, sub));
+
+    /* the board: the unfinished game if there is one, otherwise today's puzzle */
+    function showBoard(fen, orient, last, label, caption, open) {
+      U.clear(fig);
+      fig.appendChild(h('button', { class: 'home-board', type: 'button', 'aria-label': label, onclick: open }, UI.miniBoard(fen, orient, last)));
+      fig.appendChild(h('figcaption', null, caption));
     }
-    function greeting() {
-      var hr = new Date().getHours();
-      return hr < 12 ? 'Good morning' : hr < 18 ? 'Good afternoon' : 'Good evening';
+    fig.appendChild(h('div', { class: 'home-board placeholder', 'aria-hidden': 'true' }));
+    if (curBot) {
+      var gp = new C.Pos(cur.startFen || C.START_FEN), lastMove = null;
+      cur.moves.forEach(function (u) { lastMove = gp.parseMove(u); gp.make(lastMove); });
+      var n = cur.moves.length, lastSan = cur.sans && cur.sans[n - 1];
+      var after = lastSan ? 'After ' + Math.ceil(n / 2) + (n % 2 ? '.' : '...') + lastSan + '. ' : '';
+      var yours = (gp.side === 1) === (cur.color === 'w');
+      showBoard(gp.fen(), cur.color || 'w', lastMove, 'Resume your game against ' + curBot.name,
+        after + (yours ? 'Your move.' : curBot.name + ' to move.'), function () { Play.resume(); });
+    } else {
+      Puzzles.dailyPosition().then(function (d) {
+        if (!d) { U.clear(fig); return; }
+        showBoard(d.fen, d.side === 1 ? 'w' : 'b', d.last, solved ? 'More puzzles' : 'Solve today’s puzzle',
+          solved ? 'You solved today’s puzzle. A new one comes tomorrow.' : 'Today’s puzzle, rated ' + d.rating + '. ' + (d.side === 1 ? 'White' : 'Black') + ' to move.',
+          function () { Puzzles.daily(); });
+      });
     }
-    function todayLine() {
-      var d = S.days.map[U.dayKey()];
-      if (!d) return '';
-      var bits = [];
-      if (d.g) bits.push(U.plural(d.g, 'game'));
-      if (d.p) bits.push(U.plural(d.p, 'puzzle'));
-      if (d.l) bits.push(U.plural(d.l, 'lesson'));
-      return 'Today: ' + bits.join(', ') + '.';
+
+    /* due now: one sentence per item, only what is actually waiting */
+    function item(icon, text, open) {
+      todo.appendChild(h('button', { class: 'todo-row', type: 'button', onclick: open }, U.icon(icon), h('span', { class: 'grow' }, text), U.icon('next', 'chev')));
     }
+    var nl = Learn.nextLesson();
+    if (nl) {
+      var num = 0, units = Data.lessons(), found = false;
+      for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
+      item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); });
+    }
+    if (curBot && !solved) item('puzzle', 'Today’s puzzle', function () { Puzzles.daily(); });
+    var now = Date.now(), dueReps = {}, dueLines = 0;
+    Object.keys(S.openings.lines).forEach(function (k) {
+      var r = S.openings.lines[k];
+      if (k.indexOf('trap/') === 0 || !r || !r.learned || (r.due || 0) > now) return;
+      dueLines++; dueReps[k.split('/')[0]] = true;
+    });
+    if (dueLines) {
+      var reps = Object.keys(dueReps);
+      item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); });
+    }
+    var mistakes = Mistakes.due().length;
+    if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); });
+    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
+    if (last && !last.reviewed && lastBot) {
+      var word = resultWord(last);
+      item('review', 'Review your ' + (word === 'Win' ? 'win over ' : word === 'Draw' ? 'draw with ' : 'loss to ') + lastBot.name, function () { Review.openGame(last.id); });
+    }
+    if (!todo.childNodes.length) todo.remove();
+
+    /* the ladder around you: two rungs either side of the next opponent, strongest at the top */
+    var lo = Math.max(0, nextIdx - 2), hi = Math.min(BOTS.length - 1, nextIdx + 2);
+    while (hi - lo < 4 && (lo > 0 || hi < BOTS.length - 1)) { if (hi < BOTS.length - 1) hi++; else lo--; }
+    var list = h('ol', { class: 'rungs' }), placed = !S.play.hist.length;
+    function you() {
+      placed = true;
+      list.appendChild(h('li', { class: 'you-mark' }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
+    }
+    var unlockedTo = S.settings.unlockAll ? BOTS.length - 1 : nextIdx;
+    for (var i = hi; i >= lo; i--) (function (bot, i) {
+      if (!placed && S.play.rating >= bot.rating) you();
+      var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !curBot;
+      var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
+      list.appendChild(h('li', null, h('button', {
+        class: 'rung' + (locked ? ' locked' : '') + (isNext ? ' next' : ''), type: 'button',
+        'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : ''),
+        onclick: function () { if (locked) App.toast('Beat ' + BOTS[i - 1].name + ' to unlock ' + bot.name + '.'); else Play.setup(bot); }
+      }, h('span', { class: 'n num' }, String(i + 1)), h('span', { class: 'nm' }, bot.name),
+        h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status)));
+    })(BOTS[i], i);
+    if (!placed) you();
+    ladder.appendChild(list);
+    ladder.appendChild(h('button', { class: 'all-link', type: 'button', onclick: function () { App.go('play'); } }, 'All ' + BOTS.length + ' opponents'));
   }
 });
 function resultWord(g) { return g.result === '1/2-1/2' ? 'Draw' : ((g.result === '1-0') === (g.color === 'w') ? 'Win' : 'Loss'); }
