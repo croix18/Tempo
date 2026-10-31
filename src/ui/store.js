@@ -21,7 +21,8 @@ var Store = (function () {
     return {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
-        autoQueen: false, coach: true, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false },
+        autoQueen: false, coach: true, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
+        otb: '10+0' },
       play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
       learn: { rev: 0, done: {}, last: null },
@@ -64,6 +65,13 @@ var Store = (function () {
   function bots() { return (window.TempoBots && TempoBots.BOTS) || []; }
   function botIndex(id) { var b = bots(); for (var i = 0; i < b.length; i++) if (b[i].id === id) return i; return -1; }
 
+  /* the chess clock's time: "10+5", or "10+5/3+2" for White and Black; 1 to 180 minutes, up to 60 seconds a move */
+  function otbSpec(x) {
+    var m = typeof x === 'string' && /^(\d{1,3})\+(\d{1,2})(?:\/(\d{1,3})\+(\d{1,2}))?$/.exec(x);
+    if (!m) return false;
+    function ok(a, b) { return +a >= 1 && +a <= 180 && +b <= 60; }
+    return ok(m[1], m[2]) && (m[3] == null || ok(m[3], m[4]));
+  }
   function cleanSettings(s) {
     var d = defaults().settings, out = extras(s, Object.keys(d), true);
     out.rev = count(s.rev);
@@ -72,6 +80,7 @@ var Store = (function () {
     FLAGS.forEach(function (k) { out[k] = typeof s[k] === 'boolean' ? s[k] : d[k]; });
     out.clock = oneOf(s.clock, CLOCKS, d.clock);
     out.color = oneOf(s.color, COLORS, d.color);
+    out.otb = otbSpec(s.otb) ? s.otb : d.otb;
     return out;
   }
   function cleanPlay(p) {

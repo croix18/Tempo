@@ -7,7 +7,7 @@ as specified. Also checks the inline engine cap when workers are blocked and the
 
   TEMPO_URL=file:///path/to/Tempo.html python3 build/data_robust_test.py [name filter]
 """
-import asyncio, functools, http.server, json, os, sys, tempfile, threading, time, urllib.parse
+import asyncio, json, os, sys, tempfile, time
 from playwright.async_api import async_playwright
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -15,28 +15,9 @@ CHROME = os.environ.get('CHROME') or ('/usr/bin/google-chrome' if os.path.exists
 TEMPO_URL = os.environ.get('TEMPO_URL') or 'file://' + ROOT + '/dist/Tempo.html'
 
 
-class _Quiet(http.server.SimpleHTTPRequestHandler):
-    def log_message(self, *args): pass
-
-    def do_GET(self):
-        # browsers ask a web server for /favicon.ico on their own; a file:// page never does, so answer it with nothing
-        if self.path.split('?')[0] == '/favicon.ico':
-            self.send_response(204); self.end_headers(); return
-        return super().do_GET()
-
-
-def serve_over_http(url):
-    """Serve a file:// build from 127.0.0.1 instead. In a fresh test context (storage kept in memory), headless Chromium
-    now and then brings a file:// page back from a reload with empty storage, which has nothing to do with Tempo;
-    a page from a real origin keeps its storage, so the reload checks below test the app and not that quirk."""
-    if not url.startswith('file://'): return url
-    folder, name = os.path.split(urllib.parse.unquote(url[len('file://'):]))
-    srv = http.server.ThreadingHTTPServer(('127.0.0.1', 0), functools.partial(_Quiet, directory=folder))
-    threading.Thread(target=srv.serve_forever, daemon=True).start()
-    return 'http://127.0.0.1:%d/%s' % (srv.server_address[1], urllib.parse.quote(name))
-
-
-TEMPO_URL = serve_over_http(TEMPO_URL)
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from testutil import serve_over_http
+TEMPO_URL = serve_over_http(TEMPO_URL)  # reloads keep their storage on a real origin (see testutil)
 ONLY = sys.argv[1] if len(sys.argv) > 1 else None
 VIEWS = ['home', 'play', 'puzzles', 'learn', 'openings', 'train', 'review', 'progress', 'prefs', 'more']
 DESK = {'width': 1280, 'height': 860}

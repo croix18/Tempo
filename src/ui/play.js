@@ -20,6 +20,9 @@ var Play = (function () {
         h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
     var list = UI.ladder({ lo: 0, hi: BOTS.length - 1, full: true, playing: cb && cb.id });
     root.appendChild(list);
+    // playing someone across a real board: the screen becomes the clock
+    root.appendChild(h('nav', { class: 'menu-list', 'aria-label': 'Over the board', style: { maxWidth: '720px', marginTop: '20px' } },
+      UI.menuRow('clock', 'Chess clock', 'For a game on a real board', function () { App.go('clock'); })));
     var recent = S.games.list.slice(0, 3);
     if (recent.length) {
       root.appendChild(h('h2', { style: { margin: '32px 0 12px' } }, 'Recent games'));

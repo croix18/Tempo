@@ -1,0 +1,98 @@
+/* ---------- chess clock: the whole screen is the clock ---------- */
+/* its own colours in light and dark alike: navy while you wait, gold while your time runs, coral when it's nearly gone */
+.clock-app {
+  --ck-wait: #1B2A4A; --ck-wait-ink: rgba(251, 246, 234, 0.9);
+  --ck-run: #D4AF37; --ck-run-ink: #16223D;
+  --ck-low: #DE4F36; --ck-low-ink: #FFFFFF;
+  --ck-bar: #0F192D; --ck-bar-ink: #F4EEDF;
+  position: fixed; inset: 0; z-index: 40;
+  display: flex; flex-direction: column;
+  background: var(--ck-bar); color: var(--ck-bar-ink);
+  overflow: hidden; overscroll-behavior: none;
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
+}
+.ck-side {
+  flex: 1 1 0; min-width: 0; min-height: 0; position: relative;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0; padding: 12px; border: 0; border-radius: 0;
+  background: var(--ck-wait); color: var(--ck-wait-ink);
+  font: inherit; cursor: pointer; touch-action: manipulation;
+  container-type: size;
+  transition: background-color 0.18s ease, color 0.18s ease;
+}
+.ck-side.run { background: var(--ck-run); color: var(--ck-run-ink); }
+.ck-side.run.low, .ck-side.out { background: var(--ck-low); color: var(--ck-low-ink); }
+.clock-app.ck-paused .ck-side { color: rgba(251, 246, 234, 0.55); }
+.ck-side:focus-visible { outline: 4px solid var(--ck-run); outline-offset: -10px; }
+.ck-side.run:focus-visible { outline-color: var(--ck-run-ink); }
+.ck-in { display: flex; flex-direction: column; align-items: center; gap: clamp(6px, 2.4cqh, 18px); pointer-events: none; }
+.ck-name { display: inline-flex; align-items: center; gap: 0.4em; font-size: clamp(16px, 5.2cqh, 26px); font-weight: 600; }
+.ck-king { width: 1.45em; height: 1.45em; background-size: contain; background-position: center; background-repeat: no-repeat; }
+/* the digits: as big as the half allows, one size for the whole game (--ck-chars is the longest time's length) */
+.ck-time {
+  font-family: var(--sans); font-weight: 700; line-height: 1; letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+  font-size: 20vw;
+  font-size: min(calc(158cqw / var(--ck-chars, 5)), 44cqh);
+}
+.ck-sub { min-height: 1.3em; font-size: clamp(15px, 4.6cqh, 22px); font-weight: 600; }
+/* upright, the far half turns around to face the other player */
+@media (orientation: portrait) { .ck-top .ck-in { transform: rotate(180deg); } }
+
+/* the strip between the halves */
+.ck-bar {
+  flex: none; display: flex; align-items: center; justify-content: center; gap: 10px;
+  min-height: 78px; padding: 8px max(12px, env(safe-area-inset-right, 0px)) 8px max(12px, env(safe-area-inset-left, 0px));
+}
+.ck-btn {
+  display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
+  min-width: 84px; min-height: 60px; padding: 6px 12px; border: 0; border-radius: 14px;
+  background: rgba(251, 246, 234, 0.09); color: var(--ck-bar-ink);
+  font: inherit; font-size: 13.5px; font-weight: 600; line-height: 1.15; cursor: pointer; touch-action: manipulation;
+}
+.ck-btn .ic { width: 24px; height: 24px; }
+.ck-btn .ic svg { width: 100%; height: 100%; stroke-width: 2.2; }
+.ck-btn:hover { background: rgba(251, 246, 234, 0.15); }
+.ck-btn.primary { min-width: 104px; background: var(--ck-run); color: var(--ck-run-ink); }
+.ck-btn.primary:hover { background: #DDBB4A; }
+.ck-btn:focus-visible { outline: 3px solid var(--ck-run); outline-offset: 3px; }
+.ck-btn-label { white-space: nowrap; }
+
+/* sideways: the halves sit left and right, like a real clock, with the strip between them */
+@media (orientation: landscape) {
+  .clock-app { flex-direction: row; }
+  .ck-bar { flex-direction: column; min-height: 0; width: 112px; padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
+  .ck-btn { width: 88px; min-width: 0; }
+  .ck-btn.primary { min-width: 0; }
+  .ck-swap .ic { transform: rotate(90deg); } /* the halves are side by side now */
+}
+@media (orientation: landscape) and (max-height: 420px) {
+  .ck-bar { gap: 6px; width: 96px; }
+  .ck-btn { width: 76px; min-height: 52px; font-size: 12.5px; }
+}
+
+/* choosing the time */
+.ck-sheet h2 { margin-bottom: 4px; }
+.ck-presets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 14px 0 24px; }
+@media (min-width: 560px) { .ck-presets { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.ck-preset {
+  display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 3px;
+  min-height: 66px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px;
+  background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.ck-preset b { font-size: 19px; font-weight: 700; line-height: 1.15; }
+.ck-preset span { font-size: 13px; color: var(--ink-2); line-height: 1.25; }
+.ck-preset:hover { background: var(--surface-2); }
+.ck-preset.on { border-color: var(--gold); box-shadow: inset 0 0 0 1px var(--gold); background: var(--gold-wash); }
+.ck-own h3 { font-size: 17px; margin: 0 0 4px; }
+.ck-own-rows.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px 16px; }
+.ck-own-side .label { margin-top: 8px; }
+.ck-step { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 7px 0; }
+.ck-own-rows.two .ck-step { flex-direction: column; align-items: stretch; gap: 6px; }
+.ck-step-label { color: var(--ink-2); font-size: 15px; }
+.ck-step-ctl { display: inline-flex; align-items: center; justify-content: space-between; gap: 8px; }
+.ck-step-ctl .btn { width: 46px; min-height: 46px; padding: 0; font-size: 22px; font-weight: 600; justify-content: center; }
+.ck-step-val { min-width: 4.6em; text-align: center; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.ck-split { margin: 6px 0 14px; border-bottom: 0; }
+
+@media (prefers-reduced-motion: reduce) { .ck-side { transition: none; } }

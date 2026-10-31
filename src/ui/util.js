@@ -77,6 +77,8 @@ var U = (function () {
     upload: '<path d="M12 20V9M7 14l5-5 5 5M5 4h14"/>',
     bolt: '<path d="M13 3 5 13h6l-1 8 8-10h-6z"/>',
     clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
+    pause: '<path d="M9 6v12M15 6v12"/>',
+    resume: '<path d="M8 5.5v13l10.5-6.5z"/>',
     fire: '<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-4 3.5-6 3.5-10 2.5 1.5 4 4 4 6 1-1 1.5-2.2 1.5-3.5 2.4 1.6 4 4.5 4 7.5 0 3.4-2.5 6-6.5 6z"/>',
     target: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',

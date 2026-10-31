@@ -52,6 +52,7 @@ var App = (function () {
   var NAV = [
     { id: 'home', label: 'Home', icon: 'home' },
     { id: 'play', label: 'Play', icon: 'play' },
+    { id: 'clock', label: 'Chess clock', icon: 'clock' },
     { id: 'puzzles', label: 'Puzzles', icon: 'puzzle' },
     { id: 'learn', label: 'Learn', icon: 'learn' },
     { id: 'openings', label: 'Openings', icon: 'openings' },
@@ -63,6 +64,7 @@ var App = (function () {
   var TABS = ['home', 'play', 'puzzles', 'learn', 'more'];
   var MORE_OF = ['review', 'progress', 'prefs', 'more'];
   var LEARN_OF = ['openings', 'train'];
+  var PLAY_OF = ['clock'];
 
   function register(name, view) { views[name] = view; }
   function isView(n) { return typeof n === 'string' && Object.prototype.hasOwnProperty.call(views, n); }
@@ -90,7 +92,7 @@ var App = (function () {
 
   function markNav(name) {
     Array.prototype.forEach.call(sideNav.querySelectorAll('.nav-item'), function (b) { b.classList.toggle('on', b.dataset.go === name); });
-    var tabName = TABS.indexOf(name) >= 0 ? name : LEARN_OF.indexOf(name) >= 0 ? 'learn' : MORE_OF.indexOf(name) >= 0 ? 'more' : name;
+    var tabName = TABS.indexOf(name) >= 0 ? name : LEARN_OF.indexOf(name) >= 0 ? 'learn' : PLAY_OF.indexOf(name) >= 0 ? 'play' : MORE_OF.indexOf(name) >= 0 ? 'more' : name;
     Array.prototype.forEach.call(tabNav.querySelectorAll('.tab'), function (b) { b.classList.toggle('on', b.dataset.go === tabName); });
   }
 
@@ -567,7 +569,7 @@ App.register('more', {
     root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'More')));
     var list = h('nav', { class: 'menu-list', 'aria-label': 'More' });
     var reps = Data.reps(), hasOpenings = reps.repertoires.length > 0 || reps.traps.length > 0;
-    App.NAV.filter(function (n) { return ['openings', 'train', 'review', 'progress', 'prefs'].indexOf(n.id) >= 0 && (n.id !== 'openings' || hasOpenings); }).forEach(function (n) {
+    App.NAV.filter(function (n) { return ['clock', 'openings', 'train', 'review', 'progress', 'prefs'].indexOf(n.id) >= 0 && (n.id !== 'openings' || hasOpenings); }).forEach(function (n) {
       list.appendChild(UI.menuRow(n.icon, n.label, null, function () { App.go(n.id); }));
     });
     root.appendChild(list);
