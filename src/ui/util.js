@@ -32,9 +32,11 @@ var U = (function () {
   function $(sel, root) { return (root || document).querySelector(sel); }
 
   /* inline text with **bold** and paragraph breaks, built safely */
+  var TOUCH = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+  function touchWords(t) { return TOUCH ? String(t).replace(/\bClick\b/g, 'Tap').replace(/\bclick\b/g, 'tap').replace(/\bclicking\b/g, 'tapping') : String(t); }
   function rich(text) {
     var frag = document.createDocumentFragment();
-    String(text || '').split(/\n\n+/).forEach(function (para) {
+    touchWords(text || '').split(/\n\n+/).forEach(function (para) {
       var p = h('p');
       para.split(/(\*\*[^*]+\*\*)/).forEach(function (part) {
         if (/^\*\*[^*]+\*\*$/.test(part)) p.appendChild(h('strong', null, part.slice(2, -2)));
@@ -217,7 +219,7 @@ var U = (function () {
     });
   }
 
-  return { h: h, clear: clear, $: $, rich: rich, icon: icon, pct: pct, plural: plural, dateShort: dateShort, dayKey: dayKey,
+  return { h: h, clear: clear, $: $, rich: rich, touchWords: touchWords, icon: icon, pct: pct, plural: plural, dateShort: dateShort, dayKey: dayKey,
     clockText: clockText, evalText: evalText, rng: rng, pick: pick, shuffle: shuffle, debounce: debounce, sleep: sleep, uid: uid,
     winPct: winPct, sound: sound, copyText: copyText, saveFile: saveFile, canSaveFile: canSaveFile, readFile: readFile, framed: framed };
 })();

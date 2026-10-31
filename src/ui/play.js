@@ -9,34 +9,34 @@ var Play = (function () {
 
   /* ---------- ladder ---------- */
   function renderLadder(root) {
-    var S = Store.state, un = unlockedIdx();
-    root.appendChild(h('div', { class: 'page-head' },
-      h('div', null, h('h1', null, 'Play')),
-      h('div', { class: 'row' }, h('span', { class: 'chip gold' }, 'Your rating ' + S.play.rating))));
-    if (S.current && S.current.moves && !S.current.result) {
-      var cb = TempoBots.byId(S.current.bot);
-      if (cb) root.appendChild(h('div', { class: 'card raised row between', style: { marginBottom: '16px' } },
-        h('div', { class: 'row' }, UI.avatar(cb, 'sm'), h('div', null, h('b', null, 'Game in progress'), h('div', { class: 'muted small' }, 'vs ' + cb.name + ' · move ' + (Math.floor(S.current.moves.length / 2) + 1)))),
-        h('div', { class: 'row tight' },
-          h('button', { class: 'btn quiet small', type: 'button', onclick: function () { App.confirm('Abandon this game?', 'It won’t be saved or rated.', 'Abandon', true).then(function (ok) { if (ok) { Store.state.current = null; Store.touch(); App.refresh(); } }); } }, 'Abandon'),
-          h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
-    }
-    var grid = h('div', { class: 'bot-grid' });
-    BOTS.forEach(function (bot, i) {
-      var rec = S.play.bots[bot.id] || { w: 0, d: 0, l: 0 };
-      var locked = i > un, isNext = i === Math.min(S.play.unlocked || 0, BOTS.length - 1) && !rec.beaten;
-      var meta = h('div', { class: 'meta' }, h('span', { class: 'chip' }, bot.id === 'stockfish' ? 'Full strength' : 'About ' + bot.rating));
-      if (rec.beaten) meta.appendChild(h('span', { class: 'chip green' }, U.icon('check'), 'Beaten'));
-      if (rec.w + rec.d + rec.l) meta.appendChild(h('span', { class: 'chip' }, rec.w + '–' + rec.d + '–' + rec.l));
-      if (locked) meta.appendChild(h('span', { class: 'chip' }, U.icon('lock'), 'Locked'));
-      grid.appendChild(h('button', { class: 'bot' + (locked ? ' locked' : '') + (isNext ? ' next' : ''), type: 'button',
-        'aria-label': bot.name + (locked ? ', locked' : ''),
-        onclick: function () { if (locked) App.toast('Beat ' + BOTS[i - 1].name + ' to unlock ' + bot.name + '.'); else setup(bot); } },
-        UI.avatar(bot), h('div', { class: 'info' }, h('div', { class: 'nm' }, bot.name), h('div', { class: 'bio' }, bot.bio), meta)));
+    var S = Store.state;
+    root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Play'),
+      h('div', { class: 'head-note' }, 'Your rating ', h('b', { class: 'num' }, String(S.play.rating)))));
+    var cb = S.current && S.current.moves && S.current.moves.length && !S.current.result ? TempoBots.byId(S.current.bot) : null;
+    if (cb) root.appendChild(h('div', { class: 'resume' },
+      h('p', { class: 'grow' }, 'Your game against ' + cb.name + ' is still going. You\u2019re on move ' + (Math.floor(S.current.moves.length / 2) + 1) + '.'),
+      h('div', { class: 'row tight' },
+        h('button', { class: 'btn quiet small', type: 'button', onclick: function () { abandon().then(function (ok) { if (ok) App.refresh(); }); } }, 'Abandon'),
+        h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
+    var list = UI.ladder({ lo: 0, hi: BOTS.length - 1, full: true, playing: cb && cb.id });
+    root.appendChild(list);
+    root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px', maxWidth: '62ch' } },
+      'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn\u2019t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
+    // on a phone the next opponent can sit below the fold; bring it into view
+    if (list._next) requestAnimationFrame(function () {
+      var r = list._next.getBoundingClientRect();
+      if (r.bottom > window.innerHeight - 90) list._next.scrollIntoView({ block: 'center' });
     });
-    root.appendChild(grid);
-    root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px' } },
-      'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn’t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
+  }
+  /* asks before throwing away an unfinished game; resolves true when there is nothing left to lose */
+  function abandon() {
+    var cur = Store.state.current;
+    if (!cur || cur.result || !cur.moves || !cur.moves.length) return Promise.resolve(true);
+    var b = TempoBots.byId(cur.bot);
+    return App.confirm('Abandon your game against ' + (b ? b.name : 'this opponent') + '?', 'It won\u2019t be saved or rated.', 'Abandon', true).then(function (ok) {
+      if (ok) { Store.state.current = null; Store.touch(); }
+      return ok;
+    });
   }
 
   /* ---------- setup ---------- */
@@ -47,6 +47,8 @@ var Play = (function () {
       box.appendChild(h('div', { class: 'row', style: { marginBottom: '12px' } }, UI.avatar(bot, 'lg'),
         h('div', null, h('h2', null, bot.name), h('div', { class: 'muted' }, bot.id === 'stockfish' ? 'Full strength' : 'About ' + bot.rating))));
       box.appendChild(h('p', { class: 'muted' }, bot.bio));
+      var rec = Store.state.play.bots[bot.id];
+      if (rec && rec.w + rec.d + rec.l) box.appendChild(h('p', { class: 'small' }, 'Your record against ' + bot.name + ': ' + recordWords(rec) + '.'));
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'You play'));
       box.appendChild(seg([['w', 'White'], ['r', 'Random'], ['b', 'Black']], choice.color, function (v) { choice.color = v; }));
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'Clock'));
@@ -61,8 +63,7 @@ var Play = (function () {
           var s = Store.state.settings;
           s.color = choice.color; s.coach = choice.coach; s.takebacks = choice.takebacks; s.hanging = choice.hanging; s.clock = choice.clock;
           Store.touch('settings');
-          api.close();
-          start(bot, choice);
+          abandon().then(function (ok) { if (!ok) return; api.close(); start(bot, choice); });
         } }, 'Start game')));
     });
   }
@@ -197,11 +198,15 @@ var Play = (function () {
         controls.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { setup(bot); } }, 'Rematch'));
         return;
       }
-      controls.appendChild(h('button', { class: 'btn', type: 'button', onclick: hint, disabled: !myTurn() || st.thinking }, U.icon('hint'), 'Hint'));
-      if (G.takebacks) controls.appendChild(h('button', { class: 'btn', type: 'button', onclick: takeback, disabled: !canTakeback() }, U.icon('undo'), 'Undo'));
-      controls.appendChild(h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); } }, U.icon('flip')));
-      controls.appendChild(h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Offer a draw', onclick: offerDraw, disabled: st.thinking }, U.icon('draw')));
-      controls.appendChild(h('button', { class: 'btn icon-only danger', type: 'button', 'aria-label': 'Resign', onclick: resign }, U.icon('flag')));
+      // every control carries a word as well as an icon: a beginner shouldn't have to guess
+      function tool(icon, label, fn, disabled, aria, extra) {
+        return h('button', { class: 'btn tool' + (extra ? ' ' + extra : ''), type: 'button', onclick: fn, disabled: disabled, 'aria-label': aria, title: aria || label }, U.icon(icon), h('span', null, label));
+      }
+      controls.appendChild(tool('hint', 'Hint', hint, !myTurn() || st.thinking, 'Get a hint'));
+      if (G.takebacks) controls.appendChild(tool('undo', 'Undo', takeback, !canTakeback(), 'Take back your last move'));
+      controls.appendChild(tool('flip', 'Flip', function () { board.flip(); }, false, 'Flip the board'));
+      controls.appendChild(tool('draw', 'Draw', offerDraw, st.thinking, 'Offer a draw'));
+      controls.appendChild(tool('flag', 'Resign', resign, false, 'Resign the game', 'resign'));
     }
 
     function say(text, kind) {
@@ -239,7 +244,7 @@ var Play = (function () {
         var p = new C.Pos(G.startFen), epds = [epdOf(p)];
         for (var i = 0; i < Math.min(G.moves.length, 30); i++) { p.make(p.parseMove(G.moves[i])); epds.push(epdOf(p)); }
         var o = openingFor(map, epds), el = document.getElementById('opening');
-        if (el) el.textContent = o ? o.eco + ' · ' + o.name : '';
+        if (el) { el.textContent = o ? o.name : ''; el.title = o ? o.eco + ' ' + o.name : ''; }
       });
     }
 
@@ -353,6 +358,7 @@ var Play = (function () {
     function hint() {
       if (!myTurn()) return;
       if (st.hintStage === 0) {
+        assisted('a hint');
         G.hints++; Store.touch();
         say('Thinking about a hint…');
         var tok = st.token;
@@ -360,7 +366,7 @@ var Play = (function () {
           if (tok !== st.token || !myTurn() || !r.best) return;
           st.hintMove = r.best; st.hintStage = 1;
           board.setMarks([{ sq: r.best.slice(0, 2), kind: 'gold' }]);
-          say('Look at this piece. Tap Hint again to see the move.');
+          say('Look at the highlighted piece. Press Hint again to see the move.');
         });
       } else if (st.hintStage === 1 && st.hintMove) {
         st.hintStage = 2;
@@ -375,6 +381,7 @@ var Play = (function () {
       var n = (st.pos.side === 1 ? 'w' : 'b') === G.color ? 2 : 1;
       if (G.moves.length < n) n = G.moves.length;
       G.moves.splice(G.moves.length - n, n); G.sans.splice(G.sans.length - n, n);
+      assisted('a takeback');
       G.undos++;
       st.pos = new C.Pos(G.startFen);
       var last = null;
@@ -388,16 +395,21 @@ var Play = (function () {
     function resign() {
       App.confirm('Resign this game?', null, 'Resign', true).then(function (ok) { if (ok) finish(G.color === 'w' ? '0-1' : '1-0', 'resignation'); });
     }
+    /* the first hint or takeback in a game that would count tells you it no longer will */
+    function assisted(what) {
+      if (G.hints || G.undos) return;
+      App.toast('You used ' + what + ', so this game won\u2019t count toward your rating.');
+    }
     function offerDraw() {
-      if (G.moves.length < 20) { botSays('It’s a bit early for a draw. Let’s play on.'); return; }
-      say('Your opponent is considering the draw offer…');
+      if (G.moves.length < 20) { say(bot.name + ' won\u2019t agree to a draw before move 10. Play on.'); botSays('It\u2019s a bit early for a draw. Let\u2019s play on.'); return; }
+      say(bot.name + ' is thinking about your draw offer\u2026');
       Engines.analyse({ fen: st.pos.fen(), depth: 12, movetime: 800 }).then(function (r) {
         var l = r.lines[0] || { cp: 0 };
         var forSideToMove = l.mate != null ? (l.mate > 0 ? 3000 : -3000) : l.cp;
         var botSide = G.color === 'w' ? -1 : 1;
         var forBot = (st.pos.side === botSide) ? forSideToMove : -forSideToMove;
         if (forBot <= 30) { finish('1/2-1/2', 'agreement'); }
-        else { say(null); botSays('No thanks. I like my position.'); }
+        else { say(bot.name + ' declined the draw. Play on.'); botSays('No thanks. I like my position.'); }
       });
     }
 

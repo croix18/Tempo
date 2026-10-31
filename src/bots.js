@@ -64,7 +64,7 @@ var BOTS = [
     bio: 'Never met a check she didn’t give.',
     cfg: { depth: 2, qs: true, temp: 110, random: 0.13, blunder: 0.66, jitter: 20,
       style: { checks: 45, captures: 20, center: 10, develop: 20, castle: 20 } },
-    lines: { hello: 'Check is my favorite word.', win: 'Check, and mate!', lose: 'Out of checks. Well played.', capture: 'Thank you kindly.' } },
+    lines: { hello: 'Check is my favorite word.', win: 'All those checks paid off.', lose: 'Out of checks. Well played.', capture: 'Thank you kindly.' } },
   { id: 'gus', name: 'Gus', rating: 850, tone: 'gold',
     bio: 'Solid and steady, until he isn’t.',
     cfg: { depth: 2, qs: true, temp: 85, random: 0.08, blunder: 0.55, book: true,

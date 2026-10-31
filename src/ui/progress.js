@@ -25,15 +25,15 @@
         d.setDate(d.getDate() + 1);
       }
       root.appendChild(h('div', { class: 'card stack', style: { marginTop: '14px' } },
-        h('div', { class: 'row between' }, h('h3', null, 'Practice'), h('span', { class: 'chip gold' }, U.icon('fire'), Store.streak() + ' day streak')), heat));
+        h('div', { class: 'row between' }, h('h3', null, 'Practice'), h('span', { class: 'head-note' }, Store.streak() ? h('b', { class: 'num' }, U.plural(Store.streak(), 'day')) : 'Practice today to start a streak', Store.streak() ? ' in a row' : null)), heat));
 
       // records
       var totals = { w: 0, d: 0, l: 0 }, rows = h('div', { class: 'list' });
       TempoBots.BOTS.forEach(function (b) {
         var r = S.play.bots[b.id]; if (!r) return;
         totals.w += r.w; totals.d += r.d; totals.l += r.l;
-        rows.appendChild(h('div', { class: 'list-row' }, UI.avatar(b, 'sm'), h('div', { class: 'grow' }, h('b', null, b.name), r.beaten ? h('span', { class: 'chip green', style: { marginLeft: '8px' } }, 'Beaten') : null),
-          h('span', { class: 'num' }, r.w + ' won · ' + r.d + ' drawn · ' + r.l + ' lost')));
+        rows.appendChild(h('div', { class: 'list-row' }, UI.avatar(b, 'sm'), h('div', { class: 'grow row tight' }, h('b', null, b.name), r.beaten ? U.icon('check', 'won') : null),
+          h('span', { class: 'num muted' }, recordWords(r))));
       });
       var units = Data.lessons(), lessonsTotal = 0, lessonsDone = 0;
       units.forEach(function (u) { u.lessons.forEach(function (l) { lessonsTotal++; if (S.learn.done[l.id]) lessonsDone++; }); });
@@ -41,8 +41,8 @@
       reps.repertoires.forEach(function (r) { r.lines.forEach(function (ln) { linesTotal++; var x = S.openings.lines[r.id + '/' + ln.id]; if (x && x.learned) linesDone++; }); });
       var g2 = h('div', { class: 'grid two', style: { marginTop: '14px' } });
       g2.appendChild(h('div', { class: 'card stack' }, h('h3', null, 'Against the bots'),
-        h('div', { class: 'row' }, stat('Won', totals.w), stat('Drawn', totals.d), stat('Lost', totals.l)),
-        rows.children.length ? rows : h('div', { class: 'muted small' }, 'No games yet.')));
+        h('p', { class: 'muted' }, totals.w + totals.d + totals.l ? 'In all: ' + recordWords(totals) + '.' : 'No games yet. Beat each opponent to unlock the next.'),
+        rows.children.length ? rows : null));
       var themeBox = h('div', { class: 'stack', style: { gap: '8px' } });
       var th = Object.keys(S.puzzles.themes).filter(function (t) { return Puzzles.NAMES[t] && S.puzzles.themes[t][0] >= 5 && !/^(short|long|veryLong|oneMove|middlegame|endgame|opening|advantage|crushing|master|mate)$/.test(t); })
         .map(function (t) { var x = S.puzzles.themes[t]; return { t: t, r: x[1] / x[0], n: x[0] }; }).sort(function (a, b) { return b.r - a.r; });
@@ -52,10 +52,11 @@
       });
       else themeBox.appendChild(h('div', { class: 'muted small' }, 'Solve a few more puzzles to see your strong and weak themes.'));
       g2.appendChild(h('div', { class: 'card stack' }, h('h3', null, 'Learning'),
-        h('div', { class: 'row' }, stat('Lessons', lessonsDone + '/' + lessonsTotal), stat('Opening lines', linesDone + '/' + linesTotal), stat('Mistakes saved', S.mistakes.items.length)),
+        progressRow('Lessons finished', lessonsDone, lessonsTotal), progressRow('Opening lines learned', linesDone, linesTotal),
+        h('p', { class: 'muted small' }, S.mistakes.items.length ? U.plural(S.mistakes.items.length, 'position') + ' from your own games saved to retry.' : 'Review a game to save your mistakes for practice.'),
         h('div', { class: 'label', style: { marginTop: '6px' } }, 'Puzzle themes'), themeBox));
       root.appendChild(g2);
-      function stat(label, v) { return h('div', { class: 'stat grow' }, h('span', { class: 'label' }, label), h('b', { style: { fontSize: '24px' } }, String(v))); }
+      function progressRow(label, a, b) { return h('div', null, h('div', { class: 'row between small', style: { marginBottom: '6px' } }, h('span', null, label), h('span', { class: 'num' }, a + ' of ' + b)), UI.meter(b ? a / b : 0, 'green')); }
     }
   });
 

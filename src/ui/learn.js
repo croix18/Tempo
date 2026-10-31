@@ -17,13 +17,12 @@ var Learn = (function () {
   function renderUnits(root) {
     var units = Data.lessons(), total = 0, finished = 0;
     units.forEach(function (u) { u.lessons.forEach(function (l) { total++; if (done(l.id)) finished++; }); });
-    root.appendChild(h('div', { class: 'page-head' },
-      h('div', null, h('h1', null, 'Learn')),
-      h('span', { class: 'chip gold' }, finished + ' of ' + total + ' done')));
+    root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Learn'),
+      h('div', { class: 'head-note' }, h('b', { class: 'num' }, finished + ' of ' + total), ' lessons done')));
     var nx = nextLesson();
-    if (nx) root.appendChild(h('div', { class: 'card raised row between', style: { marginBottom: '18px' } },
-      h('div', null, h('div', { class: 'label' }, 'Up next'), h('h3', null, nx.lesson.title), h('div', { class: 'muted small' }, nx.unit.title + ' · ' + nx.lesson.summary)),
-      h('button', { class: 'btn primary', type: 'button', onclick: function () { open(nx.lesson.id); } }, 'Start')));
+    if (nx) root.appendChild(h('div', { class: 'resume', style: { marginBottom: '20px' } },
+      h('p', { class: 'grow' }, h('b', null, 'Up next: ' + nx.lesson.title + '. '), h('span', { class: 'muted' }, nx.lesson.summary)),
+      h('button', { class: 'btn primary small', type: 'button', onclick: function () { open(nx.lesson.id); } }, finished ? 'Continue' : 'Start')));
     if (!units.length) root.appendChild(h('div', { class: 'empty' }, 'Lessons are missing from this build.'));
     var col = h('div', { class: 'stack', style: { gap: '16px' } });
     units.forEach(function (u, ui) {
@@ -156,11 +155,12 @@ var Learn = (function () {
       var finalPly = st.ply === s.line.length - 1;
       var ok = uci === expected || extra.indexOf(uci) >= 0 || (finalPly && s.mate && after.status().reason === 'checkmate');
       if (!ok) {
-        st.mistakes++;
+        st.mistakes++; st.tries++;
         U.sound.bad();
         board.setMovable(null);
         board.setPosition(after, { last: m, animate: false });
-        var msg = (s.wrong && s.wrong[uci]) || 'Not quite. Try again.';
+        var msg = (s.wrong && s.wrong[uci]) || wrongWhy(m, after);
+        if (!(s.wrong && s.wrong[uci]) && st.tries >= 2 && s.hint && st.hintLevel === 0) { msg += ' Hint: ' + s.hint; st.hintLevel = 1; }
         fb('no', msg);
         var tok = st.token;
         setTimeout(function () { if (tok !== st.token) return; board.setPosition(st.pos, { animate: true, clearLast: true }); board.setMovable(st.pos.side === 1 ? 'w' : 'b'); }, 900);
@@ -310,6 +310,12 @@ var Learn = (function () {
       return fail(status.reason === 'stalemate' ? 'Stalemate: the defending king had no legal move. Leave it a square.' : 'The game ended in a draw. Restart and try again.');
     }
     function success() { st.complete = true; U.sound.good(); board.setMovable(null); fb('ok', lesson.steps[st.i].done || 'Done.'); navRow(true); }
+    /* a reason for a wrong move that we can see without an engine: it leaves the moved piece en prise */
+    function wrongWhy(m, after) {
+      var to = (m >> 7) & 127, piece = Math.abs(after.b[to]);
+      if (piece && piece !== 6 && after.hangingLoss(to) >= 100) return 'Not quite. On ' + C.sqName(to) + ' your ' + PIECE_NAME[piece] + ' can be taken for free. Try again.';
+      return 'Not quite. Try again.';
+    }
     function fail(msg) { st.mistakes++; U.sound.bad(); board.setMovable(null); fb('no', msg); }
 
     function finish() {

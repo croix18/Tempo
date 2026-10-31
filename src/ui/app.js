@@ -291,7 +291,41 @@ var UI = (function () {
     return h('div', { class: 'mini-board' }, b.el);
   }
 
-  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon };
+  /* The opponent ladder, strongest at the top, with your rating marked where it falls.
+     o: { lo, hi: bot indexes to show; full: show each bio; playing: id of the bot in an unfinished game } */
+  function ladder(o) {
+    var S = Store.state, BOTS = TempoBots.BOTS;
+    var nextIdx = Math.min(S.play.unlocked || 0, BOTS.length - 1), unlockedTo = S.settings.unlockAll ? BOTS.length - 1 : nextIdx;
+    var list = h('ol', { class: 'rungs' + (o.full ? ' full' : '') }), placed = !S.play.hist.length;
+    function you() {
+      placed = true;
+      list.appendChild(h('li', { class: 'you-mark', 'aria-label': 'Your rating, ' + S.play.rating }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
+    }
+    for (var i = o.hi; i >= o.lo; i--) (function (bot, i) {
+      if (!placed && S.play.rating >= bot.rating) you();
+      var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !o.playing;
+      var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
+      var li = h('li', null, h('button', {
+        class: 'rung' + (locked ? ' locked' : '') + (isNext ? ' next' : '') + (o.playing === bot.id ? ' playing' : ''), type: 'button',
+        'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : isNext ? ', your next opponent' : ''),
+        onclick: function () { if (locked) App.toast('Beat ' + BOTS[i - 1].name + ' to unlock ' + bot.name + '.'); else Play.setup(bot); }
+      }, h('span', { class: 'n num' }, String(i + 1)),
+        o.full ? h('span', { class: 'nm' }, h('span', { class: 'who' }, bot.name), h('span', { class: 'bio' }, bot.bio)) : h('span', { class: 'nm' }, bot.name),
+        h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
+      if (isNext) list._next = li;
+      list.appendChild(li);
+    })(BOTS[i], i);
+    if (!placed) you();
+    return list;
+  }
+
+  /* one row of a grouped list: icon, a title, an optional line under it, and a chevron */
+  function menuRow(icon, title, sub, onclick, extra) {
+    return h('button', { class: 'menu-row' + (extra ? ' ' + extra : ''), type: 'button', onclick: onclick },
+      U.icon(icon), h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
+  }
+
+  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow };
 })();
 
 /* ---------- Home ----------
@@ -306,7 +340,7 @@ App.register('home', {
 
     root.appendChild(h('h1', { class: 'sr-only' }, 'Home'));
     var hero = h('section', { class: 'home-hero' }), fig = h('figure', { class: 'home-fig' }),
-      todo = h('nav', { class: 'home-todo', 'aria-label': 'Due now' }), ladder = h('section', { class: 'home-ladder', 'aria-label': 'Opponents' });
+      todo = h('nav', { class: 'home-todo menu-list', 'aria-label': 'Due now' }), ladder = h('section', { class: 'home-ladder', 'aria-label': 'Opponents' });
     root.appendChild(h('div', { class: 'home' },
       h('div', { class: 'home-col' }, hero, ladder),
       h('div', { class: 'home-col' }, fig, todo)));
@@ -348,9 +382,7 @@ App.register('home', {
     }
 
     /* due now: one sentence per item, only what is actually waiting */
-    function item(icon, text, open) {
-      todo.appendChild(h('button', { class: 'todo-row', type: 'button', onclick: open }, U.icon(icon), h('span', { class: 'grow' }, text), U.icon('next', 'chev')));
-    }
+    function item(icon, text, open) { todo.appendChild(UI.menuRow(icon, text, null, open)); }
     var nl = Learn.nextLesson();
     if (nl) {
       var num = 0, units = Data.lessons(), found = false;
@@ -372,47 +404,39 @@ App.register('home', {
     if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); });
     var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
     if (last && !last.reviewed && lastBot) {
-      var word = resultWord(last);
-      item('review', 'Review your ' + (word === 'Win' ? 'win over ' : word === 'Draw' ? 'draw with ' : 'loss to ') + lastBot.name, function () { Review.openGame(last.id); });
+      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); });
     }
     if (!todo.childNodes.length) todo.remove();
 
     /* the ladder around you: two rungs either side of the next opponent, strongest at the top */
     var lo = Math.max(0, nextIdx - 2), hi = Math.min(BOTS.length - 1, nextIdx + 2);
     while (hi - lo < 4 && (lo > 0 || hi < BOTS.length - 1)) { if (hi < BOTS.length - 1) hi++; else lo--; }
-    var list = h('ol', { class: 'rungs' }), placed = !S.play.hist.length;
-    function you() {
-      placed = true;
-      list.appendChild(h('li', { class: 'you-mark' }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
-    }
-    var unlockedTo = S.settings.unlockAll ? BOTS.length - 1 : nextIdx;
-    for (var i = hi; i >= lo; i--) (function (bot, i) {
-      if (!placed && S.play.rating >= bot.rating) you();
-      var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !curBot;
-      var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
-      list.appendChild(h('li', null, h('button', {
-        class: 'rung' + (locked ? ' locked' : '') + (isNext ? ' next' : ''), type: 'button',
-        'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : ''),
-        onclick: function () { if (locked) App.toast('Beat ' + BOTS[i - 1].name + ' to unlock ' + bot.name + '.'); else Play.setup(bot); }
-      }, h('span', { class: 'n num' }, String(i + 1)), h('span', { class: 'nm' }, bot.name),
-        h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status)));
-    })(BOTS[i], i);
-    if (!placed) you();
+    var list = UI.ladder({ lo: lo, hi: hi, playing: curBot && curBot.id });
     ladder.appendChild(list);
     ladder.appendChild(h('button', { class: 'all-link', type: 'button', onclick: function () { App.go('play'); } }, 'All ' + BOTS.length + ' opponents'));
   }
 });
 function resultWord(g) { return g.result === '1/2-1/2' ? 'Draw' : ((g.result === '1-0') === (g.color === 'w') ? 'Win' : 'Loss'); }
+/* "Win over Theo", "Draw with Theo", "Loss to Theo" */
+function resultPhrase(g, name) { var w = resultWord(g); return (w === 'Win' ? 'Win over ' : w === 'Draw' ? 'Draw with ' : 'Loss to ') + name; }
+/* "3 wins, 1 draw, 2 losses", leaving out zeros */
+function recordWords(r) {
+  var bits = [];
+  if (r.w) bits.push(U.plural(r.w, 'win')); if (r.d) bits.push(U.plural(r.d, 'draw')); if (r.l) bits.push(U.plural(r.l, 'loss', 'losses'));
+  return bits.length ? bits.join(', ') : 'No games yet';
+}
 
 /* ---------- More (phone) ---------- */
 App.register('more', {
   render: function (root) {
     var h = U.h;
     root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'More')));
-    var list = h('div', { class: 'card list' });
+    var list = h('nav', { class: 'menu-list', 'aria-label': 'More' });
     var reps = Data.reps(), hasOpenings = reps.repertoires.length > 0 || reps.traps.length > 0;
+    var SUB = { openings: 'Learn a repertoire, drill it, and the traps to know.', train: 'Your mistakes, coordinates, board vision and the analysis board.',
+      review: 'Go over your games with the engine, or paste one from elsewhere.', progress: 'Your ratings, practice streak and what you\u2019ve learned.', prefs: 'Theme, board, sound and backups.' };
     App.NAV.filter(function (n) { return ['openings', 'train', 'review', 'progress', 'prefs'].indexOf(n.id) >= 0 && (n.id !== 'openings' || hasOpenings); }).forEach(function (n) {
-      list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { App.go(n.id); } }, U.icon(n.icon), h('span', { class: 'grow', style: { fontWeight: 600 } }, n.label), U.icon('next')));
+      list.appendChild(UI.menuRow(n.icon, n.label, SUB[n.id], function () { App.go(n.id); }));
     });
     root.appendChild(list);
   }

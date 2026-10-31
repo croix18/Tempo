@@ -32,7 +32,7 @@ async def main(width, height, tag):
         await pg.goto(URL); await pg.wait_for_timeout(1200)
         # ---- puzzles: solve 3 rated puzzles by reading the answer
         await pg.evaluate("App.go('puzzles')"); await pg.wait_for_timeout(500)
-        await pg.locator('button.theme', has_text='Rated').first.click()
+        await pg.locator('.menu-row', has_text='Rated puzzles').first.click()
         solved = 0
         for k in range(3):
             await pg.wait_for_timeout(1300)

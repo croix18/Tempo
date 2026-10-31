@@ -48,19 +48,20 @@ var Explain = (function () {
     var mover = before.side, after = before.clone(); after.make(m);
     var moveSan = before.san(m);
     var pv = (reply && reply.pv) || [];
-    var r = { title: 'This move loses material', text: '', short: '' };
+    var r = { title: 'This move loses material', text: '', short: '', topic: 'position' };
     if (reply && reply.mate != null && reply.mate > 0) {
       var line = sanLine(after, pv, Math.min(pv.length, reply.mate * 2 - 1));
       r.title = reply.mate === 1 ? 'This allows checkmate' : 'This allows a forced checkmate';
       r.text = reply.mate === 1 ? 'Your opponent can answer ' + line[0] + ', and that’s checkmate.' : 'Your opponent has a mating attack starting with ' + line[0] + '.';
       r.short = (line[0] || 'The reply') + ' would have led to checkmate.';
+      r.topic = 'threats';
       return r;
     }
     var p = after.clone(), start = matFor(p, mover), firstLoss = null, worst = start, steps = Math.min(pv.length, 4);
     for (var i = 0; i < steps; i++) {
       var mm = p.parseMove(pv[i]); if (!mm) break;
       var cap = p.moveCaptured(mm);
-      if (cap && !firstLoss && (cap > 0 ? 1 : -1) === mover && i % 2 === 0) firstLoss = { type: Math.abs(cap), sq: (mm >> 7) & 127, san: p.san(mm), byType: Math.abs(p.b[mm & 127]) };
+      if (cap && !firstLoss && (cap > 0 ? 1 : -1) === mover && i % 2 === 0) firstLoss = { type: Math.abs(cap), sq: (mm >> 7) & 127, san: p.san(mm), byType: Math.abs(p.b[mm & 127]), idx: i };
       p.make(mm);
       if (i % 2 === 1 || i === steps - 1) worst = Math.min(worst, matFor(p, mover));
     }
@@ -77,22 +78,28 @@ var Explain = (function () {
           r.title = 'This allows a fork';
           r.text = replySan + ' attacks your ' + names[0] + ' and ' + names[1] + ' at the same time.';
           r.short = replySan + ' would have forked your ' + names[0] + ' and ' + names[1] + '.';
+          r.topic = 'fork';
           return r;
         }
       }
     }
+    // when the capture isn't the very next move, show the moves that lead to it
+    var lead = firstLoss && firstLoss.idx > 0 ? sanLine(after, pv, firstLoss.idx).join(' ') : '';
     if (loss >= 2 && firstLoss) {
       var nm = PIECE_NAME[firstLoss.type], movedTo = (m >> 7) & 127;
       r.title = 'This loses your ' + nm;
-      if (firstLoss.sq === movedTo) r.text = 'Your ' + nm + ' on ' + C.sqName(movedTo) + ' isn’t safe there. ' + firstLoss.san + ' wins it.';
+      if (lead) r.text = 'After ' + lead + ', ' + firstLoss.san + ' wins your ' + nm + ' on ' + C.sqName(firstLoss.sq) + '.';
+      else if (firstLoss.sq === movedTo) r.text = 'Your ' + nm + ' on ' + C.sqName(movedTo) + ' isn’t safe there. ' + firstLoss.san + ' wins it.';
       else r.text = 'After ' + moveSan + ', your ' + nm + ' on ' + C.sqName(firstLoss.sq) + ' is left open. ' + firstLoss.san + ' wins it.';
       r.short = firstLoss.san + ' would have won your ' + nm + '.';
+      r.topic = 'safety';
       return r;
     }
     if (loss >= 1 && firstLoss) {
       r.title = 'This drops a pawn';
-      r.text = firstLoss.san + ' wins a pawn for your opponent.';
+      r.text = lead ? 'After ' + lead + ', ' + firstLoss.san + ' wins your pawn on ' + C.sqName(firstLoss.sq) + '.' : firstLoss.san + ' wins your pawn on ' + C.sqName(firstLoss.sq) + '.';
       r.short = firstLoss.san + ' would have won a pawn.';
+      r.topic = 'safety';
       return r;
     }
     var bestSan = null;
@@ -104,7 +111,13 @@ var Explain = (function () {
   }
 
   /* What did the best move achieve? (for missed wins) */
-  function missed(before, best, bestLine) {
+  function missed(before, best, bestLine) { return missedInfo(before, best, bestLine).text; }
+  function missedInfo(before, best, bestLine) {
+    var t = missedText(before, best, bestLine);
+    var topic = /checkmate/.test(t) ? 'mates' : /fork/.test(t) ? 'fork' : /wins (a|material)/.test(t) ? 'free' : null;
+    return { text: t, topic: topic };
+  }
+  function missedText(before, best, bestLine) {
     var bm = before.parseMove(best); if (!bm) return '';
     var san = before.san(bm), mover = before.side;
     if (bestLine && bestLine.mate != null && bestLine.mate > 0) return san + (bestLine.mate === 1 ? ' was checkmate.' : ' started a forced checkmate.');
@@ -123,7 +136,24 @@ var Explain = (function () {
     return san + ' was stronger.';
   }
 
-  return { bad: bad, missed: missed, sanLine: sanLine, matFor: matFor };
+  /* where to go to get better at each kind of mistake: a lesson and a puzzle theme */
+  var TOPICS = {
+    threats: { lesson: 'opponent-threats', theme: 'mateIn1', practice: 'Mate-in-1 puzzles' },
+    fork: { lesson: 'fork', theme: 'fork', practice: 'Fork puzzles' },
+    safety: { lesson: 'blunder-check', theme: 'hangingPiece', practice: 'Hanging-piece puzzles' },
+    free: { lesson: 'free-pieces', theme: 'hangingPiece', practice: 'Hanging-piece puzzles' },
+    mates: { lesson: 'mating-patterns', theme: 'mateIn2', practice: 'Mate-in-2 puzzles' }
+  };
+  /* a row of two quiet buttons: the lesson that teaches this, and puzzles to practice it */
+  function studyRow(topic) {
+    var t = TOPICS[topic]; if (!t) return null;
+    var found = Data.lesson(t.lesson), h = U.h;
+    return h('div', { class: 'study' }, h('span', { class: 'muted small' }, 'Work on this'),
+      found ? h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Learn.open(t.lesson); } }, U.icon('book'), found.lesson.title) : null,
+      h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
+  }
+
+  return { bad: bad, missed: missed, missedInfo: missedInfo, sanLine: sanLine, matFor: matFor, studyRow: studyRow };
 })();
 
 /* The in-game coach: quick checks before a move is committed. */
@@ -277,8 +307,8 @@ var Review = (function () {
       var bot = TempoBots.byId(g.bot);
       list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
         bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm tone-you' }, '?'),
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultWord(g) + ' vs ' + (bot ? bot.name : (g.opp || 'opponent'))),
-          h('div', { class: 'muted small' }, U.dateShort(g.ts) + ' · ' + Math.ceil(g.plies / 2) + ' moves' + (g.reviewed ? ' · accuracy ' + Math.round(g.acc) + '%' : ''))),
+        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultPhrase(g, bot ? bot.name : (g.opp || 'opponent'))),
+          h('div', { class: 'muted small' }, U.dateShort(g.ts) + ', ' + U.plural(Math.ceil(g.plies / 2), 'move') + (g.reviewed ? ', ' + Math.round(g.acc) + '% accuracy' : ''))),
         g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next')));
     });
     games.appendChild(list);
@@ -377,14 +407,15 @@ var Review = (function () {
       summary.appendChild(h('div', { class: 'row between' },
         h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, Math.round(acc[me]) + '%')),
         h('div', { class: 'stat', style: { textAlign: 'right' } }, h('span', { class: 'label' }, src.oppName || 'Opponent'), h('b', null, Math.round(acc[opp]) + '%'))));
-      var tbl = h('div', { class: 'stack', style: { gap: '4px', marginTop: '12px' } });
+      // how many moves of each kind, yours beside your opponent's
+      var tbl = h('table', { class: 'counts' }), body = h('tbody');
+      tbl.appendChild(h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Move type')), h('th', { scope: 'col' }, 'You'), h('th', { scope: 'col' }, src.oppName || 'Opponent'))));
       ORDER.forEach(function (k) {
         var a = st.res.counts[me][k] || 0, b = st.res.counts[opp][k] || 0;
         if (!a && !b) return;
-        tbl.appendChild(h('div', { class: 'row between small' },
-          h('span', { class: 'row tight' }, h('span', { class: 'dot-k k-' + k, style: { width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' } }), KINDS[k].label),
-          h('span', { class: 'num' }, h('b', null, String(a)), h('span', { class: 'faint' }, '  ·  ' + b))));
+        body.appendChild(h('tr', null, h('th', { scope: 'row' }, h('span', { class: 'dot-k k-' + k }), KINDS[k].label), h('td', { class: 'num' }, String(a)), h('td', { class: 'num' }, String(b))));
       });
+      tbl.appendChild(body);
       summary.appendChild(tbl);
       var keyMoves = [];
       st.res.cls.forEach(function (k, i) { if (isMine(i) && ['blunder', 'mistake', 'miss'].indexOf(k) >= 0) keyMoves.push(i + 1); });
@@ -417,13 +448,13 @@ var Review = (function () {
       var who = isMine(i) ? 'You' : (src.oppName || 'Opponent');
       explain.appendChild(h('div', { class: 'row tight' }, h('span', { class: 'chip', style: { background: 'var(--surface-2)' } }, h('span', { class: 'dot-k k-' + k, style: { width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' } }), KINDS[k].label),
         h('span', { class: 'muted small' }, who + ' played ' + sans[i])));
-      var text = '';
+      var text = '', topic = null;
       if (k === 'book') text = 'A standard opening move.';
       else if (k === 'best') text = 'The engine’s top choice.';
       else if (k === 'excellent' || k === 'good') text = k === 'excellent' ? 'Nearly as good as the best move.' : 'A reasonable move. ' + bestText();
       else if (k === 'great') text = 'The only good move here, and it was found.';
       else if (k === 'brilliant') text = 'A strong sacrifice: it gives up material for a winning attack or a better position.';
-      else if (k === 'miss') text = 'Your opponent had just made a mistake, and this let them off the hook. ' + Explain.missed(before, e0.best, e0.line);
+      else if (k === 'miss') { var mi = Explain.missedInfo(before, e0.best, e0.line); text = 'Your opponent had just made a mistake, and this let them off the hook. ' + mi.text; topic = mi.topic; }
       else {
         var reply = e1 && e1.line ? e1.line : null;
         if (!reply && e1 && !e1.loading && e1.mate !== 0) {
@@ -435,12 +466,14 @@ var Review = (function () {
         }
         var why = reply ? Explain.bad(before, m, reply, e0.best) : null;
         text = (why ? why.text + ' ' : '') + bestText();
+        topic = why && (k === 'mistake' || k === 'blunder') ? why.topic : null;
       }
       explain.appendChild(h('p', null, text));
       if (['inaccuracy', 'mistake', 'blunder', 'miss'].indexOf(k) >= 0 && isMine(i)) {
         explain.appendChild(h('div', { class: 'row' },
           h('button', { class: 'btn small', type: 'button', onclick: function () { startRetry(i); } }, U.icon('refresh'), 'Find a better move'),
           h('button', { class: 'btn small quiet', type: 'button', onclick: function () { if (e0 && e0.best) board.setArrows([{ from: e0.best.slice(0, 2), to: e0.best.slice(2, 4), color: 'green' }]); } }, 'Show best')));
+        if (topic) { var sr = Explain.studyRow(topic); if (sr) explain.appendChild(sr); }
       }
       function bestText() {
         if (!e0 || !e0.best || e0.best === moves[i]) return '';
@@ -517,7 +550,7 @@ var Review = (function () {
       var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
       svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'evalgraph');
       svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Evaluation over the game');
-      var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#2A2F3A'); svg.appendChild(bg);
+      var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#22314F'); svg.appendChild(bg);
       var x = function (i) { return n <= 1 ? 0 : W * i / (n - 1); };
       var y = function (i) { return H * (1 - whiteWin(st.evals[i]) / 100); };
       var d = 'M0 ' + H;
@@ -539,6 +572,7 @@ var Review = (function () {
         goPly(Math.round(f * (n - 1)));
       });
       graphBox.appendChild(svg);
+      graphBox.appendChild(h('p', { class: 'faint small', style: { marginTop: '6px' } }, 'Above the middle line White is better, below it Black is. Tap the graph to jump to that moment.'));
       st.curLine = cur;
     }
 
@@ -611,7 +645,7 @@ var Review = (function () {
         var parsed = C.parsePgn(g.pgn), fen = parsed.headers.FEN || C.START_FEN, r = C.replay(fen, parsed.sans);
         var bot = TempoBots.byId(g.bot);
         renderReview(root, { gameId: g.id, pgn: g.pgn, startFen: fen, moves: r.moves.map(C.uci), sans: sansOf(fen, r.moves), color: g.color,
-          label: resultWord(g) + ' vs ' + (bot ? bot.name : 'opponent') + ' · ' + U.dateShort(g.ts), oppName: bot ? bot.name : 'Opponent', saved: g.rv });
+          label: resultPhrase(g, bot ? bot.name : 'opponent') + ', ' + U.dateShort(g.ts), oppName: bot ? bot.name : 'Opponent', saved: g.rv });
       } else if (params && params.pgn) {
         var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN, r2 = C.replay(fen2, p2.sans);
         renderReview(root, { pgn: params.pgn, startFen: fen2, moves: r2.moves.map(C.uci), sans: sansOf(fen2, r2.moves), color: params.color || 'w', label: params.label || 'Imported game',

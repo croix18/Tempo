@@ -33,7 +33,7 @@ async def main():
         for r in res: print('coach', r)
         # game flow vs Pip: moves, hint, undo, resign
         await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-        await pg.locator('.bot').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
         await pg.locator('.seg button', has_text='White').first.click()
         await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(600)
         for mv in ['d2d4', 'g1f3', 'c1f4']:
@@ -50,7 +50,7 @@ async def main():
         print('coach text after hint 2:', await pg.locator('.coach').inner_text())
         await pg.locator('button', has_text='Undo').click(); await pg.wait_for_timeout(1500)
         print('moves after undo', await pg.evaluate("Store.state.current.sans"))
-        await pg.locator('button[aria-label="Resign"]').click(); await pg.wait_for_timeout(300)
+        await pg.locator('button[aria-label="Resign the game"]').click(); await pg.wait_for_timeout(300)
         await pg.locator('.sheet button', has_text='Resign').click(); await pg.wait_for_timeout(800)
         await pg.screenshot(path=ROOT + '/build/shots/end-sheet.png')
         g = await pg.evaluate("Store.state.games.list[0]")

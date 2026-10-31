@@ -72,47 +72,46 @@ var Puzzles = (function () {
     return S.rating - before;
   }
 
+  /* the lesson that teaches each puzzle theme */
+  var THEME_LESSON = { fork: 'fork', pin: 'pin', skewer: 'skewer', discoveredAttack: 'discovered-attack', discoveredCheck: 'discovered-attack', doubleCheck: 'discovered-attack',
+    hangingPiece: 'free-pieces', trappedPiece: 'trapped-piece', deflection: 'deflection-decoy', attraction: 'deflection-decoy', capturingDefender: 'remove-defender',
+    backRankMate: 'back-rank', smotheredMate: 'smothered-mate', mateIn1: 'mating-patterns', mateIn2: 'mating-patterns', promotion: 'passed-pawns', advancedPawn: 'passed-pawns', zugzwang: 'opposition' };
+
   /* ---------- menu ---------- */
   function renderMenu(root) {
     var S = Store.state.puzzles;
-    root.appendChild(h('div', { class: 'page-head' },
-      h('div', null, h('h1', null, 'Puzzles')),
-      h('span', { class: 'chip gold' }, 'Puzzle rating ' + S.rating)));
-    var grid = h('div', { class: 'grid three' });
-    grid.appendChild(modeCard('Rated', 'Puzzles matched to your rating. Your rating goes up as you solve.', 'puzzle', function () { mode = 'rated'; theme = null; startLoop(); }));
-    grid.appendChild(modeCard('Streak', 'Puzzles get harder until you miss one. Best: ' + S.streakBest + '.', 'fire', function () { mode = 'streak'; theme = null; startLoop(); }));
-    grid.appendChild(modeCard('Rush', 'Three minutes, three strikes. Best: ' + S.rushBest + '.', 'clock', function () { mode = 'rush'; theme = null; startLoop(); }));
-    root.appendChild(grid);
+    root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Puzzles'),
+      h('div', { class: 'head-note' }, 'Your rating ', h('b', { class: 'num' }, String(S.rating)))));
+    var modes = h('nav', { class: 'menu-list', 'aria-label': 'Puzzle modes', style: { maxWidth: '640px' } });
+    modes.appendChild(UI.menuRow('puzzle', 'Rated puzzles', 'Matched to your rating, which goes up as you solve them.', function () { mode = 'rated'; theme = null; startLoop(); }));
+    modes.appendChild(UI.menuRow('fire', 'Streak', 'Each one a little harder, until you miss.' + (S.streakBest ? ' Your best is ' + S.streakBest + '.' : ''), function () { mode = 'streak'; theme = null; startLoop(); }));
+    modes.appendChild(UI.menuRow('clock', 'Rush', 'As many as you can in three minutes. Three misses ends it.' + (S.rushBest ? ' Your best is ' + S.rushBest + '.' : ''), function () { mode = 'rush'; theme = null; startLoop(); }));
+    root.appendChild(modes);
     var weak = weakest();
-    if (weak) root.appendChild(h('div', { class: 'card row between', style: { marginTop: '14px' } },
-      h('div', null, h('div', { class: 'label' }, 'Worth practicing'), h('b', null, NAMES[weak.t]), h('span', { class: 'muted small' }, '  solved ' + Math.round(weak.rate * 100) + '% of ' + weak.n)),
-      h('button', { class: 'btn small', type: 'button', onclick: function () { mode = 'theme'; theme = weak.t; startLoop(); } }, 'Practice')));
-    root.appendChild(h('h2', { style: { margin: '26px 0 12px' } }, 'By theme'));
-    var box = h('div', { class: 'stack' });
+    if (weak) root.appendChild(h('div', { class: 'resume', style: { marginTop: '16px', maxWidth: '640px' } },
+      h('p', { class: 'grow' }, 'Your weakest theme is ', h('b', null, NAMES[weak.t].toLowerCase()), '. You\u2019ve solved ' + Math.round(weak.rate * 100) + '% of the ' + weak.n + ' you\u2019ve tried.'),
+      h('button', { class: 'btn small primary', type: 'button', onclick: function () { mode = 'theme'; theme = weak.t; startLoop(); } }, 'Practice it')));
+    root.appendChild(h('h2', { style: { margin: '32px 0 6px' } }, 'Practice a theme'));
+    root.appendChild(h('p', { class: 'muted', style: { marginBottom: '14px', maxWidth: '60ch' } }, 'Pick one idea and drill it. Once you\u2019ve tried a theme, your success rate shows beside it.'));
+    var box = h('div', { class: 'stack', style: { gap: '22px', maxWidth: '760px' } });
     root.appendChild(box);
-    box.appendChild(h('div', { class: 'muted' }, 'Loading puzzles…'));
+    box.appendChild(h('div', { class: 'muted' }, 'Loading puzzles\u2026'));
     Data.puzzles().then(function (list) {
       U.clear(box);
       var counts = {};
       list.forEach(function (p) { p.themes.forEach(function (t) { counts[t] = (counts[t] || 0) + 1; }); });
       Object.keys(THEMES).forEach(function (g) {
-        var tg = h('div', { class: 'theme-grid' });
+        var pills = h('div', { class: 'pills' });
         Object.keys(THEMES[g].items).forEach(function (t) {
           if ((counts[t] || 0) < 10) return;
-          var mine = S.themes[t];
-          tg.appendChild(h('button', { class: 'theme', type: 'button', onclick: function () { mode = 'theme'; theme = t; startLoop(); } },
-            h('b', null, THEMES[g].items[t]),
-            h('span', { class: 'faint small' }, counts[t] + ' puzzles' + (mine ? ' · ' + Math.round(mine[1] / mine[0] * 100) + '% solved' : '')),
-            mine ? UI.meter(mine[1] / mine[0], 'green') : null));
+          var mine = S.themes[t], pct = mine && mine[0] ? Math.round(mine[1] / mine[0] * 100) : null;
+          pills.appendChild(h('button', { class: 'pill', type: 'button', onclick: function () { mode = 'theme'; theme = t; startLoop(); },
+            'aria-label': THEMES[g].items[t] + (pct != null ? ', ' + pct + '% solved' : '') },
+            THEMES[g].items[t], pct != null ? h('span', { class: 'pct ' + (pct >= 75 ? 'good' : pct >= 50 ? 'mid' : 'low') }, pct + '%') : null));
         });
-        if (tg.children.length) { box.appendChild(h('div', { class: 'label', style: { marginTop: '6px' } }, THEMES[g].label)); box.appendChild(tg); }
+        if (pills.children.length) box.appendChild(h('section', null, h('h3', { style: { marginBottom: '10px' } }, THEMES[g].label), pills));
       });
-    });
-  }
-  function modeCard(title, text, icon, fn) {
-    return h('button', { class: 'card theme', type: 'button', onclick: fn, style: { padding: '18px' } },
-      h('span', { class: 'row tight' }, U.icon(icon), h('b', { style: { fontSize: '17px' } }, title)),
-      h('span', { class: 'muted small' }, text));
+    }, function () { U.clear(box); box.appendChild(h('p', { class: 'muted' }, 'The puzzles couldn\u2019t be loaded in this browser.')); });
   }
   function weakest() {
     var S = Store.state.puzzles.themes, best = null;
@@ -340,6 +339,10 @@ var Puzzles = (function () {
         var chips = h('div', { class: 'row tight' });
         themes.slice(0, 5).forEach(function (t) { chips.appendChild(h('span', { class: 'chip' }, NAMES[t])); });
         card.appendChild(h('div', { class: 'label' }, 'Themes')); card.appendChild(chips);
+        var lessonId = null;
+        themes.some(function (t) { lessonId = THEME_LESSON[t] || null; return !!lessonId; });
+        var found = lessonId && Data.lesson(lessonId);
+        if (found) card.appendChild(h('div', { class: 'row' }, h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Learn.open(lessonId); } }, U.icon('book'), 'Lesson: ' + found.lesson.title)));
       }
       var pos = new C.Pos(p.fen); pos.make(pos.parseMove(p.moves[0]));
       var sol = Explain.sanLine(pos, p.moves.slice(1), 20);

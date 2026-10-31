@@ -19,7 +19,7 @@ async def main():
         pg.on('console', lambda m: errs.append(m.type + ': ' + m.text[:200]) if m.type == 'error' else None)
         await pg.goto(URL); await pg.wait_for_timeout(2500)
         await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-        await pg.locator('.bot').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
         await pg.locator('.seg button', has_text='Black').first.click()
         await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(2500)
         for i in range(80):

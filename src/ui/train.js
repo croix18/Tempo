@@ -6,30 +6,23 @@ var Train = (function () {
 
   function renderHub(root) {
     var S = Store.state;
-    root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Trainers'))));
+    root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Trainers')));
     var dueN = Mistakes.due().length;
-    var grid = h('div', { class: 'grid three' });
-    grid.appendChild(card('Your mistakes', dueN ? U.plural(dueN, 'position') + ' from your games are ready.' : S.mistakes.items.length ? 'Nothing due right now. Positions come back on a schedule.' : 'Review a game to collect your mistakes here.', 'refresh', function () { App.go('train', { mode: 'mistakes' }); }, !S.mistakes.items.length));
-    grid.appendChild(card('Coordinates', 'Find squares fast. 30 seconds a round. Best: ' + (S.puzzles.coordBest || 0) + '.', 'target', function () { App.go('train', { mode: 'coords' }); }));
-    grid.appendChild(card('Board vision', 'Spot every piece that can be won for free. Best: ' + (S.puzzles.visionBest || 0) + '/10.', 'eye', function () { App.go('train', { mode: 'vision' }); }));
-    grid.appendChild(card('Analysis board', 'Set up any position or paste a game, and check it with the engine.', 'analyze', function () { analysis(); }));
-    root.appendChild(grid);
+    var list = h('nav', { class: 'menu-list', 'aria-label': 'Trainers', style: { maxWidth: '640px' } });
+    list.appendChild(UI.menuRow('refresh', 'Your mistakes', dueN ? U.plural(dueN, 'position') + ' from your games ' + (dueN === 1 ? 'is' : 'are') + ' ready to retry.' : S.mistakes.items.length ? 'Nothing due right now. Each position comes back on a schedule.' : 'Review a game and its mistakes collect here.', function () { App.go('train', { mode: 'mistakes' }); }));
+    list.appendChild(UI.menuRow('target', 'Coordinates', 'Name squares quickly, 30 seconds a round.' + (S.puzzles.coordBest ? ' Your best is ' + S.puzzles.coordBest + '.' : ''), function () { App.go('train', { mode: 'coords' }); }));
+    list.appendChild(UI.menuRow('eye', 'Board vision', 'Spot every piece that can be won for free.' + (S.puzzles.visionBest ? ' Your best is ' + S.puzzles.visionBest + ' of 10.' : ''), function () { App.go('train', { mode: 'vision' }); }));
+    list.appendChild(UI.menuRow('analyze', 'Analysis board', 'Set up any position or paste a game, and check it with the engine.', function () { analysis(); }));
+    root.appendChild(list);
     var plays = [];
     Data.lessons().forEach(function (u) { u.lessons.forEach(function (l) { if (l.steps.some(function (s) { return s.t === 'play'; })) plays.push({ unit: u, lesson: l }); }); });
     if (plays.length) {
-      root.appendChild(h('h2', { style: { margin: '26px 0 12px' } }, 'Play it out'));
-      root.appendChild(h('p', { class: 'muted', style: { marginBottom: '12px' } }, 'Endgame and mating technique against full-strength defense.'));
-      var list = h('div', { class: 'card list' });
-      plays.forEach(function (x) {
-        list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { Learn.open(x.lesson.id); } },
-          U.icon('crown'), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, x.lesson.title), h('div', { class: 'muted small' }, x.unit.title)), U.icon('next')));
-      });
-      root.appendChild(list);
+      root.appendChild(h('h2', { style: { margin: '32px 0 6px' } }, 'Play it out'));
+      root.appendChild(h('p', { class: 'muted', style: { marginBottom: '14px', maxWidth: '60ch' } }, 'Endgames and mates to finish against an engine that defends perfectly.'));
+      var pl = h('nav', { class: 'menu-list', 'aria-label': 'Play it out', style: { maxWidth: '640px' } });
+      plays.forEach(function (x) { pl.appendChild(UI.menuRow('crown', x.lesson.title, 'From ' + x.unit.title, function () { Learn.open(x.lesson.id); })); });
+      root.appendChild(pl);
     }
-  }
-  function card(title, text, icon, fn, disabled) {
-    return h('button', { class: 'card theme', type: 'button', style: { padding: '18px', opacity: disabled ? 0.6 : 1 }, onclick: fn },
-      h('span', { class: 'row tight' }, U.icon(icon), h('b', { style: { fontSize: '17px' } }, title)), h('span', { class: 'muted small' }, text));
   }
   function header(root, title) {
     App.focus(true);
@@ -116,7 +109,7 @@ var Train = (function () {
       board.setPosition(pos, { animate: false, clearLast: true });
       board.clearDecor();
       U.clear(text); U.clear(fbBox); U.clear(actions);
-      meta.textContent = 'Round ' + st.round + ' of 10 · score ' + st.score;
+      meta.textContent = 'Round ' + st.round + ' of 10. Score ' + st.score + '.';
       text.appendChild(UI.turnPill(pos.side));
       text.appendChild(h('p', { style: { marginTop: '8px' } }, 'Click every ' + (pos.side === 1 ? 'black' : 'white') + ' piece you could win right now: undefended, or attacked by something cheaper.'));
       actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: check }, 'Check'));
