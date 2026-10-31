@@ -538,6 +538,7 @@ body.focus .tabs { display: none; }
 .pct.good { color: var(--green); background: var(--green-wash); }
 .pct.mid { color: var(--ink); background: var(--gold-wash); }
 .pct.low { color: var(--coral); background: var(--coral-wash); }
+.pct.few { color: var(--ink-2); background: var(--surface-2); }
 
 .rungs { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; max-width: 520px; }
 .rung { display: grid; grid-template-columns: 24px minmax(0, 1fr) 96px 20px; align-items: center; column-gap: 14px; width: 100%; min-height: 46px; padding: 0 12px; border: 0; border-radius: 10px; background: none; color: var(--ink); font-size: 16px; text-align: left; }

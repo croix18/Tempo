@@ -202,11 +202,16 @@ var Puzzles = (function () {
       box.appendChild(all);
     }, function () { U.clear(box); box.appendChild(h('p', { class: 'muted' }, 'The puzzles couldn’t be loaded in this browser.')); });
   }
+  /* a percentage means little until a few puzzles are in; before that the chip counts what you've solved */
+  var PCT_MIN = 5;
   function themePill(t) {
-    var mine = Store.state.puzzles.themes[t], pct = mine && mine[0] ? Math.round(mine[1] / mine[0] * 100) : null;
+    var mine = Store.state.puzzles.themes[t], tried = mine ? mine[0] : 0, solved = mine ? mine[1] : 0;
+    var pct = tried >= PCT_MIN ? Math.round(solved / tried * 100) : null;
+    var tag = pct != null ? pct + '%' : tried ? solved + ' of ' + tried : null;
+    var said = pct != null ? pct + '% solved' : tried ? solved + ' of ' + tried + ' solved' : '';
     return h('button', { class: 'pill', type: 'button', onclick: function () { start({ mode: 'theme', theme: t }); },
-      'aria-label': NAMES[t] + (pct != null ? ', ' + pct + '% solved' : '') },
-      NAMES[t], pct != null ? h('span', { class: 'pct ' + (pct >= 75 ? 'good' : pct >= 50 ? 'mid' : 'low') }, pct + '%') : null);
+      'aria-label': NAMES[t] + (said ? ', ' + said : '') },
+      NAMES[t], tag ? h('span', { class: 'pct ' + (pct == null ? 'few' : pct >= 75 ? 'good' : pct >= 50 ? 'mid' : 'low') }, tag) : null);
   }
   function weakest() {
     var S = Store.state.puzzles.themes, best = null;
