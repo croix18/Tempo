@@ -250,11 +250,36 @@ async def test_long_names(browser):
     await ctx.close()
 
 
+async def test_repertoire(browser):
+    """A game that leaves a learned opening line: review says where, and the line goes first in the drill queue."""
+    ctx, pg, errors = await open_page(browser, PHONE)
+    pgn = '[Event "Test"]\n[White "You"]\n[Black "Pip"]\n[Result "1/2-1/2"]\n\n1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. Nc3 Nf6 5. d3 d6 6. O-O O-O 1/2-1/2'
+    await pg.evaluate("""(pgn) => {
+      Store.state.openings.lines['white-e4/giuoco-piano'] = { learned: true, box: 3, due: Date.now() + 5 * 864e5, drills: 3, right: 3 };
+      Store.touch('openings');
+      Store.state.games.list.unshift({ id: 'rep1', ts: Date.now(), bot: 'pip', color: 'w', result: '1/2-1/2', reason: 'agreement', pgn: pgn, plies: 12, rated: false, before: 600, after: 600, reviewed: false });
+      Review.openGame('rep1'); }""", pgn)
+    await wait_review(pg)
+    note = (await pg.evaluate("(document.querySelector('.rv-opening:not([hidden])') || {}).innerText || ''")).replace('\n', ' ')
+    check('repertoire: review says where you left the line, and what it plays', 'You left your Giuoco Piano line with 4.Nc3' in note and 'The line plays 4.c3' in note, note)
+    rec = await pg.evaluate("Store.state.openings.lines['white-e4/giuoco-piano']")
+    due_now = await pg.evaluate("(r) => r.due <= Date.now()", rec)
+    check('repertoire: the line you left is first in the drill queue', due_now and rec['box'] == 0, rec)
+    await pg.locator('.rv-opening button', has_text='Show the move').click(); await pg.wait_for_timeout(500)
+    card = await card_text(pg)
+    check('repertoire: the move card says the move left the line', 'This left your Giuoco Piano line' in card, card[:200])
+    await pg.locator('.rv-opening button', has_text='Drill this line').click(); await pg.wait_for_timeout(800)
+    where = await pg.evaluate("[App.name, (document.querySelector('.view h1') || {}).innerText || '']")
+    check('repertoire: Drill this line opens that line\'s drill', where[0] == 'openings' and 'Giuoco Piano' in where[1], where)
+    check('repertoire: no page errors', not errors, errors[:3])
+    await ctx.close()
+
+
 async def main():
-    which = sys.argv[1:] or ['opera', 'phone', 'empty', 'long']
+    which = sys.argv[1:] or ['opera', 'phone', 'empty', 'long', 'repertoire']
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for name, fn in [('opera', test_opera), ('phone', test_phone), ('empty', test_empty), ('long', test_long_names)]:
+        for name, fn in [('opera', test_opera), ('phone', test_phone), ('empty', test_empty), ('long', test_long_names), ('repertoire', test_repertoire)]:
             if name not in which: continue
             try:
                 await fn(browser)

@@ -325,5 +325,57 @@ var Openings = (function () {
     leave: function () { if (O && O.player) { O.player.token++; O.player = null; } },
     busy: function () { return !!(O && O.player); }
   });
-  return {};
+
+  /* ---------- your games against your repertoire ---------- */
+
+  /* How far a game from the normal start followed a line you've learned, for your colour.
+     Returns null when no learned line applies, or { rep, line, key, k, len, expected, agree, options }:
+     k plies of the game matched the line position by position, len is the line's length, expected is the
+     move the line plays at ply k (null past its end), and agree is false when other lines that matched as far
+     expect a different move there (options lists every move they expect). */
+  function followed(startFen, moves, color) {
+    var start = new C.Pos();
+    if (!startFen || epdOf(new C.Pos(startFen)) !== epdOf(start)) return null;
+    var D = Data.reps(), S = Store.state.openings.lines, best = null;
+    var p = new C.Pos(), game = [epdOf(p)];
+    for (var i = 0; i < moves.length && i < 40; i++) { var m = p.parseMove(moves[i]); if (!m) break; p.make(m); game.push(epdOf(p)); }
+    D.repertoires.forEach(function (rep) {
+      if (rep.side !== color) return;
+      rep.lines.forEach(function (ln) {
+        var rec = S[lineKey(rep, ln)]; if (!rec || !rec.learned) return;
+        var lp = new C.Pos(), ls = sans(ln), k = 0;
+        while (k < ls.length && k + 1 < game.length) {
+          var lm = lp.parseMove(ls[k]); if (!lm) break;
+          lp.make(lm);
+          if (epdOf(lp) !== game[k + 1]) break;
+          k++;
+        }
+        var expected = k < ls.length ? ls[k] : null;
+        if (!best || k > best.k) best = { rep: rep, line: ln, key: lineKey(rep, ln), k: k, len: ls.length, expected: expected, agree: true, options: expected ? [expected] : [] };
+        else if (k === best.k && expected !== best.expected) {
+          best.agree = false;
+          if (expected && best.options.indexOf(expected) < 0) best.options.push(expected);
+        }
+      });
+    });
+    return best;
+  }
+  /* put a line first in the drill queue: it comes back today, starting over */
+  function queueLine(key) {
+    var rec = Store.state.openings.lines[key];
+    if (!rec) return false;
+    rec.box = 0; rec.due = Date.now() - 1000;
+    Store.touch('openings');
+    return true;
+  }
+  /* drill one line straight away */
+  function drillLine(key) {
+    var D = Data.reps(), parts = String(key).split('/');
+    var rep = D.repertoires.filter(function (r) { return r.id === parts[0]; })[0];
+    var line = rep && rep.lines.filter(function (l) { return l.id === parts[1]; })[0];
+    if (!line) { App.go('openings'); return; }
+    O = { queue: [line], rep: rep, results: [] };
+    playLine(rep, line, 'drill');
+  }
+  return { followed: followed, queueLine: queueLine, drillLine: drillLine };
 })();

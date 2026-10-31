@@ -624,9 +624,10 @@ var Review = (function () {
       h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); paintEval(); } }, U.icon('flip')));
     var card = h('section', { class: 'card rv-card', 'aria-label': 'This move' });
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
+    var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
     root.appendChild(h('div', { class: 'arena rv-arena' },
       h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls),
-      h('div', { class: 'panel' }, card, graphBox, movesBox, detailsBox)));
+      h('div', { class: 'panel' }, card, openingBox, graphBox, movesBox, detailsBox)));
 
     /* ---------- positions and moves ---------- */
     var ints = (function () { var p = new C.Pos(startFen); return moves.map(function (u) { var m = p.parseMove(u); p.make(m); return m; }); })();
@@ -637,6 +638,8 @@ var Review = (function () {
     }
     function isWhiteMove(i) { return (i % 2 === 0) === (startSide === 1); }
     function isMine(i) { return isWhiteMove(i) === (you === 'w'); }
+    // how far the game followed an opening line you've learned (see Openings.followed)
+    st.rep = typeof Openings !== 'undefined' && Openings.followed ? Openings.followed(startFen, moves, you) : null;
     function moveNo(i) { return startPos.full + Math.floor((i + (startSide === 1 ? 0 : 1)) / 2); }
     function moveLabel(i) { return moveNo(i) + (isWhiteMove(i) ? '.' : '...') + sans[i]; }
     function sanOf(pos, uci) { var m = uci && pos.parseMove(uci); return m ? pos.san(m) : null; }
@@ -754,6 +757,35 @@ var Review = (function () {
       }
     }
 
+    /* ---------- your opening: where the game left the line you learned ---------- */
+    function repInfo() {
+      var r = st.rep; if (!r) return null;
+      var name = r.line.name, k = r.k;
+      if (k >= r.len) return { kind: 'all', text: 'You played your ' + name + ' line all the way through.' };
+      if (k >= moves.length) return { kind: 'end', text: 'The whole game stayed in your ' + name + ' line.' };
+      var played = moveLabel(k), at = function (san) { return moveNo(k) + (isWhiteMove(k) ? '.' : '...') + san; };
+      if (isMine(k)) {
+        if (k === 0) return { kind: 'start', ply: k, text: 'You opened with ' + played + '. Your ' + (you === 'w' ? 'White' : 'Black') + ' lines start with ' + r.options.map(at).join(' or ') + '.' };
+        return { kind: 'you', ply: k, text: 'You left your ' + (r.agree ? name + ' line' : 'prepared lines') + ' with ' + played + '. ' + (r.agree ? 'The line plays ' : 'Your lines play ') + r.options.map(at).join(' or ') + '.',
+          here: 'This left your ' + (r.agree ? name + ' line' : 'prepared lines') + ', which play' + (r.agree ? 's ' : ' ') + r.options.map(at).join(' or ') + ' here.' };
+      }
+      if (k === 0) return null; // the game never reached your lines
+      return { kind: 'them', ply: k, text: oppShort + ' left your ' + (r.agree ? name + ' line' : 'prepared lines') + ' with ' + played + ', so from there you were on your own.',
+        here: 'This took the game out of your ' + (r.agree ? name + ' line' : 'prepared lines') + '.' };
+    }
+    function renderOpening() {
+      var info = repInfo();
+      U.clear(openingBox);
+      openingBox.hidden = !info;
+      if (!info) return;
+      openingBox.appendChild(h('div', { class: 'label' }, 'Your opening'));
+      openingBox.appendChild(h('p', { class: 'rv-text' }, info.text + (info.kind === 'you' && st.repQueued ? ' It\u2019s first in your opening drills now.' : '')));
+      var row = h('div', { class: 'rv-actions' });
+      if (info.ply != null) row.appendChild(btn('Show the move', function () { jump(info.ply + 1); }, 'quiet'));
+      if (info.kind === 'you' || info.kind === 'start') row.appendChild(btn('Drill this line', function () { Openings.queueLine(st.rep.key); Openings.drillLine(st.rep.key); }, '', 'target'));
+      if (row.children.length) openingBox.appendChild(row);
+    }
+
     /* ---------- the card under the board: mistake navigator, then this move ---------- */
     function navigator() {
       var keys = st.keyPlies, row = h('div', { class: 'rv-nav' });
@@ -784,6 +816,8 @@ var Review = (function () {
         var i = st.ply - 1, k = st.res.cls[i], mine = isMine(i), t = moveText(i);
         body.appendChild(moveHead(k, KINDS[k].label, (mine ? 'You' : oppShort) + ' played ' + moveLabel(i)));
         if (t.text) body.appendChild(h('p', { class: 'rv-text' }, t.text));
+        var ri = repInfo();
+        if (ri && ri.here && ri.ply === i) body.appendChild(h('p', { class: 'rv-text rv-rep' }, ri.here));
         if (FLAGGED.indexOf(k) < 0) return;
         body.appendChild(h('div', { class: 'rv-actions' },
           mine ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null,
@@ -1057,7 +1091,7 @@ var Review = (function () {
       st.keyPlies = [];
       st.res.cls.forEach(function (k, i) { if (isMine(i) && SERIOUS.indexOf(k) >= 0) st.keyPlies.push(i + 1); });
       st.why = {};
-      buildMoves(); renderGraph(); renderDetails();
+      buildMoves(); renderGraph(); renderDetails(); renderOpening();
       goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
     }
 
@@ -1084,6 +1118,8 @@ var Review = (function () {
         st.evals = evals;
         st.res = classify(startFen, moves, evals, st.map);
         save();
+        var ri = repInfo();
+        if (ri && ri.kind === 'you') st.repQueued = Openings.queueLine(st.rep.key);
         done();
       });
     }).catch(function (e) {

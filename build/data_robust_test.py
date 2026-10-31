@@ -198,7 +198,7 @@ async def unreadable(browser):
             r.want(got == raw, 'downloaded copy differs from the stored text')
             r.want(d.suggested_filename.startswith('tempo-unreadable-'), 'download name: ' + d.suggested_filename)
             # a later visit: nothing new to tell, the copy is still there
-            await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000); await r.pg.wait_for_timeout(400)
+            await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000); await r.pg.wait_for_timeout(400)
             await r.check("""
               want(!toasts.length, 'toasted again on the next visit: ' + JSON.stringify(toasts));
               want(raw('tempo:v1:unreadable') === %s, 'copy changed on the next visit');
@@ -391,7 +391,7 @@ async def fields(browser):
             snap = "() => JSON.stringify([Store.state.games.list[0].rv, Store.state.games.list[0].rvx || null])"
             before = await r.pg.evaluate(snap)
             await r.pg.evaluate("App.go('home')")
-            await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
+            await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
             r.want(before == await r.pg.evaluate(snap), 'the saved review changed on load')
             await r.pg.evaluate("Review.openGame('g1')"); await r.pg.wait_for_timeout(300)
             await r.check("want(document.querySelector('.v-review .arena') && !document.getElementById('rv-progress'), 'the saved review was not reused'); App.go('home');")
@@ -431,7 +431,7 @@ async def throwing(browser):
             await r.pg.evaluate("() => window.dispatchEvent(new Event('pagehide'))"); await r.pg.wait_for_timeout(200)
             raw = await r.pg.evaluate("() => window.__raw('tempo:v1')")
             r.want(raw == REAL_RAW, 'stored data changed on leaving: ' + str(raw)[:120])
-            await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000); await r.pg.wait_for_timeout(200)
+            await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000); await r.pg.wait_for_timeout(200)
             raw = await r.pg.evaluate("() => window.__raw('tempo:v1')")
             r.want(raw == REAL_RAW, 'stored data changed after a reload: ' + str(raw)[:120])
 
@@ -542,7 +542,7 @@ async def restores(browser):
             await r.check("""want(toasts.includes('Backup restored'), 'toasts ' + JSON.stringify(toasts));
               want(S.games.list.length === 100 && S.play.rating === 777 && S.current === null && !('exported' in S), 'state after restore');
               want(raw('tempo:v1').length < 1000000, 'stored ' + raw('tempo:v1').length);""")
-            await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
+            await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
             await r.check("want(S.games.list.length === 100 && S.play.rating === 777, 'lost after reload: ' + S.games.list.length + ' ' + S.play.rating);")
             await r.tour()
 
@@ -557,7 +557,7 @@ async def restores(browser):
               want(%s && %s, 'progress changed');
               want(Store.saveError === null, 'saveError ' + Store.saveError);
               want(!toasts.some(t => /can’t be saved/.test(t)), 'save warning shown for a refused restore');""" % (INTACT['play'], INTACT['games']))
-            await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
+            await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
             await r.check("want(%s, 'stored progress changed');" % INTACT['play'])
             await r.tour()
 

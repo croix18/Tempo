@@ -4,13 +4,14 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 
 ## What's in it
 
-- **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Each win unlocks the next bot. Optional coach warnings, hints, takebacks and clocks.
-- **Review** any game with Stockfish: an accuracy score, move-by-move labels (best, inaccuracy, mistake, blunder and so on), plain-language explanations, and a retry of each mistake.
+- **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Each win unlocks the next bot, or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board, threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
+- **Review** any game with Stockfish: your mistakes first, move-by-move labels (best, inaccuracy, mistake, blunder and so on) double-checked before a move is called bad, plain-language explanations, a retry of each mistake graded against the best move, and where the game left an opening line you've learned (that line goes first in your drills).
 - **Puzzles**: about 9,000 rated Lichess puzzles, a daily puzzle, and practice by theme.
 - **Learn**: 8 units, 42 interactive lessons, from the basics through tactics, mates, opening principles, endgames, strategy and how to think during a game.
 - **Openings**: three repertoires (1.e4 with the Italian, and 1...e5 and 1...d5 as Black) with drills on spaced repetition, plus 10 traps to spring or avoid.
-- **Trainers**: coordinates, board vision, a review queue of your own mistakes, and an analysis board.
-- **Progress**: rating history and stats. Data stays in the browser, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
+- **Trainers**: coordinates, board vision, a review queue of your own mistakes, mating and endgame play-outs, and an analysis board.
+- **Progress**: rating history, a practice calendar and stats. Data stays in the browser and is checked and repaired every time it loads, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
+- **Pieces**: an original Staunton-style set drawn for Tempo, in ivory and navy.
 
 ## Build
 
@@ -45,7 +46,7 @@ node tests/perft.js          # move generator
 node tests/engine_test.js    # built-in engine
 ```
 
-The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.py`) use Playwright for Python. They run Chrome from `$CHROME` or `/usr/bin/google-chrome`, or Playwright's own Chromium if neither exists. For example, `python3 build/lessons_qa.py tactics` plays through every lesson in a unit.
+The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.py`) use Playwright for Python. `build/run_all.sh` runs them all against one build. They run Chrome from `$CHROME` or `/usr/bin/google-chrome`, or Playwright's own Chromium if neither exists. For example, `python3 build/lessons_qa.py tactics` plays through every lesson in a unit.
 
 ## Layout
 
