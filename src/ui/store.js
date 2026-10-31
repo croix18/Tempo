@@ -23,7 +23,7 @@ var Store = (function () {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
         autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
-        otb: '10+0' },
+        otb: '10+0', backedUp: 0, backupAsked: 0 },
       play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
       learn: { rev: 0, done: {}, last: null },
@@ -82,6 +82,8 @@ var Store = (function () {
     out.clock = oneOf(s.clock, CLOCKS, d.clock);
     out.color = oneOf(s.color, COLORS, d.color);
     out.otb = otbSpec(s.otb) ? s.otb : d.otb;
+    out.backedUp = finite(s.backedUp) && s.backedUp > 0 ? s.backedUp : 0;
+    out.backupAsked = finite(s.backupAsked) && s.backupAsked > 0 ? s.backupAsked : 0;
     return out;
   }
   function cleanPlay(p) {
@@ -604,6 +606,15 @@ var Store = (function () {
     copy.exported = new Date().toISOString();
     return JSON.stringify(copy);
   }
+  /* Worth a reminder to back up? Only in a browser without the account sync, once there's real progress
+     to lose, and no backup (or reminder) in the last month. */
+  function backupDue() {
+    if (remote) return false;
+    var MONTH = 30 * 86400000, now = Date.now(), s = state.settings;
+    var progress = state.play.hist.length + state.puzzles.count / 5 + Object.keys(state.learn.done).length;
+    if (progress < 20) return false;
+    return now - Math.max(s.backedUp || 0, s.backupAsked || 0) > MONTH;
+  }
   /* { state } for a usable backup, or { error } in words for the person */
   function readBackup(text) {
     var obj, c;
@@ -651,7 +662,9 @@ var Store = (function () {
     init: init, on: on, touch: touch, activity: activity, streak: streak,
     get state() { return state; },
     seenBits: seenBits, saveBits: saveBits,
-    exportJson: exportJson, importJson: importJson, reset: reset, synced: synced,
+    exportJson: exportJson, importJson: importJson, reset: reset, synced: synced, backupDue: backupDue,
+    /* a backup was copied or saved just now */
+    backedUp: function () { state.settings.backedUp = Date.now(); touch('settings'); },
     /* null when text is a backup that can be restored, otherwise the reason it can't */
     checkBackup: function (text) { return readBackup(text).error || null; },
     saveNow: function () { writeLocal(); flush(); },

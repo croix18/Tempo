@@ -265,8 +265,15 @@ var Explain = (function () {
     return found;
   }
   /* Why is `uci` a good move in pos? Up to two short phrases that follow "it", such as "develops a knight". */
-  function reasons(pos, uci, line) {
-    var m = pos.parseMove(uci); if (!m) return [];
+  function reasons(pos, uci, line) { return reasonsInfo(pos, uci, line).list; }
+  /* { list, hard }: hard when the first reason is something the engine line shows (mate, material, a fork);
+     the rest describe the move (develops a knight, claims the center) without claiming that's why it's best */
+  function reasonsInfo(pos, uci, line) {
+    var m = pos.parseMove(uci); if (!m) return { list: [], hard: false };
+    var out = reasonList(pos, m, uci, line);
+    return { list: out, hard: !!(out.length && /checkmate|wins|attacks two|makes a new queen|promotes/.test(out[0])) };
+  }
+  function reasonList(pos, m, uci, line) {
     var from = m & 127, to = (m >> 7) & 127, pt = Math.abs(pos.b[from]), side = pos.side, out = [];
     var g = gainOf(pos, uci, line);
     if (g && g.kind === 'mate1') return ['is checkmate'];
@@ -312,7 +319,7 @@ var Explain = (function () {
       h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
   }
 
-  return { bad: bad, missed: missed, missedInfo: missedInfo, reasons: reasons, sanLine: sanLine, numberedLine: numberedLine, matFor: matFor, studyRow: studyRow };
+  return { bad: bad, missed: missed, missedInfo: missedInfo, reasons: reasons, reasonsInfo: reasonsInfo, sanLine: sanLine, numberedLine: numberedLine, matFor: matFor, studyRow: studyRow };
 })();
 
 /* The in-game coach: quick checks before a move is committed. */
@@ -724,8 +731,9 @@ var Review = (function () {
     function bestSays(i, lead) {
       var e0 = st.evals[i]; if (!e0 || !e0.best) return '';
       var before = posAt(i).pos, san = sanOf(before, e0.best); if (!san) return '';
-      var rs = Explain.reasons(before, e0.best, e0.line);
-      return lead(san) + (rs.length ? ': it ' + rs.join(' and ') : '') + '.';
+      // "Best was Nxe5: it wins a knight" when the engine line shows it; "Best was Nf3, which develops a knight" when that only describes the move
+      var ri = Explain.reasonsInfo(before, e0.best, e0.line), rs = ri.list;
+      return lead(san) + (rs.length ? (ri.hard ? ': it ' : ', which ') + rs.join(' and ') : '') + '.';
     }
     function bestWas(i) { return bestSays(i, function (s) { return 'Best was ' + s; }); }
     function bestLine(i) {

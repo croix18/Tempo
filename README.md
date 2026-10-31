@@ -10,6 +10,7 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 - **Puzzles**: about 9,000 rated Lichess puzzles, a daily puzzle, and practice by theme.
 - **Learn**: 8 units, 42 interactive lessons, from the basics through tactics, mates, opening principles, endgames, strategy and how to think during a game.
 - **Openings**: three repertoires (1.e4 with the Italian, and 1...e5 and 1...d5 as Black) with drills on spaced repetition, plus 10 traps to spring or avoid.
+- **Home** lists what to do next, what fixes your games first: your mistake pattern, positions to retry, an unreviewed game, the puzzle theme you miss most, lines to drill, today's puzzle, the next lesson, and a reminder to back up once there's real progress and no backup for a month (only in a browser without the account sync).
 - **Your pattern**: saved mistakes carry their kind (a piece left en prise, a fork, a missed mate, and so on), and the kind that shows up in the most of your recent games is named on Home, at the end of a game and after each review, with the lesson, puzzles and positions that fix it. Home lists what to do next in that order, with a rough time for each.
 - **Trainers**: coordinates, board vision, a review queue of your own mistakes, mating and endgame play-outs, and an analysis board.
 - **Progress**: rating history, a practice calendar and stats. Data stays in the browser and is checked and repaired every time it loads, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
@@ -46,6 +47,7 @@ node tests/annotate_traps.js                                  # writes build/tra
 ```sh
 node tests/perft.js          # move generator
 node tests/engine_test.js    # built-in engine
+node tests/ladder.js 20      # every built-in bot beats the one below it (about 10 minutes)
 ```
 
 The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.py`) use Playwright for Python. `build/run_all.sh` runs them all against one build. They run Chrome from `$CHROME` or `/usr/bin/google-chrome`, or Playwright's own Chromium if neither exists. For example, `python3 build/lessons_qa.py tactics` plays through every lesson in a unit.

@@ -96,8 +96,9 @@ async def test_patterns(browser):
     check('Retry those positions opens the mistakes trainer', await pg.evaluate("App.name") == 'train' and await pg.locator('.v-train .board').count() == 1)
     # a real review tags each saved mistake with its topic, and shows the pattern across games when it's done
     pgn = '[Event "Tempo game"]\n[White "You"]\n[Black "Pip"]\n[Result "0-1"]\n\n1. e4 a5 2. h3 b6 3. d4 f6 4. Bg5 c5 5. Be3 Na6 6. Nf3 e5 7. Bf4 b5 8. dxe5 h5 0-1'
+    await pg.evaluate("App.go('home')"); await pg.wait_for_timeout(600)  # let the trainer's engine search stop first
     await pg.evaluate("""(pgn) => { Store.state.games.list.unshift({ id: 'tp1', ts: Date.now(), bot: 'pip', color: 'w', result: '0-1', reason: 'resignation', pgn: pgn, plies: 16, rated: false, before: 600, after: 600, reviewed: false }); Store.touch('games'); Review.openGame('tp1'); }""", pgn)
-    for _ in range(240):
+    for _ in range(360):
         if await pg.evaluate("Store.state.games.list[0].reviewed"): break
         await pg.wait_for_timeout(500)
     await pg.wait_for_timeout(800)
@@ -168,10 +169,34 @@ async def test_ask_first(browser):
     await ctx.close()
 
 
+async def test_home_nudges(browser):
+    errors = []
+    ctx, pg = await page(browser, DESK, errors)
+    # the puzzle theme you miss most, once six are in
+    await pg.evaluate("Store.state.puzzles.themes = { pin: [8, 3], fork: [9, 8], mateIn1: [2, 0] }; App.go('home')"); await pg.wait_for_timeout(400)
+    rows = await pg.evaluate("[...document.querySelectorAll('.v-home .home-todo .menu-row .t')].map(e => e.textContent)")
+    check('Home: offers the puzzle theme you miss most, with your rate (not one with too few tries)', any(r == 'Practice pin puzzles: you solve 38%' for r in rows) and not any('mate' in r.lower() for r in rows), rows)
+    await pg.locator('.v-home .menu-row', has_text='Practice pin').click(); await pg.wait_for_timeout(600)
+    check('…and it opens a pin session', await pg.evaluate("App.name === 'puzzles' && Puzzles._state() && Puzzles._state().mode === 'theme' && Puzzles._state().theme === 'pin'"))
+    # the backup reminder: only with real progress and no backup for a month
+    await pg.evaluate("App.go('home')"); await pg.wait_for_timeout(300)
+    check('no backup reminder while there is little to lose', not await pg.evaluate("Store.backupDue()") and await pg.locator('.v-home .menu-row', has_text='Back up').count() == 0)
+    await pg.evaluate("for (let i = 0; i < 25; i++) Store.state.play.hist.push([Date.now() - i * 1e6, 600 + i]); Store.touch('play'); App.go('home')"); await pg.wait_for_timeout(400)
+    check('after 25 games with no backup, Home asks for one', await pg.locator('.v-home .menu-row', has_text='Back up your progress').count() == 1)
+    await pg.locator('.v-home .menu-row', has_text='Back up your progress').click(); await pg.wait_for_timeout(300)
+    check('the reminder opens Preferences and then waits a month before asking again', await pg.evaluate("App.name === 'prefs' && !Store.backupDue() && Store.state.settings.backupAsked > 0"))
+    await pg.evaluate("Store.state.settings.backupAsked = Date.now() - 40 * 86400000")
+    check('a month on with still no backup, it asks again', await pg.evaluate("Store.backupDue()"))
+    await pg.locator('.v-prefs button', has_text='Copy backup').click(); await pg.wait_for_timeout(300)
+    check('copying a backup clears the reminder', not await pg.evaluate("Store.backupDue()") and await pg.evaluate("Store.state.settings.backedUp > 0"))
+    check('home nudges: no page errors', not errors, errors[:3])
+    await ctx.close()
+
+
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (test_play_ladder, test_patterns, test_ask_first):
+        for t in (test_play_ladder, test_patterns, test_ask_first, test_home_nudges):
             try:
                 await t(b)
             except Exception as e:

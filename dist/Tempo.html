@@ -2812,7 +2812,7 @@ var Store = (function () {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
         autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
-        otb: '10+0' },
+        otb: '10+0', backedUp: 0, backupAsked: 0 },
       play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
       learn: { rev: 0, done: {}, last: null },
@@ -2871,6 +2871,8 @@ var Store = (function () {
     out.clock = oneOf(s.clock, CLOCKS, d.clock);
     out.color = oneOf(s.color, COLORS, d.color);
     out.otb = otbSpec(s.otb) ? s.otb : d.otb;
+    out.backedUp = finite(s.backedUp) && s.backedUp > 0 ? s.backedUp : 0;
+    out.backupAsked = finite(s.backupAsked) && s.backupAsked > 0 ? s.backupAsked : 0;
     return out;
   }
   function cleanPlay(p) {
@@ -3393,6 +3395,15 @@ var Store = (function () {
     copy.exported = new Date().toISOString();
     return JSON.stringify(copy);
   }
+  /* Worth a reminder to back up? Only in a browser without the account sync, once there's real progress
+     to lose, and no backup (or reminder) in the last month. */
+  function backupDue() {
+    if (remote) return false;
+    var MONTH = 30 * 86400000, now = Date.now(), s = state.settings;
+    var progress = state.play.hist.length + state.puzzles.count / 5 + Object.keys(state.learn.done).length;
+    if (progress < 20) return false;
+    return now - Math.max(s.backedUp || 0, s.backupAsked || 0) > MONTH;
+  }
   /* { state } for a usable backup, or { error } in words for the person */
   function readBackup(text) {
     var obj, c;
@@ -3440,7 +3451,9 @@ var Store = (function () {
     init: init, on: on, touch: touch, activity: activity, streak: streak,
     get state() { return state; },
     seenBits: seenBits, saveBits: saveBits,
-    exportJson: exportJson, importJson: importJson, reset: reset, synced: synced,
+    exportJson: exportJson, importJson: importJson, reset: reset, synced: synced, backupDue: backupDue,
+    /* a backup was copied or saved just now */
+    backedUp: function () { state.settings.backedUp = Date.now(); touch('settings'); },
     /* null when text is a backup that can be restored, otherwise the reason it can't */
     checkBackup: function (text) { return readBackup(text).error || null; },
     saveNow: function () { writeLocal(); flush(); },
@@ -4658,6 +4671,9 @@ App.register('home', {
       var reps = Object.keys(dueReps);
       item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); }, Math.min(10, dueLines));
     }
+    // the puzzle theme you miss most often, once there's enough to go on
+    var weak = Puzzles.weakest();
+    if (weak) item('puzzle', 'Practice ' + Puzzles.NAMES[weak.t].toLowerCase().replace(/^mate in/, 'mate-in') + ' puzzles: you solve ' + Math.round(weak.rate * 100) + '%', function () { Puzzles.themed(weak.t); }, 4);
     if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); }, 2);
     var nl = Learn.nextLesson();
     if (nl) {
@@ -4665,6 +4681,7 @@ App.register('home', {
       for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
       item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); }, Math.max(3, Math.round(nl.lesson.steps.length * 0.6)));
     }
+    if (Store.backupDue()) item('download', 'Back up your progress', function () { S.settings.backupAsked = Date.now(); Store.touch('settings'); App.go('prefs'); }, 1);
     if (!todo.childNodes.length) todo.remove();
 
     /* the ladder around you: two rungs either side of the next opponent, strongest at the top */
@@ -4967,8 +4984,15 @@ var Explain = (function () {
     return found;
   }
   /* Why is `uci` a good move in pos? Up to two short phrases that follow "it", such as "develops a knight". */
-  function reasons(pos, uci, line) {
-    var m = pos.parseMove(uci); if (!m) return [];
+  function reasons(pos, uci, line) { return reasonsInfo(pos, uci, line).list; }
+  /* { list, hard }: hard when the first reason is something the engine line shows (mate, material, a fork);
+     the rest describe the move (develops a knight, claims the center) without claiming that's why it's best */
+  function reasonsInfo(pos, uci, line) {
+    var m = pos.parseMove(uci); if (!m) return { list: [], hard: false };
+    var out = reasonList(pos, m, uci, line);
+    return { list: out, hard: !!(out.length && /checkmate|wins|attacks two|makes a new queen|promotes/.test(out[0])) };
+  }
+  function reasonList(pos, m, uci, line) {
     var from = m & 127, to = (m >> 7) & 127, pt = Math.abs(pos.b[from]), side = pos.side, out = [];
     var g = gainOf(pos, uci, line);
     if (g && g.kind === 'mate1') return ['is checkmate'];
@@ -5014,7 +5038,7 @@ var Explain = (function () {
       h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
   }
 
-  return { bad: bad, missed: missed, missedInfo: missedInfo, reasons: reasons, sanLine: sanLine, numberedLine: numberedLine, matFor: matFor, studyRow: studyRow };
+  return { bad: bad, missed: missed, missedInfo: missedInfo, reasons: reasons, reasonsInfo: reasonsInfo, sanLine: sanLine, numberedLine: numberedLine, matFor: matFor, studyRow: studyRow };
 })();
 
 /* The in-game coach: quick checks before a move is committed. */
@@ -5426,8 +5450,9 @@ var Review = (function () {
     function bestSays(i, lead) {
       var e0 = st.evals[i]; if (!e0 || !e0.best) return '';
       var before = posAt(i).pos, san = sanOf(before, e0.best); if (!san) return '';
-      var rs = Explain.reasons(before, e0.best, e0.line);
-      return lead(san) + (rs.length ? ': it ' + rs.join(' and ') : '') + '.';
+      // "Best was Nxe5: it wins a knight" when the engine line shows it; "Best was Nf3, which develops a knight" when that only describes the move
+      var ri = Explain.reasonsInfo(before, e0.best, e0.line), rs = ri.list;
+      return lead(san) + (rs.length ? (ri.hard ? ': it ' : ', which ') + rs.join(' and ') : '') + '.';
     }
     function bestWas(i) { return bestSays(i, function (s) { return 'Best was ' + s; }); }
     function bestLine(i) {
@@ -7905,7 +7930,7 @@ var Puzzles = (function () {
     /* for tests: the state of the session on screen */
     _state: function () {
       var s = session; if (!s) return null;
-      return { mode: s.mode, single: s.single, from: s.from, started: s.started, done: s.done, reason: s.reason, solved: s.solved, streak: s.streak, strikes: s.strikes,
+      return { mode: s.mode, theme: s.theme || null, single: s.single, from: s.from, started: s.started, done: s.done, reason: s.reason, solved: s.solved, streak: s.streak, strikes: s.strikes,
         missed: s.missed.map(function (x) { return x.p.id; }), retrying: s.retrying ? s.retrying.id : null, phase: P ? P.phase : null,
         hint: P ? P.hint : null, hintMax: P ? P.hintMax : null, rated: P ? P.rated : null, kind: P && P.api ? P.api.kind() : null };
     },
@@ -7913,7 +7938,8 @@ var Puzzles = (function () {
     _pickFor: function (t) { return Data.puzzles().then(function (list) { var p = pickNear(list, Store.state.puzzles.rating, { theme: t }); return p ? p.id : null; }); },
     wrongReason: wrongReason,
     NAMES: NAMES,
-    DEFS: DEFS
+    DEFS: DEFS,
+    weakest: weakest
   };
 })();
 
@@ -9576,8 +9602,8 @@ var Train = (function () {
       var ta = h('textarea', { id: 'backup-io', 'aria-label': 'Backup code', placeholder: 'Paste a backup here to restore it.' });
       var problem = h('div', { class: 'feedback no', role: 'alert', hidden: true });
       var btns = h('div', { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', onclick: function () { var j = Store.exportJson(); ta.value = j; U.copyText(j, ta).then(function (ok) { App.toast(ok ? 'Backup copied' : 'Backup is in the box below: select and copy it'); }); } }, U.icon('copy'), 'Copy backup'));
-      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (!ok) App.toast('Saving files isn’t allowed here. Use Copy backup instead.'); }); } }, U.icon('download'), 'Save file'));
+        h('button', { class: 'btn small', type: 'button', onclick: function () { var j = Store.exportJson(); ta.value = j; Store.backedUp(); U.copyText(j, ta).then(function (ok) { App.toast(ok ? 'Backup copied' : 'Backup is in the box below: select and copy it'); }); } }, U.icon('copy'), 'Copy backup'));
+      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (ok) Store.backedUp(); else App.toast('Saving files isn’t allowed here. Use Copy backup instead.'); }); } }, U.icon('download'), 'Save file'));
       btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.readFile('.json,.txt').then(function (t) { if (t) restore(t); }); } }, U.icon('upload'), 'Open file'));
       btns.appendChild(h('button', { class: 'btn small primary', type: 'button', onclick: function () {
         var t = ta.value.trim(); if (!t) { App.toast('Paste a backup first'); return; }

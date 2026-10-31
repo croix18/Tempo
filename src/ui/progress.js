@@ -197,8 +197,8 @@
       var ta = h('textarea', { id: 'backup-io', 'aria-label': 'Backup code', placeholder: 'Paste a backup here to restore it.' });
       var problem = h('div', { class: 'feedback no', role: 'alert', hidden: true });
       var btns = h('div', { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', onclick: function () { var j = Store.exportJson(); ta.value = j; U.copyText(j, ta).then(function (ok) { App.toast(ok ? 'Backup copied' : 'Backup is in the box below: select and copy it'); }); } }, U.icon('copy'), 'Copy backup'));
-      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (!ok) App.toast('Saving files isn’t allowed here. Use Copy backup instead.'); }); } }, U.icon('download'), 'Save file'));
+        h('button', { class: 'btn small', type: 'button', onclick: function () { var j = Store.exportJson(); ta.value = j; Store.backedUp(); U.copyText(j, ta).then(function (ok) { App.toast(ok ? 'Backup copied' : 'Backup is in the box below: select and copy it'); }); } }, U.icon('copy'), 'Copy backup'));
+      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (ok) Store.backedUp(); else App.toast('Saving files isn’t allowed here. Use Copy backup instead.'); }); } }, U.icon('download'), 'Save file'));
       btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.readFile('.json,.txt').then(function (t) { if (t) restore(t); }); } }, U.icon('upload'), 'Open file'));
       btns.appendChild(h('button', { class: 'btn small primary', type: 'button', onclick: function () {
         var t = ta.value.trim(); if (!t) { App.toast('Paste a backup first'); return; }

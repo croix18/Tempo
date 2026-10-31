@@ -182,7 +182,7 @@ async def test_phone(browser):
     await pg.wait_for_timeout(300)
     txt = await card_text(pg)
     check('retry: a safe but worse move is not praised', not re.search(r'Yes, a3', txt), txt[:160])
-    check('retry: "a3 is safe, but %s was best: it ..."' % best_san, re.search(r'a3 is safe, but %s was best(: it [^.]+)?\.' % re.escape(best_san), txt), txt[:200])
+    check('retry: "a3 is safe, but %s was best: it ..." (or ", which ..." for a reason that only describes the move)' % best_san, re.search(r'a3 is safe, but %s was best((: it |, which )[^.]+)?\.' % re.escape(best_san), txt), txt[:200])
 
     # stale verdict: play a move, then go to the start before the engine answers
     await go(pg, BG5)

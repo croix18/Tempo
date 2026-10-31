@@ -736,7 +736,7 @@ var Puzzles = (function () {
     /* for tests: the state of the session on screen */
     _state: function () {
       var s = session; if (!s) return null;
-      return { mode: s.mode, single: s.single, from: s.from, started: s.started, done: s.done, reason: s.reason, solved: s.solved, streak: s.streak, strikes: s.strikes,
+      return { mode: s.mode, theme: s.theme || null, single: s.single, from: s.from, started: s.started, done: s.done, reason: s.reason, solved: s.solved, streak: s.streak, strikes: s.strikes,
         missed: s.missed.map(function (x) { return x.p.id; }), retrying: s.retrying ? s.retrying.id : null, phase: P ? P.phase : null,
         hint: P ? P.hint : null, hintMax: P ? P.hintMax : null, rated: P ? P.rated : null, kind: P && P.api ? P.api.kind() : null };
     },
@@ -744,6 +744,7 @@ var Puzzles = (function () {
     _pickFor: function (t) { return Data.puzzles().then(function (list) { var p = pickNear(list, Store.state.puzzles.rating, { theme: t }); return p ? p.id : null; }); },
     wrongReason: wrongReason,
     NAMES: NAMES,
-    DEFS: DEFS
+    DEFS: DEFS,
+    weakest: weakest
   };
 })();

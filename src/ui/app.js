@@ -548,6 +548,9 @@ App.register('home', {
       var reps = Object.keys(dueReps);
       item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); }, Math.min(10, dueLines));
     }
+    // the puzzle theme you miss most often, once there's enough to go on
+    var weak = Puzzles.weakest();
+    if (weak) item('puzzle', 'Practice ' + Puzzles.NAMES[weak.t].toLowerCase().replace(/^mate in/, 'mate-in') + ' puzzles: you solve ' + Math.round(weak.rate * 100) + '%', function () { Puzzles.themed(weak.t); }, 4);
     if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); }, 2);
     var nl = Learn.nextLesson();
     if (nl) {
@@ -555,6 +558,7 @@ App.register('home', {
       for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
       item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); }, Math.max(3, Math.round(nl.lesson.steps.length * 0.6)));
     }
+    if (Store.backupDue()) item('download', 'Back up your progress', function () { S.settings.backupAsked = Date.now(); Store.touch('settings'); App.go('prefs'); }, 1);
     if (!todo.childNodes.length) todo.remove();
 
     /* the ladder around you: two rungs either side of the next opponent, strongest at the top */
