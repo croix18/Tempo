@@ -110,7 +110,7 @@ module.exports = {
           text: 'Punish Black’s uncastled king. Use the open file.',
           line: ['f1e1'],
           hint: 'Your rook belongs on the open e-file.',
-          done: 'Re1 pins the knight on e4 to Black’s king. Black is in trouble because the king never left the center.' },
+          done: 'Re1 pins the knight on e4 to Black’s king. With the king still in the center, Black must deal with the pin right away or lose the knight.' },
         { t: 'move', fen: 'rnbqkb1r/pppp1ppp/5n2/4N3/8/8/PPPPQPPP/RNB1KB1R w KQkq - 2 5',
           text: 'Black’s king is still on the open e-file, facing your queen on e2. Find the knight move that wins Black’s queen.',
           line: ['e5c6'],

@@ -33,7 +33,7 @@ module.exports = {
             6: 'Defend e4 with d3. Ng5 looks tempting, but it moves a piece twice and leads to sharp lines. Keep it simple.',
             7: 'Black picks a modest square for the bishop. It guards the king and gets ready to castle.',
             8: 'Castle before anything else. A safe king lets you play the middlegame without worry.',
-            10: 'Tuck the bishop away on b3 before Black can chase it with ...d5 or ...Na5. It still aims at f7.',
+            10: 'Tuck the bishop away on b3 before Black can chase it with ...d5. It still aims at f7.',
             12: 'c3 gives your bishop a retreat square on c2 and prepares d4 to grab more of the center.',
             13: 'The knight attacks your bishop.',
             14: 'Keep the bishop. On c2 it is safe and points at Black’s kingside. Next you can play Re1, Nbd2 and d4.'
@@ -46,7 +46,7 @@ module.exports = {
             7: 'Black gives up the center pawn.',
             8: 'Recapture with the knight. It stands well on d4 and your queen stays safe at home.',
             10: 'Develop and defend e4 at the same time.',
-            12: 'Castle. All your minor pieces are out and your king is safe.',
+            12: 'Castle. Three of your minor pieces are out and your king is safe.',
             14: 'h3 is a useful quiet move. It keeps Black’s pieces off g4 and gives your king some breathing room.'
           } },
         { id: 'philidor', name: 'Philidor Defense',
@@ -208,7 +208,7 @@ module.exports = {
             7: 'Develop and attack e4.',
             8: 'White builds a big center with d4 right away.',
             9: 'Take the pawn. Holding e5 is hard here, so open the game while your pieces are out.',
-            11: 'Your bishop was attacked, so move it with check. Now White has to block.',
+            11: 'Your bishop was attacked, so move it with check. Now White usually blocks.',
             13: 'Trade bishops. Fewer white attackers means fewer worries for your king.',
             15: 'Strike back with ...d5. You break up White’s big center before it can roll forward.'
           } },
@@ -303,7 +303,7 @@ module.exports = {
             7: 'Break the pin by putting the bishop in between. It also prepares castling.',
             9: 'Castle. With your king safe, you can think about the queenside.',
             11: 'Ask the bishop to decide: take on f6 or retreat.',
-            13: '...b6 and ...Bb7 develop your last minor piece on the long diagonal.'
+            13: '...b6 and ...Bb7 develop your c8 bishop on the long diagonal.'
           } },
         { id: 'qgd-exchange', name: 'QGD: Exchange',
           moves: 'd4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7 e3 O-O Bd3 c6 Nf3 Nbd7',
@@ -371,7 +371,7 @@ module.exports = {
         2: 'The bishop on c4 aims at f7, the weak square next to your king.',
         4: 'Now the queen also hits f7. The threat is Qxf7, which is checkmate.',
         5: 'Block with ...g6 and attack the queen. 3...Nf6?? loses at once to 4.Qxf7 mate.',
-        6: 'The queen returns to f3 and aims at f7 again.',
+        6: 'The queen drops back to f3 and aims at f7 again.',
         7: 'Now ...Nf6 is perfect. The knight blocks the f-file and develops.',
         8: 'A third try at f7, with the queen behind the bishop.',
         9: 'Guard f7 with the queen. It also protects e5.',
@@ -384,8 +384,8 @@ module.exports = {
       notes: {
         6: 'Ng5 attacks f7 twice, with the knight and the bishop.',
         7: 'Black blocks the bishop with ...d5. This is the right idea.',
-        8: 'Take the pawn and attack the knight on f6.',
-        9: 'The mistake. Black should play 5...Na5 and chase your bishop. Now the knight on d5 is loose.',
+        8: 'Take the pawn and attack the knight on c6.',
+        9: 'The mistake. Black should play 5...Na5 and chase your bishop. Now the knight on d5 is a target.',
         10: 'The **Fried Liver**: sacrifice the knight on f7 to pull Black’s king out.',
         11: 'The king has to take, or your knight forks the queen and rook.',
         12: 'Check, and attack the knight on d5 a second time.',
@@ -424,7 +424,7 @@ module.exports = {
       moves: 'e4 e5 Nf3 Nf6 Nxe5 Nc6 Nxc6 dxc6 d3 Bc5 Bg5 Nxe4 Bxd8 Bxf2+ Ke2 Bg4#',
       notes: {
         5: 'The **Stafford Gambit**. Black offers a pawn instead of defending e5.',
-        7: 'Black recaptures toward the open d-file and gets quick piece play.',
+        7: 'Black recaptures with the d-pawn to open lines and gets quick piece play.',
         8: 'd3 protects e4. Good so far.',
         9: 'The bishop aims straight at f2.',
         10: 'Pinning the knight is the mistake: your king is still in the center. 6.Be2 was safe.',

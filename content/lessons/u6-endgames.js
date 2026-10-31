@@ -46,7 +46,7 @@ module.exports = {
           text: 'You are Black, and it is your move. Step into the square.',
           line: ['f5e6'], accept: [['f5e5']],
           hint: 'The square covers the b-, c-, d- and e-files.',
-          done: 'Inside the square, your king is in time: after b6 Kd7 b7 Kc7, the pawn falls.' },
+          done: 'Inside the square, your king is in time: after b6 Kd6 b7 Kc7, the pawn falls.' },
         { t: 'quiz', fen: '8/8/8/1P3k2/8/8/8/6K1 w - - 0 1',
           text: 'Same position, but now White is to move. What happens?',
           choices: ['Black’s king still catches the pawn', 'b6 shrinks the square and the pawn promotes'], answer: 1,
@@ -112,7 +112,7 @@ module.exports = {
           wrong: { d5e6: 'Stalemate. Black has no legal move, so the game is a draw.' },
           done: 'After Kd6, Black must play Kf7. Then Kd7 guards e8 and the pawn promotes.' },
         { t: 'read', fen: '7k/8/6K1/7P/8/8/8/8 w - - 0 1', marks: ['h8'],
-          text: 'A **rook pawn**, on the a- or h-file, is the big exception. Once the defending king reaches the corner, it can’t be driven out. Push the pawn and it is stalemate, so this is a draw.' },
+          text: 'A **rook pawn**, on the a- or h-file, is the big exception. Once the defending king reaches the corner, it can’t be driven out. Push the pawn and it ends in stalemate, so this is a draw.' },
         { t: 'play', fen: '4k3/8/8/4K3/8/4P3/8/8 w - - 0 1', goal: 'promote',
           text: 'Your king stands in front of your pawn. Promote the pawn and keep the new queen. Watch out for stalemate.',
           done: 'King first, pawn second. With your king ahead of the pawn, the defender can’t stop it.' },
@@ -155,7 +155,7 @@ module.exports = {
           text: 'The **Lucena position**: your pawn is on the seventh rank, but your own king blocks it. When the king steps out, Black’s rook checks it. The winning plan is to **build a bridge**.' },
         { t: 'quiz', fen: '3K4/3P2k1/8/8/8/2r5/8/5R2 w - - 0 1',
           text: 'The bridge starts with a rook move. Where should your rook on f1 go?',
-          choices: ['f4, on the fourth rank', 'f8, to check the king', 'd1, behind the pawn'], answer: 0,
+          choices: ['f4, on the fourth rank', 'f7, to check the king', 'd1, behind the pawn'], answer: 0,
           done: 'From f4 the rook still cuts off Black’s king, and later it can jump to d4 to shield your king from checks.' },
         { t: 'read', fen: '3K4/3P2k1/8/8/5R2/8/8/2r5 w - - 0 1',
           play: ['d8e7', 'c1e1', 'e7d6', 'e1d1', 'd6e6', 'd1e1'],
@@ -163,7 +163,7 @@ module.exports = {
         { t: 'move', fen: '8/3P2k1/4K3/8/5R2/8/8/4r3 w - - 0 1',
           text: 'Finish the bridge. Keep walking toward your rook, then block the last check with it.',
           line: ['e6d5', 'e1d1', 'f4d4'], hint: 'Your king goes to d5, where the rook can shield it.',
-          done: 'Rd4 is the bridge. Black has no more checks, and the pawn promotes.' },
+          done: 'Rd4 is the bridge. Black has no more safe checks, and the pawn promotes.' },
         { t: 'read', fen: '4k3/1R6/7r/3KP3/8/8/8/8 b - - 0 1', marks: ['d6', 'e6', 'f6'],
           text: 'The **Philidor position** is the key draw. Your rook holds your third rank, here the sixth, so White’s king can’t come forward. Wait there until the pawn advances.' },
         { t: 'move', fen: '4k3/1R6/4P2r/3K4/8/8/8/8 b - - 0 1',
@@ -176,7 +176,7 @@ module.exports = {
           done: 'Third rank first, checks from behind second. That simple plan saves many rook endgames.' },
         { t: 'play', fen: '3K4/3P2k1/8/8/8/2r5/8/5R2 w - - 0 1', goal: 'promote',
           text: 'Now win the Lucena yourself. Build the bridge and promote your pawn.',
-          done: 'Rook to the fourth rank, king out, block the last check. That wins the most common rook endgame.' }
+          done: 'Rook to the fourth rank, king out, block the last check. That wins the most important rook endgame to know.' }
       ]
     }
   ]
