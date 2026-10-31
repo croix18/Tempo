@@ -70,7 +70,7 @@ var BOTS = [
     cfg: { depth: 2, qs: true, temp: 85, random: 0.08, blunder: 0.55, book: true,
       style: { center: 10, develop: 25, castle: 30, kingShy: 20 } },
     lines: { hello: 'Let’s keep it steady.', win: 'Slow and steady.', lose: 'Steady wasn’t enough today.', capture: 'I’ll take that.' } },
-  { id: 'nora', name: 'Nora', rating: 1000, tone: 'navy',
+  { id: 'nora', name: 'Wren', rating: 1000, tone: 'navy', // the id stays, so records against her carry over
     bio: 'New to the club and studying her openings.',
     cfg: { depth: 2, qs: true, temp: 70, random: 0.05, blunder: 0.5, book: true,
       style: { develop: 25, castle: 30, center: 10, kingShy: 20 } },

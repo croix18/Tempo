@@ -27,7 +27,7 @@ def safe_json(s): return s.replace('</', '<\\/')
 b64 = {k: rd('build/%s.b64' % k).strip() for k in ['sfjs', 'sfwasm', 'puzzles', 'openings', 'dmsans', 'dmserif']}
 
 core = rd('src/core.js'); bots = rd('src/bots.js'); engine = rd('src/engine.js')
-ui_order = ['inflate.js', 'ui/pieces.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/play.js',
+ui_order = ['inflate.js', 'ui/pieces.js', 'ui/avatars.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/play.js',
             'ui/clock.js', 'ui/puzzles.js', 'ui/learn.js', 'ui/openings.js', 'ui/train.js', 'ui/progress.js']
 ui = '\n;\n'.join(rd('src/' + f) for f in ui_order)
 boot = """

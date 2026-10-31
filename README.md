@@ -14,7 +14,7 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 - **Your pattern**: saved mistakes carry their kind (a piece left en prise, a fork, a missed mate, and so on), and the kind that shows up in the most of your recent games is named on Home, at the end of a game and after each review, with the lesson, puzzles and positions that fix it. Home lists what to do next in that order, with a rough time for each.
 - **Trainers**: coordinates, board vision, a review queue of your own mistakes, mating and endgame play-outs, and an analysis board.
 - **Progress**: rating history, a practice calendar and stats. Data stays in the browser and is checked and repaired every time it loads, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
-- **Pieces**: an original Staunton-style set drawn for Tempo, in ivory and navy.
+- **Pieces and portraits**: an original Staunton-style set drawn for Tempo, in ivory and navy, and a small drawn portrait for each opponent (src/ui/avatars.js).
 
 ## Build
 

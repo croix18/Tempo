@@ -58,7 +58,7 @@ async def test_play_ladder(browser):
     head = await pg.locator('.locked-head').inner_text()
     check('Play: the locked opponents wait in a folded list that says what unlocks next', folded and '10 more opponents to unlock' in head and 'Beat Mabel to unlock Gus' in head, head)
     await pg.locator('.locked-head').tap(); await pg.wait_for_timeout(450)
-    check('Play: opened, the locked list runs nearest-to-unlock first', names[1][:3] == ['Gus', 'Nora', 'Felix'] and names[1][-1] == 'Stockfish' and await pg.evaluate("document.querySelector('#locked-bots').classList.contains('open')"), names[1])
+    check('Play: opened, the locked list runs nearest-to-unlock first', names[1][:3] == ['Gus', 'Wren', 'Felix'] and names[1][-1] == 'Stockfish' and await pg.evaluate("document.querySelector('#locked-bots').classList.contains('open')"), names[1])
     await pg.locator('#locked-bots .rung', has_text='Gus').tap(); await pg.wait_for_timeout(400)
     check('Play: a locked opponent still explains how to unlock it', await pg.locator('.sheet h2', has_text='Gus is locked').count() == 1)
     await pg.locator('.sheet .close-x').tap(); await pg.wait_for_timeout(300)

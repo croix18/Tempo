@@ -275,9 +275,12 @@ var App = (function () {
 var UI = (function () {
   'use strict';
   var h = U.h, C = TempoCore;
+  /* the bot's portrait; a bot without one gets its initial in its tone */
   function avatar(bot, size) {
-    var initials = bot.name.replace(/^The /, '').charAt(0);
-    return h('span', { class: 'avatar ' + (size || '') + ' tone-' + (bot.tone || 'cream'), 'aria-hidden': 'true' }, initials);
+    var el = h('span', { class: 'avatar ' + (size || '') + ' tone-' + (bot.tone || 'cream'), 'aria-hidden': 'true' });
+    if (window.TempoAvatars && TempoAvatars.has(bot.id)) { el.classList.add('drawn'); el.innerHTML = TempoAvatars.svg(bot); }
+    else el.textContent = bot.name.replace(/^The /, '').charAt(0);
+    return el;
   }
   function stars(n, of) {
     var el = h('span', { class: 'stars', 'aria-label': n + ' of ' + (of || 3) + ' stars' });
@@ -389,6 +392,7 @@ var UI = (function () {
         'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : isNext ? ', your next opponent' : ''),
         onclick: function () { if (locked) lockedSheet(bot, BOTS[i - 1]); else Play.setup(bot); }
       }, h('span', { class: 'n num' }, String(i + 1)),
+        o.full ? avatar(bot, 'sm') : null,
         o.full ? h('span', { class: 'nm' }, h('span', { class: 'who' }, bot.name), h('span', { class: 'bio' }, bot.bio)) : h('span', { class: 'nm' }, bot.name),
         h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
       if (isNext) list._next = li;
