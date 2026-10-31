@@ -146,7 +146,7 @@ module.exports = {
     },
     {
       id: 'remove-defender',
-      title: 'Removing the Defender',
+      title: 'Remove the Defender',
       summary: 'Take away the guard, then take what it guarded.',
       steps: [
         { t: 'read', fen: 'r4rk1/6pp/pq1bpp2/3p1n2/3P1P2/1P6/PB1NQ1PP/R4RK1 w - - 1 17',

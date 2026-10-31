@@ -161,7 +161,7 @@ async def main():
         D = await pg.evaluate("Data.reps()")
         # the menu and every repertoire page render
         await pg.evaluate("App.go('openings')"); await pg.wait_for_timeout(300)
-        cards = await pg.locator('button.card.theme').count()
+        cards = await pg.locator('.menu-row').count()
         await pg.close()
         jobs = [('rep', r) for r in D['repertoires'] if not ONLY or r['id'] in ONLY] + \
                [('trap', t) for t in D['traps'] if not ONLY or t['id'] in ONLY]

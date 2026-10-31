@@ -20,6 +20,17 @@ var Play = (function () {
         h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
     var list = UI.ladder({ lo: 0, hi: BOTS.length - 1, full: true, playing: cb && cb.id });
     root.appendChild(list);
+    var recent = S.games.list.slice(0, 3);
+    if (recent.length) {
+      root.appendChild(h('h2', { style: { margin: '32px 0 12px' } }, 'Recent games'));
+      var rl = h('nav', { class: 'menu-list', 'aria-label': 'Recent games', style: { maxWidth: '720px' } });
+      recent.forEach(function (g) {
+        var b = TempoBots.byId(g.bot), name = b ? b.name : (g.opp || 'opponent');
+        rl.appendChild(UI.menuRow('review', resultPhrase(g, name) + ', ' + U.dateShort(g.ts), g.reviewed && g.acc != null ? Math.round(g.acc) + '% accuracy' : 'Not reviewed yet', function () { Review.openGame(g.id); }));
+      });
+      rl.appendChild(UI.menuRow('list', 'All games', null, function () { App.go('review'); }));
+      root.appendChild(rl);
+    }
     root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px', maxWidth: '62ch' } },
       'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn\u2019t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
     // on a phone the next opponent can sit below the fold; bring it into view
@@ -52,12 +63,15 @@ var Play = (function () {
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'You play'));
       box.appendChild(seg([['w', 'White'], ['r', 'Random'], ['b', 'Black']], choice.color, function (v) { choice.color = v; }));
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'Clock'));
-      box.appendChild(seg([['none', 'No clock'], ['10', '10 min'], ['15+10', '15 | 10'], ['30', '30 min']], choice.clock, function (v) { choice.clock = v; }));
+      box.appendChild(seg([['none', 'No clock'], ['10', '10 min'], ['15+10', '15 + 10 s'], ['30', '30 min']], choice.clock, function (v) { choice.clock = v; }));
+      box.lastChild.children[2].setAttribute('aria-label', '15 minutes, plus 10 seconds for each move');
+      box.lastChild.children[2].title = '15 minutes, plus 10 seconds for each move';
       var tg = h('div', { style: { marginTop: '10px' } });
       tg.appendChild(toggle('Coach', 'Warns you before a move that loses material.', choice.coach, function (v) { choice.coach = v; }));
-      tg.appendChild(toggle('Show hanging pieces', 'Marks your pieces that can be taken for free.', choice.hanging, function (v) { choice.hanging = v; }));
-      tg.appendChild(toggle('Takebacks', 'Lets you undo a move. Assisted games aren’t rated.', choice.takebacks, function (v) { choice.takebacks = v; }));
+      tg.appendChild(toggle('Show threats', 'Rings pieces you could lose, and warns you when checkmate is threatened.', choice.hanging, function (v) { choice.hanging = v; }));
+      tg.appendChild(toggle('Takebacks', 'Lets you undo a move.', choice.takebacks, function (v) { choice.takebacks = v; }));
       box.appendChild(tg);
+      box.appendChild(h('p', { class: 'muted small', style: { marginTop: '12px' } }, 'The game counts toward your rating unless you use a hint or take back a move, including taking one back when the coach warns you.'));
       box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
         h('button', { class: 'btn primary block', type: 'button', onclick: function () {
           var s = Store.state.settings;
@@ -116,7 +130,7 @@ var Play = (function () {
     var st = { pos: pos, viewPly: null, thinking: false, token: 0, hintStage: 0, hintMove: null, pre: null, ended: !!G.result, clockT: null, lastTick: 0, bubbleT: null, epds: [] };
     view = st;
 
-    var head = h('div', { class: 'row between', style: { marginBottom: '10px' } },
+    var head = h('div', { class: 'row between game-head' },
       h('button', { class: 'back', type: 'button', onclick: function () { leaveGame(); } }, U.icon('back'), 'Opponents'),
       h('div', { class: 'opening-name', id: 'opening' }));
     root.appendChild(head);
@@ -128,10 +142,22 @@ var Play = (function () {
     var coach = h('div', { class: 'coach', hidden: true });
     var movesBox = h('div');
     var controls = h('div', { class: 'controls' });
-    var arena = h('div', { class: 'arena' },
-      h('div', { class: 'board-col' }, oppBar, board.el, youBar),
-      h('div', { class: 'panel' }, bubble, coach, controls, movesBox));
+    var boardCol = h('div', { class: 'board-col' }, oppBar, board.el, youBar);
+    var arena = h('div', { class: 'arena' }, boardCol,
+      h('div', { class: 'panel' }, controls, coach, bubble, movesBox));
     root.appendChild(arena);
+    /* the name strip next to each side's pieces follows the board when it flips */
+    function placeBars() {
+      var youAtBottom = board.orient === G.color;
+      boardCol.insertBefore(youAtBottom ? oppBar : youBar, board.el);
+      boardCol.appendChild(youAtBottom ? youBar : oppBar);
+    }
+    function flip() { board.flip(); placeBars(); }
+    // the move list switches between a strip and a table at desktop width
+    var wideMq = window.matchMedia('(min-width: 980px)');
+    var onWide = function () { if (view === st) renderMoves(); };
+    if (wideMq.addEventListener) wideMq.addEventListener('change', onWide);
+    st.unlisten = function () { if (wideMq.removeEventListener) wideMq.removeEventListener('change', onWide); };
 
     function bars() {
       var mat = UI.material(st.pos);
@@ -153,6 +179,7 @@ var Play = (function () {
 
     function renderMoves() {
       U.clear(movesBox);
+      if (!G.sans.length) return;
       var wide = window.matchMedia('(min-width: 980px)').matches;
       var startSide = new C.Pos(G.startFen).side;
       if (wide) {
@@ -179,6 +206,7 @@ var Play = (function () {
       if (st.viewPly != null) movesBox.appendChild(h('div', { class: 'row', style: { marginTop: '8px' } }, h('button', { class: 'btn small', type: 'button', onclick: function () { showPly(null); } }, 'Back to the game')));
     }
     function showPly(n) {
+      if (st.checking || st.deciding) return;
       if (n != null && n >= G.moves.length) n = null;
       st.viewPly = n;
       var p = new C.Pos(G.startFen), last = null;
@@ -187,7 +215,7 @@ var Play = (function () {
       if (n == null) { st.pos = p; board.setMovable(myTurn() ? G.color : null); }
       else board.setMovable(null);
       board.setPosition(p, { last: last, animate: false, clearLast: !last });
-      if (n == null) markHanging(); else board.setMarks([]);
+      if (n == null) markHanging(true); else board.setMarks([]);
       renderMoves(); bars();
     }
 
@@ -202,11 +230,12 @@ var Play = (function () {
       function tool(icon, label, fn, disabled, aria, extra) {
         return h('button', { class: 'btn tool' + (extra ? ' ' + extra : ''), type: 'button', onclick: fn, disabled: disabled, 'aria-label': aria, title: aria || label }, U.icon(icon), h('span', null, label));
       }
-      controls.appendChild(tool('hint', 'Hint', hint, !myTurn() || st.thinking, 'Get a hint'));
+      var busy = st.deciding || st.checking;
+      controls.appendChild(tool('hint', 'Hint', hint, !myTurn() || st.thinking || busy, 'Get a hint'));
       if (G.takebacks) controls.appendChild(tool('undo', 'Undo', takeback, !canTakeback(), 'Take back your last move'));
-      controls.appendChild(tool('flip', 'Flip', function () { board.flip(); }, false, 'Flip the board'));
-      controls.appendChild(tool('draw', 'Draw', offerDraw, st.thinking, 'Offer a draw'));
-      controls.appendChild(tool('flag', 'Resign', resign, false, 'Resign the game', 'resign'));
+      controls.appendChild(tool('flip', 'Flip', flip, false, 'Flip the board'));
+      controls.appendChild(tool('draw', 'Draw', offerDraw, st.thinking || busy, 'Offer a draw'));
+      controls.appendChild(tool('flag', 'Resign', resign, busy, 'Resign the game', 'resign'));
     }
 
     function say(text, kind) {
@@ -225,18 +254,48 @@ var Play = (function () {
     }
 
     function myTurn() { return !G.result && (st.pos.side === 1 ? 'w' : 'b') === G.color && st.viewPly == null; }
-    function canTakeback() { return G.takebacks && !G.result && G.moves.length >= (G.color === 'w' ? 1 : 2) && !st.thinking; }
+    function canTakeback() { return G.takebacks && !G.result && G.moves.length >= (G.color === 'w' ? 1 : 2) && !st.thinking && !st.checking && !st.deciding; }
 
-    function markHanging() {
+    /* "Show threats": ring your pieces that can be taken for free, and say which one is in danger and from what.
+       A checkmate threat comes first: it is drawn on the board and named. */
+    function markHanging(speak) {
       if (!G.hanging || G.result || !myTurn()) { board.setMarks([]); return; }
-      var marks = [];
+      var marks = [], worst = null;
       for (var s = 0; s < 120; s++) {
         if (s & 8) { s += 7; continue; }
         var p = st.pos.b[s];
         if (!p || (p > 0) !== (you === 1) || Math.abs(p) === 6) continue;
-        if (st.pos.hangingLoss(s) >= 100) marks.push({ sq: s, kind: 'danger' });
+        var loss = st.pos.hangingLoss(s);
+        if (loss >= 100) { marks.push({ sq: s, kind: 'danger' }); if (!worst || loss > worst.loss) worst = { sq: s, loss: loss, type: Math.abs(p) }; }
       }
       board.setMarks(marks);
+      var threat = speak && !st.deciding && coach.hidden ? mateThreat() : null;
+      if (threat) {
+        board.setArrows([{ from: threat.uci.slice(0, 2), to: threat.uci.slice(2, 4), color: 'red' }]);
+        say('Watch out: ' + bot.name + ' threatens checkmate with ' + threat.san + '. Stop it with this move.', 'alert');
+        return;
+      }
+      if (speak && worst && !st.deciding && coach.hidden) {
+        var V = [0, 1, 3, 3, 5, 9, 100], b = st.pos.b;
+        var by = st.pos.attackersOf(worst.sq, -you).sort(function (x, y) { return V[Math.abs(b[x])] - V[Math.abs(b[y])]; });
+        var att = by.length ? Math.abs(b[by[0]]) : 0, where = att ? ' the ' + PIECE_NAME[att] + ' on ' + C.sqName(by[0]) : '';
+        var defended = st.pos.attackersOf(worst.sq, you).length > 0, name = 'Your ' + PIECE_NAME[worst.type] + ' on ' + C.sqName(worst.sq);
+        var first = !Store.state.settings.tipHanging, text;
+        // a defended piece is in danger only from a cheaper attacker or from too many attackers
+        if (!defended) text = name + ' can be taken for free' + (att ? ' by' + where : '') + '. Move it or protect it.';
+        else if (att && V[att] < V[worst.type]) text = name + ' is attacked by' + where + ', which is worth less. Move it.';
+        else text = name + ' is attacked more times than it is defended. Move it or add a defender.';
+        say(text + (first ? ' A red ring marks a piece you could lose.' : ''), 'alert');
+        if (first) { Store.state.settings.tipHanging = true; Store.touch('settings'); }
+      }
+    }
+
+    /* If you passed, could the bot mate you on the spot? */
+    function mateThreat() {
+      if (st.pos.inCheck()) return null;
+      var p = st.pos.clone();
+      p.makeNull();
+      return mateInOne(p);
     }
 
     function updateOpening() {
@@ -286,8 +345,9 @@ var Play = (function () {
 
     /* ---------- the user's move ---------- */
     function userMove(uci, m) {
-      if (!myTurn()) return;
-      st.hintStage = 0; st.hintMove = null; board.setArrows([]);
+      if (!myTurn() || st.checking || st.deciding) return;
+      st.hintStage = 0; st.hintMove = null; board.setArrows([]); board.setMarks([]);
+      say(null);
       var before = st.pos.clone();
       if (G.coach && !st.ended) {
         board.setMovable(null);
@@ -295,13 +355,20 @@ var Play = (function () {
         // show the move right away, then check it
         var temp = before.clone(); temp.make(m);
         board.setPosition(temp, { last: m, animate: false });
+        st.checking = true; renderControls();
         Coach.check(before, m, st.pre).then(function (res) {
-          if (tok !== st.token) return;
+          if (tok !== st.token || view !== st || !G) return;
+          st.checking = false;
           if (res && res.warn && G.result == null) {
             G.warned++;
-            warnSheet(res, function (takeBack) {
-              if (takeBack) { G.undos++; board.setMovable(G.color); board.setPosition(st.pos, { animate: true }); markHanging(); say('Taken back. ' + res.short, 'alert'); }
-              else { commit(uci, G.color); if (!G.result) botTurn(); }
+            warnInline(res, temp, function (takeBack) {
+              if (view !== st || !G || G.result) return;
+              if (takeBack) {
+                assisted('a takeback'); G.undos++; Store.touch();
+                board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true }); markHanging();
+                say('Taken back. ' + res.short + ' Try another move.', 'alert');
+                renderControls();
+              } else { board.setArrows([]); commit(uci, G.color); if (!G.result) botTurn(); }
             });
           } else {
             commit(uci, G.color);
@@ -314,16 +381,22 @@ var Play = (function () {
       if (!G.result) botTurn();
     }
 
-    function warnSheet(res, cb) {
-      var decided = false;
-      App.sheet(function (box, api) {
-        box.appendChild(h('div', { class: 'label', style: { color: 'var(--coral)' } }, 'Coach'));
-        box.appendChild(h('h2', { style: { margin: '4px 0 8px' } }, res.title));
-        box.appendChild(h('p', { class: 'muted' }, res.text));
-        box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
-          h('button', { class: 'btn', type: 'button', onclick: function () { decided = true; api.close(); cb(false); } }, 'Play it anyway'),
-          h('button', { class: 'btn primary', type: 'button', onclick: function () { decided = true; api.close(); cb(true); } }, 'Take it back')));
-      }, { modal: true, onClose: function () { if (!decided) cb(true); } });
+    /* The coach's warning sits right under the board, with the danger drawn on it in red.
+       Nothing else can happen until you choose. */
+    function warnInline(res, temp, cb) {
+      st.deciding = true; renderControls();
+      if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
+      U.clear(coach);
+      coach.className = 'coach alert decide';
+      coach.appendChild(U.icon('shield'));
+      var take = h('button', { class: 'btn primary', type: 'button', onclick: function () { choose(true); } }, 'Take it back');
+      coach.appendChild(h('div', { class: 'grow' },
+        h('b', null, res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
+        h('div', { class: 'row', style: { marginTop: '10px' } }, take,
+          h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
+      coach.hidden = false;
+      setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
+      function choose(v) { if (!st.deciding) return; st.deciding = false; say(null); cb(v); }
     }
 
     /* ---------- the bot's move ---------- */
@@ -349,30 +422,34 @@ var Play = (function () {
     }
     function startMyTurn() {
       st.pre = null;
-      say(null);
       if (G.coach) st.pre = Coach.prepare(st.pos);
       renderControls();
+      markHanging(true);
     }
 
     /* ---------- tools ---------- */
     function hint() {
-      if (!myTurn()) return;
+      if (!myTurn() || st.checking || st.deciding) return;
       if (st.hintStage === 0) {
+        if (st.hintPending) return;
+        st.hintPending = true;
         assisted('a hint');
         G.hints++; Store.touch();
-        say('Thinking about a hint…');
+        say('Thinking about a hint\u2026');
         var tok = st.token;
         Engines.analyse({ fen: st.pos.fen(), depth: 14, movetime: 1200 }).then(function (r) {
-          if (tok !== st.token || !myTurn() || !r.best) return;
+          st.hintPending = false;
+          if (tok !== st.token || view !== st || !G || !myTurn() || !r.best) return;
           st.hintMove = r.best; st.hintStage = 1;
-          board.setMarks([{ sq: r.best.slice(0, 2), kind: 'gold' }]);
-          say('Look at the highlighted piece. Press Hint again to see the move.');
-        });
+          var from = C.sqIndex(r.best.slice(0, 2)), piece = PIECE_NAME[Math.abs(st.pos.b[from])] || 'piece';
+          board.setMarks([{ sq: r.best.slice(0, 2), kind: 'hint' }]);
+          say('Look at your ' + piece + ' on ' + r.best.slice(0, 2) + '. Press Hint again to see the move.');
+        }, function () { st.hintPending = false; });
       } else if (st.hintStage === 1 && st.hintMove) {
         st.hintStage = 2;
         board.setArrows([{ from: st.hintMove.slice(0, 2), to: st.hintMove.slice(2, 4), color: 'green' }]);
-        var mv = st.pos.parseMove(st.hintMove);
-        say('Try ' + (mv ? st.pos.san(mv) : st.hintMove) + '.');
+        var mv = st.pos.parseMove(st.hintMove), why = mv ? moveReason(st.pos, mv) : '';
+        say('Try ' + (mv ? st.pos.san(mv) : st.hintMove) + '.' + (why ? ' ' + why : ''));
       }
     }
     function takeback() {
@@ -393,7 +470,11 @@ var Play = (function () {
       if (!myTurn()) botTurn(); else startMyTurn();
     }
     function resign() {
-      App.confirm('Resign this game?', null, 'Resign', true).then(function (ok) { if (ok) finish(G.color === 'w' ? '0-1' : '1-0', 'resignation'); });
+      var S2 = Store.state.play, rated = !G.undos && !G.hints && G.moves.length >= 6;
+      var K = S2.hist.length < 10 ? 40 : S2.hist.length < 30 ? 28 : 20, exp = 1 / (1 + Math.pow(10, (bot.rating - S2.rating) / 400)), loss = Math.round(K * exp);
+      var text = rated ? 'It counts as a loss, about ' + U.plural(loss, 'rating point') + '.' : 'This game isn\u2019t rated, so your rating won\u2019t change.';
+      var mine = st;
+      App.confirm('Resign this game?', text, 'Resign', true).then(function (ok) { if (ok && view === mine && G && !G.result) finish(G.color === 'w' ? '0-1' : '1-0', 'resignation'); });
     }
     /* the first hint or takeback in a game that would count tells you it no longer will */
     function assisted(what) {
@@ -403,7 +484,9 @@ var Play = (function () {
     function offerDraw() {
       if (G.moves.length < 20) { say(bot.name + ' won\u2019t agree to a draw before move 10. Play on.'); botSays('It\u2019s a bit early for a draw. Let\u2019s play on.'); return; }
       say(bot.name + ' is thinking about your draw offer\u2026');
+      var dtok = st.token;
       Engines.analyse({ fen: st.pos.fen(), depth: 12, movetime: 800 }).then(function (r) {
+        if (dtok !== st.token || view !== st || !G || G.result) return;
         var l = r.lines[0] || { cp: 0 };
         var forSideToMove = l.mate != null ? (l.mate > 0 ? 3000 : -3000) : l.cp;
         var botSide = G.color === 'w' ? -1 : 1;
@@ -418,7 +501,7 @@ var Play = (function () {
       if (!G.times || G.result) return;
       var now = performance.now(), dt = now - (st.lastTick || now);
       st.lastTick = now;
-      if (G.moves.length >= 2) {
+      if (G.moves.length >= 2 && !st.checking && !st.deciding) {
         var c = st.pos.side === 1 ? 'w' : 'b';
         G.times[c] -= dt;
         if (G.times[c] <= 0) {
@@ -448,6 +531,7 @@ var Play = (function () {
     function finish(result, reason) {
       if (G.result) return;
       st.token++; st.thinking = false; st.ended = true;
+      if (st.deciding || st.checking) { st.deciding = false; st.checking = false; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
       G.result = result; G.reason = reason;
       clearInterval(st.clockT);
       var record = Play.record(G, bot);
@@ -471,7 +555,7 @@ var Play = (function () {
         if (rec.rated) {
           var d = rec.after - rec.before;
           box.appendChild(h('p', { style: { textAlign: 'center' } }, 'Rating ', h('b', null, String(rec.after)), ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)));
-        } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: you used ' + (G.undos ? 'takebacks' : 'hints') + '.'));
+        } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: ' + (G.undos ? 'you took back a move.' : G.hints ? 'you used a hint.' : 'games shorter than three moves each don\u2019t count.')));
         if (rec.unlocked) box.appendChild(h('div', { class: 'feedback ok', style: { textAlign: 'center', marginBottom: '8px' } }, rec.unlocked.name + ' is now unlocked.'));
         var row = h('div', { class: 'stack', style: { marginTop: '14px' } },
           h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); Review.openGame(G.id); } }, U.icon('review'), 'Review this game'));
@@ -493,7 +577,7 @@ var Play = (function () {
       if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
       if (e.key === 'ArrowLeft') { var n = st.viewPly == null ? G.moves.length - 1 : st.viewPly - 1; if (n >= 0) showPly(n); }
       else if (e.key === 'ArrowRight') { if (st.viewPly != null) showPly(st.viewPly + 1); }
-      else if (e.key === 'f') board.flip();
+      else if (e.key === 'f') flip();
     };
     document.addEventListener('keydown', st.keys);
 
@@ -507,6 +591,60 @@ var Play = (function () {
     else if (myTurn()) startMyTurn();
     else botTurn();
     function finishView() { board.setMovable(null); renderControls(); }
+  }
+
+  /* A mate in one for the side to move in p, or null. */
+  function mateInOne(p) {
+    var legal = p.legalMoves();
+    for (var i = 0; i < legal.length; i++) {
+      var san = p.san(legal[i]);
+      p.make(legal[i]);
+      var mate = p.inCheck() && p.legalMoves().length === 0;
+      p.unmake();
+      if (mate) return { uci: C.uci(legal[i]), san: san.replace(/#$/, '') };
+    }
+    return null;
+  }
+
+  /* One plain reason a suggested move is good, so a hint teaches the idea and not just the move. */
+  var VALUE = [0, 1, 3, 3, 5, 9, 100];
+  function moveReason(pos, m) {
+    var me = pos.side, from = m & 127, to = (m >> 7) & 127, fl = m >>> 17, piece = Math.abs(pos.b[from]);
+    var after = pos.clone(); after.make(m);
+    if (after.inCheck() && !after.legalMoves().length) return 'It\u2019s checkmate.';
+    var before = pos.clone(); before.makeNull();
+    if (!pos.inCheck() && mateInOne(before) && !mateInOne(after)) return 'It stops the checkmate threat.';
+    var cap = Math.abs(pos.moveCaptured(m));
+    if (cap && !after.attackersOf(to, -me).length) return 'It wins the ' + PIECE_NAME[cap] + ' for free.';
+    // enemy pieces the moved piece now attacks that can't simply be defended
+    var hits = [];
+    for (var t = 0; t < 120; t++) {
+      if (t & 8) { t += 7; continue; }
+      var e = after.b[t];
+      if (!e || (e > 0) === (me === 1) || Math.abs(e) === 6) continue;
+      if (after.attackersOf(t, me).indexOf(to) >= 0 && after.hangingLoss(t) >= 100) hits.push(Math.abs(e));
+    }
+    hits.sort(function (a, b) { return VALUE[b] - VALUE[a]; });
+    if (hits.length >= 2) return 'It attacks two pieces at once, the ' + PIECE_NAME[hits[0]] + ' and the ' + PIECE_NAME[hits[1]] + '. That\u2019s a fork.';
+    if (after.inCheck() && hits.length) return 'It gives check and attacks the ' + PIECE_NAME[hits[0]] + ' at the same time.';
+    if (cap && VALUE[cap] > VALUE[piece]) return 'Your ' + PIECE_NAME[piece] + ' takes a ' + PIECE_NAME[cap] + ', which is worth more.';
+    if (pos.inCheck()) return 'It gets your king out of check' + (cap ? ' and takes the ' + PIECE_NAME[cap] : '') + '.';
+    if (piece !== 6 && pos.hangingLoss(from) >= 100 && after.hangingLoss(to) < 100) return 'It moves your ' + PIECE_NAME[piece] + ' out of danger' + (hits.length ? ' and attacks the ' + PIECE_NAME[hits[0]] : '') + '.';
+    // a piece of yours that was in danger and now isn't
+    for (var s = 0; s < 120; s++) {
+      if (s & 8) { s += 7; continue; }
+      var q = pos.b[s];
+      if (s === from || !q || (q > 0) !== (me === 1) || Math.abs(q) === 6) continue;
+      if (pos.hangingLoss(s) >= 100 && after.b[s] === q && after.hangingLoss(s) < 100) return 'It protects your ' + PIECE_NAME[Math.abs(q)] + ' on ' + C.sqName(s) + '.';
+    }
+    if (after.inCheck()) return 'It gives check.';
+    if (hits.length) return 'It attacks the ' + PIECE_NAME[hits[0]] + '.';
+    if (cap) return 'It takes the ' + PIECE_NAME[cap] + '.';
+    if (fl & 4) return 'It gets your king safe and brings a rook toward the middle.';
+    var homeRank = me === 1 ? 0 : 7;
+    if ((piece === 2 || piece === 3) && (from >> 4) === homeRank) return 'It develops your ' + PIECE_NAME[piece] + '.';
+    if (piece === 1 && [3, 4].indexOf(to & 7) >= 0 && [3, 4].indexOf(to >> 4) >= 0) return 'It takes space in the center.';
+    return '';
   }
 
   /* Save a finished game: ratings, ladder, history. Returns a summary for the end screen. */
@@ -551,15 +689,17 @@ var Play = (function () {
 
   App.register('play', {
     render: function (root, params) {
+      if (params && params.game && !G) { var c = Store.state.current; if (c && !c.result && c.moves) G = c; }
       if (params && params.game && G) renderGame(root);
       else { G = null; renderLadder(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); document.removeEventListener('keydown', view.keys); view.token++; view = null; }
+      if (view) { clearInterval(view.clockT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }
   });
 
-  return { setup: setup, resume: resume, record: record, toggle: toggle, seg: seg };
+  return { setup: setup, resume: resume, record: record, toggle: toggle, seg: seg,
+    _reason: function (fen, uci) { var p = new C.Pos(fen), m = p.parseMove(uci); return m ? moveReason(p, m) : null; } };
 })();

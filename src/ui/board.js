@@ -12,7 +12,8 @@ var Board = (function () {
     this.marks = []; this.arrows = []; this.picked = []; this.badge = null; this.hover = -1;
     this.movable = this.opts.movable || null; // 'w' | 'b' | 'both' | null
     var self = this;
-    this.el = h('div', { class: 'board', role: 'grid', 'aria-label': 'Chess board' },
+    this.el = h('div', { class: 'board', role: 'application', tabindex: '0', 'aria-roledescription': 'chess board',
+        'aria-label': 'Chess board. Use the arrow keys to move between squares and Enter to pick up or put down a piece.' },
       this.sqLayer = h('div', { class: 'b-sq' }),
       this.coordLayer = h('div', { class: 'b-coords', 'aria-hidden': 'true' }),
       this.hlLayer = h('div', { class: 'b-hl' }),
@@ -31,6 +32,13 @@ var Board = (function () {
     this.el.addEventListener('pointerup', function (e) { self.up(e); });
     this.el.addEventListener('pointercancel', function () { self.cancelDrag(); });
     this.el.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+    // keyboard: arrows move a cursor, Enter or Space acts like a tap on that square
+    this.live = h('div', { class: 'sr-only', 'aria-live': 'polite' });
+    this.el.appendChild(this.live);
+    this.cursor = -1; this.kbd = false;
+    this.el.addEventListener('keydown', function (e) { self.key(e); });
+    this.el.addEventListener('pointerdown', function () { if (self.kbd) { self.kbd = false; self.paint(); } }, true);
+    this.el.addEventListener('blur', function () { if (self.kbd) { self.kbd = false; self.paint(); } });
     this.drawCoords();
   }
   var B = Board.prototype;
@@ -67,6 +75,7 @@ var Board = (function () {
   B.setCoords = function (on) { this.opts.coords = on; this.drawCoords(); };
   B.setOrientation = function (o) {
     if (o === this.orient) return;
+    if (this.promoCancel) this.promoCancel();
     this.orient = o;
     this.drawCoords();
     this.el.classList.remove('anim');
@@ -147,6 +156,19 @@ var Board = (function () {
     return out;
   };
 
+  /* A fence line along some sides of a square. `edges` names board directions (n, e, s, w);
+     they are turned into screen sides for the way the board faces. */
+  function fence(self, edges) {
+    var flip = self.orient === 'b', line = [], halo = [];
+    var off = { n: [0, 1], s: [0, -1], e: [-1, 0], w: [1, 0] };
+    edges.split('').forEach(function (e) {
+      var o = off[flip ? { n: 's', s: 'n', e: 'w', w: 'e' }[e] : e];
+      if (!o) return;
+      line.push('inset ' + o[0] * 3 + 'px ' + o[1] * 3 + 'px 0 0 var(--fence)');
+      halo.push('inset ' + o[0] * 5 + 'px ' + o[1] * 5 + 'px 0 0 var(--fence-halo)');
+    });
+    return line.concat(halo).join(', ');
+  }
   function sqDiv(self, sq, cls) {
     var d = h('div', { class: 'hl ' + cls });
     self.place(d, sq);
@@ -160,7 +182,10 @@ var Board = (function () {
     if (this.pos.inCheck()) L.appendChild(sqDiv(this, this.pos.side === 1 ? this.pos.wk : this.pos.bk, 'check'));
     this.marks.forEach(function (m) {
       var sq = typeof m === 'string' ? C.sqIndex(m) : (typeof m.sq === 'string' ? C.sqIndex(m.sq) : m.sq);
-      if (sq >= 0) L.appendChild(sqDiv(self, sq, 'mark ' + (m.kind || 'gold')));
+      if (sq < 0) return;
+      var d = sqDiv(self, sq, 'mark ' + (m.kind || 'gold'));
+      if (m.edges) d.style.boxShadow = fence(self, m.edges);
+      L.appendChild(d);
     });
     this.picked.forEach(function (s) {
       var sq = typeof s === 'string' ? C.sqIndex(s) : s;
@@ -175,6 +200,7 @@ var Board = (function () {
       }
     }
     if (this.hover >= 0 && this.drag && this.drag.started) L.appendChild(sqDiv(this, this.hover, 'hover'));
+    if (this.kbd && this.cursor >= 0) L.appendChild(sqDiv(this, this.cursor, 'cursor'));
     if (this.badge) {
       var bs = typeof this.badge.sq === 'string' ? C.sqIndex(this.badge.sq) : this.badge.sq;
       if (bs >= 0) {
@@ -209,6 +235,38 @@ var Board = (function () {
       g.appendChild(line); g.appendChild(tip);
       svg.appendChild(g);
     });
+  };
+
+  /* ---------- keyboard ---------- */
+  B.key = function (e) {
+    if (this.promoOpen) return;
+    var dirs = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }, d = dirs[e.key];
+    if (d || e.key === 'Enter' || e.key === ' ' || e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); }
+    else return;
+    if (this.cursor < 0) this.cursor = C.sqIndex(this.orient === 'w' ? 'e2' : 'e7');
+    this.kbd = true;
+    if (d) {
+      var f = this.cursor & 7, r = this.cursor >> 4, s = this.orient === 'w' ? 1 : -1;
+      f = Math.max(0, Math.min(7, f + d[0] * s)); r = Math.max(0, Math.min(7, r + d[1] * s));
+      this.cursor = (r << 4) | f;
+    } else if (e.key === 'Escape') this.select(-1);
+    else this.activate(this.cursor);
+    this.paint();
+    this.announce();
+  };
+  B.announce = function () {
+    if (!this.pos || this.cursor < 0) return;
+    var p = this.pos.b[this.cursor], NAMES = ['', 'pawn', 'knight', 'bishop', 'rook', 'queen', 'king'];
+    this.live.textContent = C.sqName(this.cursor) + (p ? ', ' + (p > 0 ? 'white ' : 'black ') + NAMES[Math.abs(p)] : ', empty') + (this.sel === this.cursor ? ', picked up' : '');
+  };
+  /* the same as tapping a square */
+  B.activate = function (sq) {
+    if (this.promoOpen || sq < 0) return;
+    if (this.opts.onSquare) { this.opts.onSquare(C.sqName(sq), sq); return; }
+    if (!this.canMove()) { if (this.opts.onBlocked) this.opts.onBlocked(); return; }
+    var p = this.pos.b[sq], mine = p && ((p > 0) === (this.pos.side === 1));
+    if (this.sel >= 0 && this.targets(this.sel).indexOf(sq) >= 0 && !(mine && this.sel !== sq && !this.isCastleTarget(this.sel, sq))) { this.tryMove(this.sel, sq, false); return; }
+    this.select(mine && this.sel !== sq ? sq : -1);
   };
 
   /* ---------- input ---------- */
@@ -303,7 +361,10 @@ var Board = (function () {
     });
     var shade = h('div', { class: 'promo-shade', onpointerdown: function (e) { e.stopPropagation(); close(0); } });
     this.overLayer.appendChild(shade); this.overLayer.appendChild(col);
-    function close(pt) { self.promoOpen = false; U.clear(self.overLayer); cb(pt); }
+    col.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(0); self.el.focus(); } });
+    if (this.kbd) setTimeout(function () { try { col.firstChild.focus(); } catch (e) { /* ignore */ } }, 0);
+    this.promoCancel = function () { close(0); };
+    function close(pt) { if (!self.promoOpen) return; self.promoOpen = false; self.promoCancel = null; U.clear(self.overLayer); cb(pt); }
   };
 
   Board.animate = true; Board.dots = true; Board.autoQueen = false;

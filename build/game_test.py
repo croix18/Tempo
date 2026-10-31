@@ -42,8 +42,10 @@ async def main():
             if not legal: continue
             await click_sq(pg, mv[:2]); await pg.wait_for_timeout(100); await click_sq(pg, mv[2:])
             await pg.wait_for_timeout(2600)
-            sheet = await pg.locator('.sheet').count()
-            if sheet: print('coach sheet appeared:', await pg.locator('.sheet h2').inner_text()); await pg.locator('.sheet button', has_text='Play it anyway').click(); await pg.wait_for_timeout(2500)
+            # the coach's warning sits under the board and waits for a choice
+            if await pg.locator('.coach.decide').count():
+                print('coach warned:', (await pg.locator('.coach.decide').inner_text()).split('\n')[0])
+                await pg.locator('.coach.decide button', has_text='Play it anyway').click(); await pg.wait_for_timeout(2500)
         print('moves', await pg.evaluate("Store.state.current.sans"))
         await pg.locator('button', has_text='Hint').click(); await pg.wait_for_timeout(1800)
         print('coach text after hint 1:', await pg.locator('.coach').inner_text())

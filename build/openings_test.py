@@ -1,7 +1,9 @@
-import asyncio, json
+import asyncio, json, sys
 from playwright.async_api import async_playwright
 import os
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(ROOT, 'build'))
+from testutil import page_with_reps
 CHROME = os.environ.get('CHROME') or ('/usr/bin/google-chrome' if os.path.exists('/usr/bin/google-chrome') else None)
 TEMPO_URL = os.environ.get('TEMPO_URL') or 'file://' + ROOT + '/dist/Tempo.html'
 SAMPLE = {"repertoires": [{"id": "white-e4", "name": "White: 1.e4 with the Italian", "side": "w", "summary": "Open games with quick development.",
@@ -22,11 +24,10 @@ async def main():
         errs = []
         pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
         pg.on('console', lambda m: errs.append(m.type + ': ' + m.text[:200]) if m.type == 'error' else None)
-        await pg.goto(TEMPO_URL); await pg.wait_for_timeout(1200)
-        await pg.evaluate("(s) => { document.getElementById('d-reps').textContent = s; }", json.dumps(SAMPLE))
+        await pg.goto(page_with_reps(TEMPO_URL, SAMPLE)); await pg.wait_for_timeout(1200)
         await pg.evaluate("App.go('openings')"); await pg.wait_for_timeout(300)
         await pg.screenshot(path=ROOT + '/build/shots/openings-menu.png')
-        await pg.locator('button.card.theme').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('.menu-row').first.click(); await pg.wait_for_timeout(300)
         await pg.screenshot(path=ROOT + '/build/shots/openings-rep.png')
         await pg.locator('button', has_text='Learn next line').click(); await pg.wait_for_timeout(500)
         # play White's moves of the Giuoco line

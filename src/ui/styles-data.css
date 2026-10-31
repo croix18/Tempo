@@ -1,0 +1,16 @@
+/* ---------- practice calendar on Progress: a column a week, Monday to Sunday down ---------- */
+.cal-wrap { display: flex; flex-direction: column; align-self: flex-start; max-width: 100%; }
+.cal { display: grid; grid-template-columns: 14px repeat(18, minmax(8px, 18px)); gap: 3px; align-items: center; justify-content: start; }
+.cal i { display: block; width: 100%; aspect-ratio: 1; border-radius: 3px; background: var(--surface-2); }
+.cal i.future { background: none; }
+.cal i.today { box-shadow: 0 0 0 1.5px var(--surface), 0 0 0 3px var(--ink); }
+.cal i.l1, .cal-legend i.l1 { background: color-mix(in srgb, var(--gold-fill) 35%, var(--surface-2)); }
+.cal i.l2, .cal-legend i.l2 { background: color-mix(in srgb, var(--gold-fill) 65%, var(--surface-2)); }
+.cal i.l3, .cal-legend i.l3 { background: var(--gold-fill); }
+.cal-month, .cal-day { font-size: 11px; line-height: 1; color: var(--ink-3); white-space: nowrap; }
+.cal-month { align-self: end; padding-bottom: 3px; }
+.cal-day { grid-column: 1; }
+.cal-legend { display: flex; align-items: center; justify-content: flex-end; gap: 3px; margin-top: 10px; font-size: 11px; color: var(--ink-3); }
+.cal-legend i { display: block; width: 11px; height: 11px; border-radius: 3px; background: var(--surface-2); }
+.cal-legend i:first-of-type { margin-left: 3px; }
+.cal-legend i:last-of-type { margin-right: 3px; }

@@ -61,9 +61,11 @@ var App = (function () {
     { id: 'prefs', label: 'Preferences', icon: 'prefs' }
   ];
   var TABS = ['home', 'play', 'puzzles', 'learn', 'more'];
-  var MORE_OF = ['openings', 'train', 'review', 'progress', 'prefs', 'more'];
+  var MORE_OF = ['review', 'progress', 'prefs', 'more'];
+  var LEARN_OF = ['openings', 'train'];
 
   function register(name, view) { views[name] = view; }
+  function isView(n) { return typeof n === 'string' && Object.prototype.hasOwnProperty.call(views, n); }
 
   function buildShell() {
     var app = document.getElementById('app');
@@ -88,12 +90,13 @@ var App = (function () {
 
   function markNav(name) {
     Array.prototype.forEach.call(sideNav.querySelectorAll('.nav-item'), function (b) { b.classList.toggle('on', b.dataset.go === name); });
-    var tabName = TABS.indexOf(name) >= 0 ? name : (MORE_OF.indexOf(name) >= 0 ? 'more' : name);
+    var tabName = TABS.indexOf(name) >= 0 ? name : LEARN_OF.indexOf(name) >= 0 ? 'learn' : MORE_OF.indexOf(name) >= 0 ? 'more' : name;
     Array.prototype.forEach.call(tabNav.querySelectorAll('.tab'), function (b) { b.classList.toggle('on', b.dataset.go === tabName); });
   }
 
+  /* opts: noHash (don't touch history), replace (replace the current entry), keepScroll */
   function go(name, params, opts) {
-    if (!views[name]) name = 'home';
+    if (!isView(name)) name = 'home';
     if (current && current.leave) { try { current.leave(); } catch (e) { console.error(e); } }
     closeSheet();
     currentName = name; current = views[name];
@@ -102,13 +105,31 @@ var App = (function () {
     document.body.classList.remove('focus');
     var wrap = h('div', { class: 'view v-' + name });
     mainEl.appendChild(wrap);
-    try { current.render(wrap, params || {}); } catch (e) { console.error(e); wrap.appendChild(h('div', { class: 'empty' }, 'Something went wrong showing this page.')); }
+    try {
+      current.render(wrap, params || {});
+      if (LEARN_OF.concat(['learn']).indexOf(name) >= 0 && !hasParams(params)) wrap.insertBefore(learnTabs(name), wrap.firstChild);
+    } catch (e) { console.error(e); wrap.appendChild(h('div', { class: 'empty' }, 'Something went wrong showing this page.')); }
     if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
-    if (!(opts && opts.noHash) && location.hash.slice(1) !== name) {
-      try { history.replaceState(null, '', '#' + name); } catch (e) { location.hash = name; }
+    // every screen change is a history entry, so the browser's Back button moves through Tempo
+    if (!(opts && opts.noHash)) {
+      var entry = { v: name, p: params || {} };
+      try { if (opts && opts.replace) history.replaceState(entry, '', '#' + name); else history.pushState(entry, '', '#' + name); }
+      catch (e) { try { history.replaceState({ v: name, p: {} }, '', '#' + name); } catch (e2) { /* history unavailable */ } }
     }
   }
-  function refresh() { if (currentName && !(current && current.busy && current.busy())) go(currentName, {}, { keepScroll: true }); }
+  function hasParams(p) { return !!p && Object.keys(p).length > 0; }
+  /* on phones, Lessons, Openings and Trainers sit under one tab: let each reach the others */
+  function learnTabs(active) {
+    var reps = Data.reps(), items = [['learn', 'Lessons'], ['openings', 'Openings'], ['train', 'Trainers']];
+    if (!reps.repertoires.length && !reps.traps.length) items.splice(1, 1);
+    var nav = h('nav', { class: 'seg learn-tabs', 'aria-label': 'Learn sections' });
+    items.forEach(function (it) {
+      nav.appendChild(h('button', { type: 'button', class: it[0] === active ? 'on' : '', 'aria-current': it[0] === active ? 'page' : null,
+        onclick: function () { if (it[0] !== active) go(it[0], {}, { replace: true }); } }, it[1]));
+    });
+    return nav;
+  }
+  function refresh() { if (currentName && !(current && current.busy && current.busy())) go(currentName, {}, { keepScroll: true, replace: true }); }
 
   /* ---------- sheets and toasts ---------- */
   var openSheet = null;
@@ -118,15 +139,31 @@ var App = (function () {
     var scrim = h('div', { class: 'scrim', onclick: function () { if (!opts.modal) close(); } });
     var box = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' });
     if (!opts.modal) box.appendChild(h('button', { class: 'btn quiet small icon-only close-x', type: 'button', 'aria-label': 'Close', onclick: function () { close(); } }, U.icon('close')));
-    var api = { close: close, box: box };
+    var api = { close: close, box: box }, opener = document.activeElement;
     build(box, api);
     layer.appendChild(scrim); layer.appendChild(box);
     var esc = function (e) { if (e.key === 'Escape' && !opts.modal) close(); };
     document.addEventListener('keydown', esc);
+    function focusables() {
+      return Array.prototype.filter.call(box.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'),
+        function (el) { return !el.disabled && el.getClientRects().length > 0; });
+    }
+    box.addEventListener('keydown', function (e) {
+      if (e.key !== 'Tab') return;
+      var f = focusables(); if (!f.length) return;
+      if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+      else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+    });
+    setTimeout(function () {
+      if (!box.parentNode) return;
+      var f = focusables(), first = f.filter(function (el) { return !el.classList.contains('close-x'); })[0] || f[0];
+      if (first) try { first.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+    }, 0);
     openSheet = api;
     function close(val) {
       if (!scrim.parentNode) return;
       scrim.remove(); box.remove(); document.removeEventListener('keydown', esc);
+      if (opener && opener.focus && document.contains(opener)) try { opener.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
       if (openSheet === api) openSheet = null;
       if (opts.onClose) opts.onClose(val);
     }
@@ -158,7 +195,7 @@ var App = (function () {
     var s = Store.state.settings, root = document.documentElement;
     if (s.theme === 'light' || s.theme === 'dark') root.setAttribute('data-theme', s.theme); else root.removeAttribute('data-theme');
     document.body.classList.remove('bt-classic', 'bt-walnut', 'bt-slate');
-    if (s.board && s.board !== 'tempo') document.body.classList.add('bt-' + s.board);
+    if (['classic', 'walnut', 'slate'].indexOf(s.board) >= 0) document.body.classList.add('bt-' + s.board);
     Board.animate = s.animate !== false; Board.dots = s.dots !== false; Board.autoQueen = !!s.autoQueen;
     U.sound.set(s.sound !== false);
   }
@@ -176,15 +213,24 @@ var App = (function () {
     buildShell();
     applySettings();
     var start = (location.hash || '').slice(1);
-    go(views[start] ? start : 'home', {}, { noHash: !views[start] });
+    go(isView(start) ? start : 'home', {}, { replace: true });
+    // a double click on a button acts once; buttons meant for fast repeats carry data-repeat
+    document.addEventListener('click', function (e) {
+      if (e.detail < 2 || !e.target || !e.target.closest) return;
+      var b = e.target.closest('button');
+      if (!b || b.hasAttribute('data-repeat') || b.closest('.board')) return;
+      e.stopPropagation(); e.preventDefault();
+    }, true);
     Engines.init().then(engineNote, engineNote);
+    if (Engines.onStatus) Engines.onStatus(engineNote); // a mid-session fallback to the built-in engine shows up too
     engineNote();
     Store.on(function (what) {
       if (what === 'remote' || what === 'import' || what === 'reset') { applySettings(); refresh(); }
     });
-    window.addEventListener('hashchange', function () {
-      var n = location.hash.slice(1);
-      if (views[n] && n !== currentName) go(n, {}, { noHash: true });
+    window.addEventListener('popstate', function (e) {
+      var st = e.state;
+      if (st && isView(st.v)) go(st.v, st.p || {}, { noHash: true });
+      else { var n = location.hash.slice(1); go(isView(n) ? n : 'home', {}, { noHash: true }); }
     });
     window.addEventListener('pagehide', function () { Store.saveNow(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) Store.saveNow(); });
@@ -207,8 +253,9 @@ var UI = (function () {
     for (var i = 0; i < (of || 3); i++) el.appendChild(U.icon('star', i < n ? '' : 'off'));
     return el;
   }
+  /* whose move it is, shown with that side's king */
   function turnPill(side, text) {
-    return h('span', { class: 'turn-pill' }, h('i', { class: side === 1 ? 'w' : 'b' }), text || (side === 1 ? 'White to move' : 'Black to move'));
+    return h('span', { class: 'turn-pill' }, h('span', { class: 'cp ' + (side === 1 ? 'wk' : 'bk'), 'aria-hidden': 'true' }), text || (side === 1 ? 'White to move' : 'Black to move'));
   }
   function meter(fraction, cls) { return h('div', { class: 'meter ' + (cls || '') }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, fraction)) * 100) + '%' } })); }
   /* captured-piece icon; its image comes from the stylesheet so it can follow light and dark mode */
@@ -249,11 +296,8 @@ var UI = (function () {
     var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('class', 'chart'); svg.setAttribute('role', 'img');
     svg.setAttribute('aria-label', opts.label || 'Chart');
-    if (points.length < 2) {
-      var t0 = document.createElementNS(NS, 'text');
-      t0.setAttribute('x', W / 2); t0.setAttribute('y', H / 2); t0.setAttribute('text-anchor', 'middle'); t0.setAttribute('class', 'axis');
-      t0.textContent = opts.empty || 'Not enough data yet'; svg.appendChild(t0); return svg;
-    }
+    // nothing to draw yet: a plain sentence at reading size, not an empty chart with tiny print
+    if (points.length < 2) return h('p', { class: 'muted chart-empty' }, (opts.empty || 'Not enough data yet') + '.');
     var vals = points.map(function (p) { return p[1]; });
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
     var pad = Math.max(20, (hi - lo) * 0.15); lo = Math.floor((lo - pad) / 50) * 50; hi = Math.ceil((hi + pad) / 50) * 50;
@@ -284,6 +328,7 @@ var UI = (function () {
   /* Small non-interactive board for cards. */
   function miniBoard(fen, orient, last) {
     var b = new Board({ orient: orient || 'w', coords: false });
+    b.el.removeAttribute('tabindex'); b.el.setAttribute('aria-hidden', 'true');
     var p = new C.Pos(fen);
     var anim = Board.animate; Board.animate = false;
     b.setPosition(p, { last: last || null });
@@ -308,7 +353,7 @@ var UI = (function () {
       var li = h('li', null, h('button', {
         class: 'rung' + (locked ? ' locked' : '') + (isNext ? ' next' : '') + (o.playing === bot.id ? ' playing' : ''), type: 'button',
         'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : isNext ? ', your next opponent' : ''),
-        onclick: function () { if (locked) App.toast('Beat ' + BOTS[i - 1].name + ' to unlock ' + bot.name + '.'); else Play.setup(bot); }
+        onclick: function () { if (locked) lockedSheet(bot, BOTS[i - 1]); else Play.setup(bot); }
       }, h('span', { class: 'n num' }, String(i + 1)),
         o.full ? h('span', { class: 'nm' }, h('span', { class: 'who' }, bot.name), h('span', { class: 'bio' }, bot.bio)) : h('span', { class: 'nm' }, bot.name),
         h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
@@ -319,10 +364,21 @@ var UI = (function () {
     return list;
   }
 
+  /* a locked opponent explains how to unlock it, and can be played anyway */
+  function lockedSheet(bot, prev) {
+    App.sheet(function (box, api) {
+      box.appendChild(h('h2', null, bot.name + ' is locked'));
+      box.appendChild(h('p', { class: 'muted' }, 'Beat ' + prev.name + ' to unlock ' + bot.name + '. You can also play ' + bot.name + ' now. A win still counts and unlocks the next opponent.'));
+      box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
+        h('button', { class: 'btn', type: 'button', onclick: function () { api.close(); } }, 'Not now'),
+        h('button', { class: 'btn primary', type: 'button', onclick: function () { api.close(); Play.setup(bot); } }, 'Play ' + bot.name + ' anyway')));
+    });
+  }
+
   /* one row of a grouped list: icon, a title, an optional line under it, and a chevron */
   function menuRow(icon, title, sub, onclick, extra) {
     return h('button', { class: 'menu-row' + (extra ? ' ' + extra : ''), type: 'button', onclick: onclick },
-      U.icon(icon), h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
+      typeof icon === 'string' ? U.icon(icon) : icon, h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
   }
 
   return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow };
@@ -339,11 +395,41 @@ App.register('home', {
     var solved = S.puzzles.daily === U.dayKey();
 
     root.appendChild(h('h1', { class: 'sr-only' }, 'Home'));
+    if (firstRun()) root.appendChild(placement());
     var hero = h('section', { class: 'home-hero' }), fig = h('figure', { class: 'home-fig' }),
       todo = h('nav', { class: 'home-todo menu-list', 'aria-label': 'Due now' }), ladder = h('section', { class: 'home-ladder', 'aria-label': 'Opponents' });
     root.appendChild(h('div', { class: 'home' },
       h('div', { class: 'home-col' }, hero, ladder),
       h('div', { class: 'home-col' }, fig, todo)));
+
+    /* first run: one question, so a player who already has a rating doesn't start at the bottom */
+    function firstRun() {
+      return !S.settings.placed && !S.play.hist.length && !S.puzzles.count && !Object.keys(S.learn.done).length && !S.games.list.length;
+    }
+    function placement() {
+      var input = h('input', { type: 'number', inputmode: 'numeric', min: '100', max: '2500', placeholder: 'e.g. 750', 'aria-label': 'Your Chess.com rating', class: 'num' });
+      var msg = h('p', { class: 'small', 'aria-live': 'polite' });
+      function done() { S.settings.placed = true; Store.touch('settings'); App.refresh(); }
+      function set() {
+        var r = Math.round(+input.value);
+        if (!(r >= 100 && r <= 2500)) { msg.textContent = 'Enter a rating between 100 and 2500.'; input.focus(); return; }
+        var BOTS = TempoBots.BOTS, idx = 0;
+        for (var i = 0; i < BOTS.length - 2; i++) if (BOTS[i].rating <= r) idx = i;
+        S.play.rating = r; S.play.hist = [[Date.now(), r]]; S.play.unlocked = Math.max(S.play.unlocked || 0, idx);
+        S.puzzles.rating = r;
+        Store.touch('play'); Store.touch('puzzles');
+        App.toast('Done. Your next opponent is ' + BOTS[S.play.unlocked].name + ', and puzzles start near ' + r + '.');
+        done();
+      }
+      input.addEventListener('keydown', function (e) { if (e.key === 'Enter') set(); });
+      return h('section', { class: 'placement', 'aria-label': 'Starting level' },
+        h('h2', null, 'Already have a rating?'),
+        h('p', { class: 'muted' }, 'Enter your Chess.com rating to unlock opponents up to your level and start puzzles there. Or skip this and start from the beginning.'),
+        h('div', { class: 'row' }, input,
+          h('button', { class: 'btn primary', type: 'button', onclick: set }, 'Start there'),
+          h('button', { class: 'btn quiet', type: 'button', onclick: done }, 'Skip')),
+        msg);
+    }
 
     /* hero: your unfinished game, or the next opponent on the ladder */
     if (curBot) {
@@ -353,7 +439,7 @@ App.register('home', {
       hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.resume(); } }, 'Resume game'));
     } else {
       hero.appendChild(h('h2', null, next.name));
-      hero.appendChild(h('p', null, (next.id === 'stockfish' ? 'Full strength. ' : 'About ' + next.rating + '. ') + next.bio));
+      hero.appendChild(h('p', null, (next.id === 'stockfish' ? 'Your next opponent, at full strength. ' : 'Your next opponent, rated about ' + next.rating + '. ') + next.bio));
       hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.setup(next); } }, 'Play ' + next.name));
     }
 
@@ -364,21 +450,39 @@ App.register('home', {
       fig.appendChild(h('figcaption', null, caption));
     }
     fig.appendChild(h('div', { class: 'home-board placeholder', 'aria-hidden': 'true' }));
-    if (curBot) {
-      var gp = new C.Pos(cur.startFen || C.START_FEN), lastMove = null;
-      cur.moves.forEach(function (u) { lastMove = gp.parseMove(u); gp.make(lastMove); });
+    var dueMistake = Mistakes.due()[0];
+    var game = curBot ? replayCurrent(cur) : null;
+    if (game) {
       var n = cur.moves.length, lastSan = cur.sans && cur.sans[n - 1];
       var after = lastSan ? 'After ' + Math.ceil(n / 2) + (n % 2 ? '.' : '...') + lastSan + '. ' : '';
-      var yours = (gp.side === 1) === (cur.color === 'w');
-      showBoard(gp.fen(), cur.color || 'w', lastMove, 'Resume your game against ' + curBot.name,
+      var yours = (game.pos.side === 1) === (cur.color === 'w');
+      showBoard(game.pos.fen(), cur.color || 'w', game.last, 'Resume your game against ' + curBot.name,
         after + (yours ? 'Your move.' : curBot.name + ' to move.'), function () { Play.resume(); });
+    } else if (solved && dueMistake && mistakeBoard(dueMistake)) {
+      // today's puzzle is done: put one of your own mistakes on the board instead
     } else {
       Puzzles.dailyPosition().then(function (d) {
         if (!d) { U.clear(fig); return; }
-        showBoard(d.fen, d.side === 1 ? 'w' : 'b', d.last, solved ? 'More puzzles' : 'Solve today’s puzzle',
-          solved ? 'You solved today’s puzzle. A new one comes tomorrow.' : 'Today’s puzzle, rated ' + d.rating + '. ' + (d.side === 1 ? 'White' : 'Black') + ' to move.',
-          function () { Puzzles.daily(); });
-      });
+        showBoard(d.fen, d.side === 1 ? 'w' : 'b', d.last, solved ? 'More puzzles' : 'Solve today\u2019s puzzle',
+          solved ? 'You solved today\u2019s puzzle. Tap the board for more at your level.' : 'Today\u2019s puzzle, rated ' + d.rating + '. ' + (d.side === 1 ? 'White' : 'Black') + ' to move.',
+          function () { Puzzles.daily({ from: 'home' }); });
+      }, function () { U.clear(fig); });
+    }
+    function replayCurrent(g) {
+      try {
+        var p = new C.Pos(g.startFen || C.START_FEN), last = null;
+        for (var i = 0; i < g.moves.length; i++) { last = p.parseMove(g.moves[i]); if (!last) return null; p.make(last); }
+        return { pos: p, last: last };
+      } catch (e) { return null; }
+    }
+    function mistakeBoard(it) {
+      try {
+        var p = new C.Pos(it.fen), m = p.parseMove(it.played);
+        if (!m) return false;
+        showBoard(it.fen, p.side === 1 ? 'w' : 'b', null, 'Retry a mistake from your games',
+          'From one of your games. You played ' + p.san(m) + ' here. Find something better.', function () { App.go('train', { mode: 'mistakes' }); });
+        return true;
+      } catch (e) { return false; }
     }
 
     /* due now: one sentence per item, only what is actually waiting */
@@ -389,7 +493,7 @@ App.register('home', {
       for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
       item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); });
     }
-    if (curBot && !solved) item('puzzle', 'Today’s puzzle', function () { Puzzles.daily(); });
+    if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); });
     var now = Date.now(), dueReps = {}, dueLines = 0;
     Object.keys(S.openings.lines).forEach(function (k) {
       var r = S.openings.lines[k];
@@ -433,10 +537,8 @@ App.register('more', {
     root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'More')));
     var list = h('nav', { class: 'menu-list', 'aria-label': 'More' });
     var reps = Data.reps(), hasOpenings = reps.repertoires.length > 0 || reps.traps.length > 0;
-    var SUB = { openings: 'Learn a repertoire, drill it, and the traps to know.', train: 'Your mistakes, coordinates, board vision and the analysis board.',
-      review: 'Go over your games with the engine, or paste one from elsewhere.', progress: 'Your ratings, practice streak and what you\u2019ve learned.', prefs: 'Theme, board, sound and backups.' };
     App.NAV.filter(function (n) { return ['openings', 'train', 'review', 'progress', 'prefs'].indexOf(n.id) >= 0 && (n.id !== 'openings' || hasOpenings); }).forEach(function (n) {
-      list.appendChild(UI.menuRow(n.icon, n.label, SUB[n.id], function () { App.go(n.id); }));
+      list.appendChild(UI.menuRow(n.icon, n.label, null, function () { App.go(n.id); }));
     });
     root.appendChild(list);
   }

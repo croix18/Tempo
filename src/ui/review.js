@@ -22,8 +22,19 @@ var Explain = (function () {
     }
     return out;
   }
-  function attackedValuables(pos, sq, owner) {
-    // enemy pieces (of owner's opponent) attacked by the piece on sq, worth 3+ or the king
+  /* the same line with move numbers: "15.Bxd7+ Nxd7 16.Qb8+" */
+  function numberedLine(pos, pv, n) {
+    var p = pos.clone(), out = [];
+    for (var i = 0; i < pv.length && i < n; i++) {
+      var m = p.parseMove(pv[i]); if (!m) break;
+      var s = p.san(m);
+      out.push(p.side === 1 ? p.full + '.' + s : (i === 0 ? p.full + '...' + s : s));
+      p.make(m);
+    }
+    return out.join(' ');
+  }
+  /* enemy pieces the piece on sq attacks (pawns too when minType is 1); giving check counts as attacking the king */
+  function attacksFrom(pos, sq, minType) {
     var p = pos.b[sq]; if (!p) return [];
     var side = p > 0 ? 1 : -1, out = [];
     var save = pos.side; pos.side = side;
@@ -35,105 +46,241 @@ var Explain = (function () {
       var to = (m >> 7) & 127, v = pos.b[to];
       if (!v || (v > 0 ? 1 : -1) === side) continue;
       var t = Math.abs(v);
-      if (t >= 2) out.push({ sq: to, type: t });
+      if (t >= (minType || 2) && !out.some(function (x) { return x.sq === to; })) out.push({ sq: to, type: t });
     }
-    // checks count as attacking the king
     var kingSq = side === 1 ? pos.bk : pos.wk;
     if (pos.attackersOf(kingSq, side).indexOf(sq) >= 0 && !out.some(function (x) { return x.type === 6; })) out.push({ sq: kingSq, type: 6 });
     return out;
   }
+  function attackedValuables(pos, sq) { return attacksFrom(pos, sq, 2); }
+  function cap1(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+  function plural(n, word) { return n + ' ' + word + (n === 1 ? '' : 's'); }
 
-  /* Why was move m (from position `before`) bad? reply: engine line after m (opponent to move). best: engine best before. */
-  function bad(before, m, reply, best) {
+  /* Who is who in a sentence. opts.you === false: the move was made by the other player, named opts.name. */
+  function sides(opts) {
+    var name = opts && opts.name ? String(opts.name) : '';
+    var you = { Subj: 'You', subj: 'you', poss: 'your', Poss: 'Your' };
+    var other = name ? { Subj: name, subj: name, poss: name + '’s', Poss: name + '’s' }
+      : { Subj: 'Your opponent', subj: 'your opponent', poss: 'your opponent’s', Poss: 'Your opponent’s' };
+    if (opts && opts.you === false) return { me: other, them: you };
+    if (!name) other = { Subj: 'Your opponent', subj: 'your opponent', poss: 'their', Poss: 'Their' };
+    return { me: you, them: other };
+  }
+  /* "the knight on f6", for the piece that makes move m in pos */
+  function pieceWords(pos, m) { return 'the ' + PIECE_NAME[Math.abs(pos.b[m & 127])] + ' on ' + C.sqName(m & 127); }
+
+  /* Play a line from pos: `min` plies, then two more at a time while pieces are still being traded (8 at most).
+     Returns the material for `side` before and after, and each move played. */
+  function playOut(pos, pv, side, min) {
+    var p = pos.clone(), start = matFor(p, side), list = [], lim = Math.min(pv.length, min || 4), i = 0;
+    while (i < lim) {
+      var m = p.parseMove(pv[i]); if (!m) break;
+      var c = p.moveCaptured(m), to = (m >> 7) & 127;
+      list.push({ i: i, m: m, san: p.san(m), cap: c, by: Math.abs(p.b[m & 127]), from: m & 127, to: to,
+        capSq: (m >>> 17) & C.F_EP ? to - 16 * p.side : to });
+      p.make(m); i++;
+      if (i === lim && lim < 8 && lim < pv.length && (list[i - 1].cap || (i > 1 && list[i - 2].cap))) lim = Math.min(pv.length, lim + 2, 8);
+    }
+    return { start: start, end: matFor(p, side), list: list };
+  }
+
+  /* After the reply rm, does the side that played it threaten mate in one? Returns that move's SAN or null. */
+  function mateThreat(after, rm) {
+    var p = after.clone(); p.make(rm);
+    if (p.inCheck() || !p.legalMoves().length) return null;
+    p.makeNull();
+    var legal = p.legalMoves(), hit = 0;
+    for (var i = 0; i < legal.length && !hit; i++) {
+      p.make(legal[i]);
+      if (p.inCheck() && !p.legalMoves().length) hit = legal[i];
+      p.unmake();
+    }
+    var san = hit ? p.san(hit) : null;
+    p.unmakeNull();
+    return san;
+  }
+
+  function worse(me, them, opts) {
+    var wb = opts && opts.wb, wa = opts && opts.wa;
+    if (wb != null && wa != null) {
+      if (wb >= 55 && wa >= 50) return 'This gives away part of ' + me.poss + ' advantage.';
+      if (wb >= 45 && wa < 45) return 'This hands ' + them.subj + ' the advantage.';
+      if (wb >= 55) return 'This gives away ' + me.poss + ' advantage.';
+      if (wb < 45) return 'This makes ' + me.poss + ' position harder to hold.';
+    }
+    return 'This makes ' + me.poss + ' position worse.';
+  }
+
+  /* Why was move m (from position `before`) bad? reply: the engine line after m (opponent to move). best: engine best before.
+     opts (optional): { you: false when the other player made the move, name: the other player's name, wb, wa: the mover's
+     winning chances before and after }. Returns { title, text, short, topic, reply }. */
+  function bad(before, m, reply, best, opts) {
+    var S = sides(opts), me = S.me, them = S.them;
     var mover = before.side, after = before.clone(); after.make(m);
-    var moveSan = before.san(m);
+    var moveSan = before.san(m), movedTo = (m >> 7) & 127;
     var pv = (reply && reply.pv) || [];
-    var r = { title: 'This move loses material', text: '', short: '', topic: 'position' };
-    if (reply && reply.mate != null && reply.mate > 0) {
-      var line = sanLine(after, pv, Math.min(pv.length, reply.mate * 2 - 1));
-      r.title = reply.mate === 1 ? 'This allows checkmate' : 'This allows a forced checkmate';
-      r.text = reply.mate === 1 ? 'Your opponent can answer ' + line[0] + ', and that’s checkmate.' : 'Your opponent has a mating attack starting with ' + line[0] + '.';
-      r.short = (line[0] || 'The reply') + ' would have led to checkmate.';
+    var rm = pv.length ? after.parseMove(pv[0]) : 0;
+    var replySan = rm ? after.san(rm) : null;
+    var r = { title: '', text: '', short: '', topic: 'position', reply: rm ? pv[0] : null };
+    // 1. checkmate
+    if (reply && reply.mate != null && reply.mate > 0 && rm) {
       r.topic = 'threats';
+      r.short = replySan + ' would have led to checkmate.';
+      if (reply.mate === 1) {
+        r.title = 'This allows checkmate';
+        r.text = cap1(pieceWords(after, rm)) + (after.moveCaptured(rm) ? ' takes on ' : ' goes to ') + C.sqName((rm >> 7) & 127) + ', and that’s checkmate: ' + replySan + '.';
+      } else {
+        r.title = 'This allows a forced checkmate';
+        r.text = them.Subj + ' can force checkmate in ' + plural(reply.mate, 'move') + ', starting with ' + replySan + '.';
+      }
       return r;
     }
-    var p = after.clone(), start = matFor(p, mover), firstLoss = null, worst = start, steps = Math.min(pv.length, 4);
-    for (var i = 0; i < steps; i++) {
-      var mm = p.parseMove(pv[i]); if (!mm) break;
-      var cap = p.moveCaptured(mm);
-      if (cap && !firstLoss && (cap > 0 ? 1 : -1) === mover && i % 2 === 0) firstLoss = { type: Math.abs(cap), sq: (mm >> 7) & 127, san: p.san(mm), byType: Math.abs(p.b[mm & 127]), idx: i };
-      p.make(mm);
-      if (i % 2 === 1 || i === steps - 1) worst = Math.min(worst, matFor(p, mover));
-    }
-    var loss = start - worst;
-    var replySan = pv.length ? sanLine(after, pv, 1)[0] : null;
-    // fork by the reply?
-    if (pv.length) {
-      var rp = after.clone(), rm = rp.parseMove(pv[0]);
-      if (rm) {
-        rp.make(rm);
-        var targets = attackedValuables(rp, (rm >> 7) & 127);
-        if (targets.length >= 2 && loss >= 2) {
-          var names = targets.slice(0, 2).map(function (t) { return t.type === 6 ? 'king' : PIECE_NAME[t.type] + ' on ' + C.sqName(t.sq); });
-          r.title = 'This allows a fork';
-          r.text = replySan + ' attacks your ' + names[0] + ' and ' + names[1] + ' at the same time.';
-          r.short = replySan + ' would have forked your ' + names[0] + ' and ' + names[1] + '.';
-          r.topic = 'fork';
-          return r;
-        }
+    // what the reply line does to the mover's material
+    var po = playOut(after, pv, mover, 6), loss = po.start - po.end;
+    var lost = po.list.filter(function (x, idx) {
+      if (x.i % 2 !== 0 || !x.cap || (x.cap > 0 ? 1 : -1) !== mover) return false;
+      // taking back on the square where the mover just took is part of a trade, not the loss
+      var prev = po.list[idx - 1];
+      return !(prev && prev.cap && prev.to === x.capSq);
+    });
+    // 2. a fork or double attack: the reply hits two things that can't both be saved (a loose pawn counts),
+    //    and the engine line goes on to take one of them. A reply that simply takes a piece is explained in 3.
+    if (rm && PIECE_VAL[Math.abs(after.moveCaptured(rm))] < 3) {
+      var rp = after.clone(); rp.make(rm);
+      var rto = (rm >> 7) & 127, by = Math.abs(rp.b[rto]);
+      var hits = attacksFrom(rp, rto, 1).filter(function (t) { return t.type === 6 || PIECE_VAL[t.type] > PIECE_VAL[by] || rp.hangingLoss(t.sq) > 0; });
+      var big = hits.filter(function (t) { return t.type >= 2; });
+      var cashed = po.list.some(function (x) { return x.i > 0 && x.i % 2 === 0 && x.cap && hits.some(function (t) { return t.sq === x.capSq; }); });
+      if (hits.length >= 2 && big.some(function (t) { return t.type <= 5; }) && (cashed || (loss >= 2 && big.length >= 2))) {
+        hits.sort(function (a, b) { return (b.type === 6 ? 99 : PIECE_VAL[b.type]) - (a.type === 6 ? 99 : PIECE_VAL[a.type]); });
+        var names = hits.slice(0, 2).map(function (t) { return t.type === 6 ? 'king' : PIECE_NAME[t.type] + ' on ' + C.sqName(t.sq); });
+        r.title = big.length >= 2 ? 'This allows a fork' : 'This allows a double attack';
+        r.text = them.Subj + ' can answer ' + replySan + ', and the ' + PIECE_NAME[by] + ' attacks ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at the same time.';
+        r.short = replySan + ' would have attacked ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at once.';
+        r.topic = 'fork';
+        return r;
       }
     }
-    // when the capture isn't the very next move, show the moves that lead to it
-    var lead = firstLoss && firstLoss.idx > 0 ? sanLine(after, pv, firstLoss.idx).join(' ') : '';
-    if (loss >= 2 && firstLoss) {
-      var nm = PIECE_NAME[firstLoss.type], movedTo = (m >> 7) & 127;
-      r.title = 'This loses your ' + nm;
-      if (lead) r.text = 'After ' + lead + ', ' + firstLoss.san + ' wins your ' + nm + ' on ' + C.sqName(firstLoss.sq) + '.';
-      else if (firstLoss.sq === movedTo) r.text = 'Your ' + nm + ' on ' + C.sqName(movedTo) + ' isn’t safe there. ' + firstLoss.san + ' wins it.';
-      else r.text = 'After ' + moveSan + ', your ' + nm + ' on ' + C.sqName(firstLoss.sq) + ' is left open. ' + firstLoss.san + ' wins it.';
-      r.short = firstLoss.san + ' would have won your ' + nm + '.';
-      r.topic = 'safety';
+    // 3. losing material
+    if (loss >= 1 && lost.length) {
+      var x = lost[0];
+      if (loss >= 2) lost.forEach(function (y) { if (PIECE_VAL[Math.abs(y.cap)] > PIECE_VAL[Math.abs(x.cap)]) x = y; });
+      var nm = PIECE_NAME[Math.abs(x.cap)], sq = C.sqName(x.capSq), taker = 'the ' + PIECE_NAME[x.by] + ' on ' + C.sqName(x.from);
+      r.topic = 'safety'; r.piece = Math.abs(x.cap);
+      r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This drops a pawn';
+      r.short = x.san + ' would have won ' + me.poss + ' ' + nm + '.';
+      if (x.i > 0) r.text = 'After ' + sanLine(after, pv, x.i).join(' ') + ', ' + taker + ' can take ' + me.poss + ' ' + nm + ' on ' + sq + ': ' + x.san + '.';
+      else if (x.capSq === movedTo) r.text = me.Poss + ' ' + nm + ' on ' + sq + ' isn’t safe there. ' + cap1(taker) + ' can take it: ' + x.san + '.';
+      else if (before.b[x.capSq] === after.b[x.capSq] && before.hangingLoss(x.capSq) > 0) r.text = me.Poss + ' ' + nm + ' on ' + sq + ' was already under attack, and ' + moveSan + ' doesn’t save it. ' + cap1(taker) + ' can take it: ' + x.san + '.';
+      else r.text = 'After ' + moveSan + ', ' + me.poss + ' ' + nm + ' on ' + sq + ' is no longer safe. ' + cap1(taker) + ' can take it: ' + x.san + '.';
       return r;
     }
-    if (loss >= 1 && firstLoss) {
-      r.title = 'This drops a pawn';
-      r.text = lead ? 'After ' + lead + ', ' + firstLoss.san + ' wins your pawn on ' + C.sqName(firstLoss.sq) + '.' : firstLoss.san + ' wins your pawn on ' + C.sqName(firstLoss.sq) + '.';
-      r.short = firstLoss.san + ' would have won a pawn.';
-      r.topic = 'safety';
-      return r;
+    // 4. a checkmate threat
+    if (rm) {
+      var threat = mateThreat(after, rm);
+      if (threat) {
+        r.title = 'This allows a checkmate threat';
+        r.text = them.Subj + ' can answer ' + replySan + ', threatening checkmate with ' + threat + '.';
+        r.short = replySan + ' would have threatened checkmate.';
+        r.topic = 'threats';
+        return r;
+      }
     }
+    // 5. no single tactic: the position just got worse
     var bestSan = null;
     if (best) { var bm = before.parseMove(best); if (bm) bestSan = before.san(bm); }
-    r.title = 'This makes your position much worse';
-    r.text = replySan ? 'Your opponent gets a strong reply with ' + replySan + '.' : 'This gives your opponent the upper hand.';
-    r.short = bestSan ? bestSan + ' was much safer.' : 'That move would have hurt your position.';
+    r.title = 'This makes ' + me.poss + ' position worse';
+    r.text = worse(me, them, opts);
+    r.short = bestSan ? bestSan + ' was better.' : 'That move hurt ' + me.poss + ' position.';
     return r;
   }
 
-  /* What did the best move achieve? (for missed wins) */
-  function missed(before, best, bestLine) { return missedInfo(before, best, bestLine).text; }
-  function missedInfo(before, best, bestLine) {
-    var t = missedText(before, best, bestLine);
-    var topic = /checkmate/.test(t) ? 'mates' : /fork/.test(t) ? 'fork' : /wins (a|material)/.test(t) ? 'free' : null;
-    return { text: t, topic: topic };
-  }
-  function missedText(before, best, bestLine) {
-    var bm = before.parseMove(best); if (!bm) return '';
+  /* What does `best` achieve from `before`? line: the engine line starting with it, from the mover's side. */
+  function gainOf(before, best, line) {
+    var bm = before.parseMove(best); if (!bm) return null;
     var san = before.san(bm), mover = before.side;
-    if (bestLine && bestLine.mate != null && bestLine.mate > 0) return san + (bestLine.mate === 1 ? ' was checkmate.' : ' started a forced checkmate.');
-    var p = before.clone(), start = matFor(p, mover), end = start, pv = (bestLine && bestLine.pv) || [best];
-    for (var i = 0; i < Math.min(pv.length, 4); i++) { var mm = p.parseMove(pv[i]); if (!mm) break; p.make(mm); if (i % 2 === 1 || i === Math.min(pv.length, 4) - 1) end = Math.max(end, matFor(p, mover)); }
-    var gain = end - start;
+    var ours = line && (!line.pv || !line.pv.length || line.pv[0] === best);
+    if (ours && line.mate != null && line.mate > 0) return { san: san, kind: line.mate === 1 ? 'mate1' : 'mate', n: line.mate };
+    var pv = ours && line.pv && line.pv.length ? line.pv : [best];
+    var po = playOut(before, pv, mover, 6), gain = po.end - po.start;
     if (gain >= 3) {
-      var cap = before.moveCaptured(bm);
-      if (cap && PIECE_VAL[Math.abs(cap)] >= 3) return san + ' wins a ' + PIECE_NAME[Math.abs(cap)] + '.';
       var after = before.clone(); after.make(bm);
-      var t = attackedValuables(after, (bm >> 7) & 127);
-      if (t.length >= 2) return san + ' is a fork that wins material.';
-      return san + ' wins material.';
+      var direct = before.moveCaptured(bm), t = attacksFrom(after, (bm >> 7) & 127, 2);
+      if (t.length >= 2 && !(direct && PIECE_VAL[Math.abs(direct)] >= 3)) return { san: san, kind: 'fork', targets: t };
+      var won = null;
+      po.list.forEach(function (x) { if (x.i % 2 === 0 && x.cap && PIECE_VAL[Math.abs(x.cap)] >= 3 && (!won || PIECE_VAL[Math.abs(x.cap)] > PIECE_VAL[Math.abs(won.cap)])) won = x; });
+      if (won) return { san: san, kind: 'piece', piece: Math.abs(won.cap) };
+      return { san: san, kind: 'material' };
     }
-    if (gain >= 1) return san + ' wins a pawn.';
-    return san + ' was stronger.';
+    if (gain >= 1) return { san: san, kind: 'pawn' };
+    return { san: san, kind: 'none' };
+  }
+  function forkNames(targets) {
+    var t = targets.slice().sort(function (a, b) { return (b.type === 6 ? 99 : PIECE_VAL[b.type]) - (a.type === 6 ? 99 : PIECE_VAL[a.type]); });
+    return t.slice(0, 2).map(function (x) { return PIECE_NAME[x.type]; }).join(' and ');
+  }
+
+  /* What did the best move achieve? (for missed wins). text keeps the short form other screens use;
+     sentence names who missed it: "Pip missed fxg5, which wins your bishop." */
+  function missed(before, best, bestLine) { return missedInfo(before, best, bestLine).text; }
+  function missedInfo(before, best, bestLine, opts) {
+    var g = gainOf(before, best, bestLine);
+    if (!g) return { text: '', topic: null, sentence: '' };
+    var S = sides(opts), me = S.me, them = S.them, text, what;
+    switch (g.kind) {
+      case 'mate1': text = g.san + ' was checkmate.'; what = 'is checkmate'; break;
+      case 'mate': text = g.san + ' started a forced checkmate.'; what = 'forces checkmate in ' + plural(g.n, 'move'); break;
+      case 'fork': text = g.san + ' is a fork that wins material.'; what = 'attacks ' + them.poss + ' ' + forkNames(g.targets) + ' at the same time'; break;
+      case 'piece': text = g.san + ' wins a ' + PIECE_NAME[g.piece] + '.'; what = 'wins ' + them.poss + ' ' + PIECE_NAME[g.piece]; break;
+      case 'material': text = g.san + ' wins material.'; what = 'wins material'; break;
+      case 'pawn': text = g.san + ' wins a pawn.'; what = 'wins a pawn'; break;
+      default: text = g.san + ' was stronger.'; what = 'was much stronger';
+    }
+    var topic = g.kind === 'mate1' || g.kind === 'mate' ? 'mates' : g.kind === 'fork' ? 'fork' : g.kind === 'none' ? null : 'free';
+    return { text: text, topic: topic, sentence: me.Subj + ' missed ' + g.san + ', which ' + what + '.' };
+  }
+
+  /* a friendly piece that was hanging before the move and isn't after it */
+  function protects(pos, after, from, to) {
+    var side = pos.side, found = null;
+    for (var sq = 0; sq < 120; sq++) {
+      if (sq & 8) { sq += 7; continue; }
+      if (sq === from || sq === to) continue;
+      var p = pos.b[sq]; if (!p || (p > 0 ? 1 : -1) !== side || after.b[sq] !== p) continue;
+      var t = Math.abs(p); if (t < 2 || t > 5) continue;
+      if ((!found || PIECE_VAL[t] > PIECE_VAL[found.type]) && pos.hangingLoss(sq) > 0 && after.hangingLoss(sq) === 0) found = { sq: sq, type: t };
+    }
+    return found;
+  }
+  /* Why is `uci` a good move in pos? Up to two short phrases that follow "it", such as "develops a knight". */
+  function reasons(pos, uci, line) {
+    var m = pos.parseMove(uci); if (!m) return [];
+    var from = m & 127, to = (m >> 7) & 127, pt = Math.abs(pos.b[from]), side = pos.side, out = [];
+    var g = gainOf(pos, uci, line);
+    if (g && g.kind === 'mate1') return ['is checkmate'];
+    if (g && g.kind === 'mate') return ['forces checkmate in ' + plural(g.n, 'move')];
+    var after = pos.clone(); after.make(m);
+    if (g && g.kind === 'piece') out.push('wins a ' + PIECE_NAME[g.piece]);
+    else if (g && g.kind === 'fork') out.push('attacks two pieces at once');
+    else if (g && g.kind === 'material') out.push('wins material');
+    else if (g && g.kind === 'pawn') out.push('wins a pawn');
+    var promo = (m >> 14) & 7, check = after.inCheck(), took = Math.abs(pos.moveCaptured(m));
+    if (promo) out.push(promo === 5 ? 'makes a new queen' : 'promotes the pawn');
+    if (took >= 2 && took <= 5 && (!g || g.kind === 'none')) out.push(took === pt ? 'trades ' + PIECE_NAME[pt] + 's' : 'takes the ' + PIECE_NAME[took] + ' on ' + C.sqName(to));
+    // while the other side is in check nothing can be taken, so "safe" would only be true for a move
+    if (!check && pt >= 2 && pt <= 5 && pos.hangingLoss(from) > 0 && after.hangingLoss(to) === 0) out.push('moves the ' + PIECE_NAME[pt] + ' out of danger');
+    var saved = check ? null : protects(pos, after, from, to);
+    if (saved) out.push('protects the ' + PIECE_NAME[saved.type] + ' on ' + C.sqName(saved.sq));
+    if (!g || g.kind === 'none') {
+      var tg = attacksFrom(after, to, 1).filter(function (t) { return t.type !== 6 && (PIECE_VAL[t.type] > PIECE_VAL[pt] || after.hangingLoss(t.sq) > 0); });
+      tg.sort(function (a, b) { return PIECE_VAL[b.type] - PIECE_VAL[a.type]; });
+      if (tg.length) out.push('attacks the ' + PIECE_NAME[tg[0].type] + ' on ' + C.sqName(tg[0].sq));
+    }
+    if ((m >>> 17) & C.F_CASTLE) out.push('gets the king to safety');
+    if ((pt === 2 || pt === 3) && (from >> 4) === (side === 1 ? 0 : 7) && pos.full <= 15) out.push('develops a ' + PIECE_NAME[pt]);
+    if (pt === 1 && pos.full <= 15 && ['d4', 'e4', 'd5', 'e5'].indexOf(C.sqName(to)) >= 0) out.push('claims the center');
+    if (check && out.length < 2) out.push('comes with check');
+    return out.slice(0, 2);
   }
 
   /* where to go to get better at each kind of mistake: a lesson and a puzzle theme */
@@ -153,7 +300,7 @@ var Explain = (function () {
       h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
   }
 
-  return { bad: bad, missed: missed, missedInfo: missedInfo, sanLine: sanLine, matFor: matFor, studyRow: studyRow };
+  return { bad: bad, missed: missed, missedInfo: missedInfo, reasons: reasons, sanLine: sanLine, numberedLine: numberedLine, matFor: matFor, studyRow: studyRow };
 })();
 
 /* The in-game coach: quick checks before a move is committed. */
@@ -165,19 +312,22 @@ var Coach = (function () {
   function score(r) { var l = r && r.lines && r.lines[0]; if (!l) return null; return l; }
   function win(l) { return l.mate != null ? (l.mate > 0 ? 100 : 0) : U.winPct(l.cp); }
   function prepare(pos) { return analyse(pos.clone()); }
+  /* Resolves { warn, title, text, short, reply, line }: reply is the opponent's best answer (UCI) and line the start of that engine line. */
   function check(before, m, prePromise) {
     var after = before.clone(); after.make(m);
-    var st = after.status();
-    if (st.over) return Promise.resolve({ warn: st.reason !== 'checkmate' && st.reason !== 'stalemate' ? false : false });
+    if (after.status().over) return Promise.resolve({ warn: false });
     return Promise.all([prePromise || analyse(before), analyse(after)]).then(function (res) {
       var pre = score(res[0]), post = score(res[1]);
       if (!pre || !post) return { warn: false };
+      // the engine's own first choice is never called a mistake
+      if (res[0] && res[0].best && res[0].best === TempoCore.uci(m)) return { warn: false };
       var wb = win(pre), wa = 100 - win(post);
       var mateAgainst = post.mate != null && post.mate > 0 && !(pre.mate != null && pre.mate < 0);
       var drop = wb - wa;
       if (mateAgainst || (drop >= 18 && wa < 62)) {
         var why = Explain.bad(before, m, post, res[0].best);
-        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short };
+        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short,
+          reply: (post.pv && post.pv[0]) || null, line: (post.pv || []).slice(0, 6) };
       }
       return { warn: false };
     }).catch(function () { return { warn: false }; });
@@ -196,39 +346,16 @@ var Review = (function () {
   var ORDER = ['brilliant', 'great', 'best', 'excellent', 'good', 'book', 'inaccuracy', 'mistake', 'miss', 'blunder'];
   var CODE = { brilliant: 'R', great: 'G', best: 'B', excellent: 'E', good: 'O', book: 'K', inaccuracy: 'I', mistake: 'M', miss: 'S', blunder: 'X' };
   var FROM_CODE = {}; Object.keys(CODE).forEach(function (k) { FROM_CODE[CODE[k]] = k; });
+  var FLAGGED = ['inaccuracy', 'mistake', 'blunder', 'miss'];   // moves that get a closer look before they're labeled
+  var SERIOUS = ['mistake', 'blunder', 'miss'];                 // the moments to fix
+  var MARKED = ['brilliant', 'great', 'inaccuracy', 'mistake', 'miss', 'blunder'];
+  var SAVE_VERSION = 2;
 
   var R = null; // current review state
 
-  /* evaluation of each position, from White's view: { cp, mate, best, pv, second } */
-  function analyseAll(startFen, moves, onProgress, isCancelled) {
-    var out = [], i = 0, strong = Engines.strong;
-    var n = moves.length;
-    var startPos = new C.Pos(startFen);
-    function step() {
-      if (isCancelled()) return Promise.resolve(null);
-      if (i > n) return Promise.resolve(out);
-      var p = startPos.clone();
-      for (var k = 0; k < i; k++) p.make(p.parseMove(moves[k]));
-      var st = p.status();
-      var sideMul = p.side;
-      if (st.over) {
-        out.push(st.reason === 'checkmate' ? { cp: null, mate: 0, mateWinner: st.winner, best: null, pv: [] } : { cp: 0, mate: null, best: null, pv: [] });
-        i++; onProgress(i, n + 1); return step();
-      }
-      return Engines.analyse({ fen: startFen, moves: moves.slice(0, i), depth: strong ? 13 : 9, movetime: strong ? 650 : 600, multipv: strong ? 2 : 1 }).then(function (r) {
-        var l = r.lines[0] || { cp: 0 }, l2 = r.lines[1] || null;
-        out.push({
-          cp: l.cp == null ? null : l.cp * sideMul, mate: l.mate == null ? null : l.mate * sideMul,
-          best: r.best || (l.pv && l.pv[0]) || null, pv: l.pv || [],
-          second: l2 ? { cp: l2.cp == null ? null : l2.cp * sideMul, mate: l2.mate == null ? null : l2.mate * sideMul, move: l2.pv[0] } : null,
-          line: l
-        });
-        i++; onProgress(i, n + 1);
-        return step();
-      });
-    }
-    return step();
-  }
+  /* the quick look every position gets, and the longer one before a move is called a mistake */
+  function quickOpts() { return Engines.strong ? { depth: 13, movetime: 650, multipv: 2 } : { depth: 9, movetime: 600, multipv: 1 }; }
+  function deepOpts() { return Engines.strong ? { depth: 16, movetime: 1500, multipv: 1 } : { depth: 0, movetime: 1500, multipv: 1 }; }
 
   function whiteWin(e) {
     if (!e) return 50;
@@ -236,23 +363,137 @@ var Review = (function () {
     if (e.mate != null) return e.mate > 0 ? 100 : 0;
     return U.winPct(e.cp);
   }
+  function winFor(e, side) { var w = whiteWin(e); return side === 1 ? w : 100 - w; }
 
-  /* classify every move; returns { cls[], loss[], acc: {w,b}, counts: {w:{}, b:{}} } */
-  function classify(startFen, moves, evals, openingMap) {
+  /* an engine result for a position with `side` to move, as an eval from White's view:
+     { cp, mate, best, pv, line (side-to-move view), second } */
+  function record(r, side) {
+    var l = (r && r.lines && r.lines[0]) || { cp: 0, mate: null, pv: [] }, l2 = r && r.lines && r.lines[1];
+    var pv = l.pv || [];
+    return {
+      cp: l.cp == null ? (l.mate == null ? 0 : null) : l.cp * side, mate: l.mate == null ? null : l.mate * side,
+      best: (r && r.best) || pv[0] || null, pv: pv, line: { cp: l.cp, mate: l.mate, pv: pv },
+      second: l2 && l2.pv && l2.pv.length ? { cp: l2.cp == null ? null : l2.cp * side, mate: l2.mate == null ? null : l2.mate * side, move: l2.pv[0] } : null
+    };
+  }
+  function overRecord(s) {
+    return s.reason === 'checkmate' ? { cp: null, mate: 0, mateWinner: s.winner, best: null, pv: [], over: true, deep: true }
+      : { cp: 0, mate: null, best: null, pv: [], over: true, deep: true };
+  }
+
+  /* Evaluate every position, from White's view. Each move that looks like an inaccuracy or worse gets a longer
+     single-line search of the position after it (and, for some mistakes, of the position before it) before it is labeled.
+     job: { startFen, moves, map, mine(i), cancelled(), progress(positionsDone, moveIndex, deep) } */
+  function analyseAll(job) {
+    var moves = job.moves, n = moves.length, evals = new Array(n + 1), info = [], ints = [];
+    var p = new C.Pos(job.startFen);
+    for (var k = 0; k <= n; k++) {
+      var s = p.status();
+      // a position mid-game only ends the game by mate, stalemate or bare kings; repetitions need a claim
+      var over = s.over && (k === n || s.reason === 'checkmate' || s.reason === 'stalemate' || s.reason === 'insufficient material');
+      info.push({ side: p.side, over: over ? s : null });
+      if (k < n) { ints.push(p.parseMove(moves[k])); p.make(ints[k]); }
+    }
+    var fresh = true; // the first search of a review starts Stockfish with a clean slate
+    function search(i, opts) { var o = Object.assign({ fen: job.startFen, moves: moves.slice(0, i), newGame: fresh }, opts); fresh = false; return Engines.analyse(o); }
+    function quick(i) {
+      if (info[i].over) { evals[i] = overRecord(info[i].over); return Promise.resolve(); }
+      return search(i, quickOpts()).then(function (r) { evals[i] = record(r, info[i].side); },
+        function () { evals[i] = { cp: 0, mate: null, best: null, pv: [], line: null }; });
+    }
+    function deep(i, j) {
+      var e = evals[i];
+      if (!e || e.deep || e.over) return Promise.resolve();
+      job.progress(null, j, true);
+      return search(i, deepOpts()).then(function (r) {
+        if (job.cancelled()) return;
+        if (!r || !r.lines || !r.lines.length) { e.deep = true; return; }
+        var d = record(r, info[i].side);
+        // a search cut short by the clock can report a very short line; the quick look's longer one starts the same way
+        if (d.pv.length < 4 && e.pv && e.pv.length > d.pv.length && e.pv[0] === d.pv[0]) { d.pv = e.pv; d.line.pv = e.pv; }
+        d.sh = { cp: e.cp, mate: e.mate };
+        d.second = e.second;
+        if (e.best && d.best !== e.best) d.second = { cp: e.cp, mate: e.mate, move: e.best };
+        d.deep = true;
+        d.shift = Math.abs(whiteWin(d) - whiteWin(e)); // how far the quick look was off here
+        evals[i] = d;
+        lift(i);
+      }, function () { e.deep = true; });
+    }
+    /* a move can't be worth more than the position it was played from: if the longer search of the position after
+       move i-1 says it's better than the engine's first choice, it becomes the first choice */
+    function lift(i) {
+      if (i < 1) return;
+      var parent = evals[i - 1], child = evals[i], side = info[i - 1].side;
+      if (!parent || parent.over || winFor(child, side) <= winFor(parent, side)) return;
+      var old = { cp: parent.cp, mate: parent.mate, move: parent.best };
+      if (child.mate === 0) { parent.mate = side; parent.cp = null; }
+      else if (child.mate != null) { parent.mate = child.mate + (child.mate > 0 ? 1 : -1); parent.cp = null; }
+      else { parent.mate = null; parent.cp = child.cp; }
+      parent.best = moves[i - 1];
+      parent.pv = [moves[i - 1]].concat(child.pv || []);
+      parent.line = { cp: parent.cp == null ? null : parent.cp * side, mate: parent.mate == null ? null : parent.mate * side, pv: parent.pv };
+      if (old.move && old.move !== moves[i - 1]) parent.second = old;
+      if (!parent.sh) parent.sh = { cp: old.cp, mate: old.mate };
+      parent.deep = true;
+    }
+    function kindOf(j) { return classify(job.startFen, moves, evals, job.map, j, ints).cls[j]; }
+    /* the position before a mistake gets a longer look too when its best move will be taught (your own mistakes)
+       or when the quick look around it proved unreliable */
+    function wantsBefore(j, k) {
+      if (SERIOUS.indexOf(k) < 0) return false;
+      var a = evals[j + 1];
+      return job.mine(j) || !!(a && a.shift > 8);
+    }
+    function verify(j) {
+      if (FLAGGED.indexOf(kindOf(j)) < 0) return Promise.resolve();
+      return deep(j + 1, j).then(function () {
+        if (job.cancelled() || !wantsBefore(j, kindOf(j))) return;
+        return deep(j, j);
+      });
+    }
+    function step(i) {
+      if (job.cancelled()) return Promise.resolve(null);
+      if (i > n) return settle(0);
+      return quick(i).then(function () {
+        if (job.cancelled()) return null;
+        job.progress(i + 1, Math.max(0, i - 1), false);
+        return (i > 0 ? verify(i - 1) : Promise.resolve()).then(function () { return step(i + 1); });
+      });
+    }
+    /* a later longer search can change an earlier label; look again until every flagged move has had its closer look */
+    function settle(round) {
+      if (job.cancelled()) return Promise.resolve(null);
+      var cls = classify(job.startFen, moves, evals, job.map, null, ints).cls, todo = [];
+      cls.forEach(function (k, j) {
+        if ((FLAGGED.indexOf(k) >= 0 && !evals[j + 1].deep) || (!evals[j].deep && wantsBefore(j, k))) todo.push(j);
+      });
+      if (!todo.length || round >= 3) return Promise.resolve(evals);
+      return todo.reduce(function (pr, j) { return pr.then(function () { return job.cancelled() ? null : verify(j); }); }, Promise.resolve())
+        .then(function () { return settle(round + 1); });
+    }
+    return step(0);
+  }
+
+  /* classify every move (or the first upto + 1); ints: the moves already parsed, if at hand.
+     Returns { cls[], loss[], acc: {w, b}, counts: {w: {}, b: {}} } */
+  function classify(startFen, moves, evals, openingMap, upto, ints) {
     var pos = new C.Pos(startFen), cls = [], losses = [], prevCls = null;
+    var end = upto == null ? moves.length : Math.min(moves.length, upto + 1);
     var inBook = startFen === C.START_FEN && !!openingMap;
-    for (var i = 0; i < moves.length; i++) {
-      var m = pos.parseMove(moves[i]), mover = pos.side;
+    for (var i = 0; i < end; i++) {
+      var m = ints ? ints[i] : pos.parseMove(moves[i]), mover = pos.side;
       var e0 = evals[i], e1 = evals[i + 1];
-      var w0 = whiteWin(e0), w1 = whiteWin(e1);
-      var before = mover === 1 ? w0 : 100 - w0, after = mover === 1 ? w1 : 100 - w1;
+      var before = winFor(e0, mover), after = winFor(e1, mover);
       var loss = Math.max(0, before - after);
-      var after1 = pos.clone(); after1.make(m);
+      var to = (m >> 7) & 127, piece = Math.abs(pos.b[m & 127]), cap = pos.moveCaptured(m);
+      pos.make(m); // pos is now the position after the move
       var k;
-      if (inBook && i < 24 && openingMap.has(epdOf(after1))) k = 'book';
+      if (inBook && i < 24 && openingMap.has(epdOf(pos))) { k = 'book'; loss = 0; }
       else {
         inBook = false;
-        var isBest = e0 && e0.best === moves[i];
+        var isBest = !!(e0 && e0.best && e0.best === moves[i]);
+        if (isBest) loss = 0; // the engine's first choice is never a mistake
         if (isBest || loss < 2) k = isBest ? 'best' : 'excellent';
         else if (loss < 5) k = 'good';
         else if (loss < 10) k = 'inaccuracy';
@@ -260,18 +501,15 @@ var Review = (function () {
         else k = 'blunder';
         if ((k === 'mistake' || k === 'inaccuracy' || k === 'blunder') && (prevCls === 'mistake' || prevCls === 'blunder') && before >= 65 && after < before - 10 && after > 25) k = 'miss';
         if ((k === 'best' || k === 'excellent') && e0 && e0.second && before < 92 && before > 15) {
-          var sw = whiteWin(e0.second), sb = mover === 1 ? sw : 100 - sw;
-          if (before - sb >= 20) k = 'great';
+          var ref = e0.sh ? winFor(e0.sh, mover) : before, sb = winFor(e0.second, mover);
+          if (ref - sb >= 20) k = 'great';
         }
         if ((k === 'best' || k === 'excellent' || k === 'great') && before < 95 && after >= 45) {
-          var to = (m >> 7) & 127, piece = Math.abs(pos.b[m & 127]);
-          var lossSq = after1.hangingLoss(to);
-          var cap = pos.moveCaptured(m);
+          var lossSq = pos.hangingLoss(to);
           if (piece >= 2 && piece <= 5 && lossSq >= 200 && lossSq > C.SEE_VAL[Math.abs(cap)] + 150) k = 'brilliant';
         }
       }
       cls.push(k); losses.push(loss); prevCls = k;
-      pos.make(m);
     }
     var acc = { w: [], b: [] }, counts = { w: {}, b: {} };
     var startSide = new C.Pos(startFen).side;
@@ -282,7 +520,7 @@ var Review = (function () {
       acc[side].push(Math.max(0, Math.min(100, a)));
     });
     function avg(xs) {
-      if (!xs.length) return 100;
+      if (!xs.length) return null;
       var mean = xs.reduce(function (s, x) { return s + x; }, 0) / xs.length;
       var harm = xs.length / xs.reduce(function (s, x) { return s + 1 / Math.max(x, 5); }, 0);
       return (mean + harm) / 2;
@@ -296,6 +534,16 @@ var Review = (function () {
 
   function gameById(id) { return Store.state.games.list.filter(function (g) { return g.id === id; })[0]; }
 
+  /* a name short enough for a sentence */
+  function shortName(name) {
+    name = String(name || '').replace(/\s+/g, ' ').trim();
+    if (!name) return 'Your opponent';
+    if (name.length <= 26) return name;
+    var first = name.split(' ')[0];
+    if (first.length >= 2 && first.length <= 26) return first;
+    return name.slice(0, 24) + '…';
+  }
+
   function renderList(root) {
     var S = Store.state;
     root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Review'))));
@@ -308,7 +556,7 @@ var Review = (function () {
       list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
         bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm tone-you' }, '?'),
         h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultPhrase(g, bot ? bot.name : (g.opp || 'opponent'))),
-          h('div', { class: 'muted small' }, U.dateShort(g.ts) + ', ' + U.plural(Math.ceil(g.plies / 2), 'move') + (g.reviewed ? ', ' + Math.round(g.acc) + '% accuracy' : ''))),
+          h('div', { class: 'muted small' }, U.dateShort(g.ts) + ', ' + U.plural(Math.ceil((g.plies || 0) / 2), 'move') + (g.reviewed && g.acc != null ? ', ' + Math.round(g.acc) + '% accuracy' : ''))),
         g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next')));
     });
     games.appendChild(list);
@@ -326,7 +574,7 @@ var Review = (function () {
         if (!text) { err.textContent = 'Paste a PGN first.'; err.hidden = false; return; }
         var parsed = C.parsePgn(text);
         var fen = parsed.headers.FEN || C.START_FEN;
-        if (C.Pos.fenError(fen)) { err.textContent = 'The FEN in this PGN isn’t valid.'; err.hidden = false; return; }
+        var bad = C.validFen(fen); if (bad) { err.textContent = 'The FEN in this PGN isn’t valid: ' + bad + '.'; err.hidden = false; return; }
         var r = C.replay(fen, parsed.sans);
         if (r.error) { err.textContent = r.error; err.hidden = false; return; }
         if (!r.moves.length) { err.textContent = 'No moves found in that PGN.'; err.hidden = false; return; }
@@ -338,93 +586,400 @@ var Review = (function () {
   }
 
   function renderReview(root, src) {
-    App.focus(true);
     var startFen = src.startFen, moves = src.moves, sans = src.sans, you = src.color;
-    var st = { ply: moves.length, evals: null, res: null, cancelled: false, retry: null, orient: you };
-    R = st;
-    var head = h('div', { class: 'row between', style: { marginBottom: '10px' } },
+    var startPos = new C.Pos(startFen), startSide = startPos.side;
+    var opp = String(src.oppName || 'Opponent'), oppShort = shortName(opp);
+    root.appendChild(h('div', { class: 'rv-head' },
       h('button', { class: 'back', type: 'button', onclick: function () { App.go('review'); } }, U.icon('back'), 'Games'),
-      h('div', { class: 'muted small' }, src.label));
-    root.appendChild(head);
+      h('div', { class: 'rv-label', title: src.label }, src.label)));
+    if (!moves.length) {
+      root.appendChild(h('div', { class: 'card rv-none' }, h('p', null, 'There are no moves to review.'),
+        h('button', { class: 'btn', type: 'button', onclick: function () { App.go('review'); } }, 'Back to your games')));
+      return;
+    }
+    App.focus(true);
+    // token: bumped by every navigation, so an engine answer that arrives late is dropped instead of shown on the wrong move
+    var st = { moves: moves, ply: moves.length, shown: moves.length, evals: null, res: null, cancelled: false, token: 0, mode: 'game', retry: null,
+      map: null, keyPlies: [], why: {}, pending: {}, details: false, progFrac: 0 };
+    R = st;
     var board = new Board({ orient: you, coords: Store.state.settings.coords !== false, movable: null, onMove: retryMove });
-    var evalFill = h('i', { style: { height: '50%' } });
-    var evalBar = h('div', { class: 'evalbar', 'aria-hidden': 'true' }, evalFill);
-    var nav = h('div', { class: 'controls' },
-      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Start', onclick: function () { goPly(0); } }, U.icon('first')),
-      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Previous move', onclick: function () { goPly(st.ply - 1); } }, U.icon('back')),
-      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Next move', onclick: function () { goPly(st.ply + 1); } }, U.icon('next')),
-      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'End', onclick: function () { goPly(moves.length); } }, U.icon('last')),
-      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); } }, U.icon('flip')));
-    var summary = h('div', { class: 'card rv-summary' }), explain = h('div', { class: 'card stack rv-explain' }), graphBox = h('div'), movesBox = h('div');
-    var arena = h('div', { class: 'arena' },
-      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), nav),
-      h('div', { class: 'panel' }, summary, explain, graphBox, movesBox));
-    root.appendChild(arena);
+    var evalFill = h('i');
+    var evalBar = h('div', { class: 'evalbar rv-evalbar', 'aria-hidden': 'true' }, evalFill);
+    function stepBtn(icon, label, fn) { return h('button', { class: 'btn icon-only', type: 'button', 'aria-label': label, 'data-repeat': '', onclick: fn }, U.icon(icon)); }
+    var controls = h('div', { class: 'controls rv-controls' },
+      stepBtn('first', 'Start', function () { goPly(0); }),
+      // step from the position on the board (Show best move and Find a better move show the one before the move)
+      stepBtn('back', 'Previous move', function () { goPly(st.shown - 1); }),
+      stepBtn('next', 'Next move', function () { goPly(st.shown + 1); }),
+      stepBtn('last', 'End', function () { goPly(moves.length); }),
+      h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); paintEval(); } }, U.icon('flip')));
+    var card = h('section', { class: 'card rv-card', 'aria-label': 'This move' });
+    var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
+    root.appendChild(h('div', { class: 'arena rv-arena' },
+      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls),
+      h('div', { class: 'panel' }, card, graphBox, movesBox, detailsBox)));
 
+    /* ---------- positions and moves ---------- */
+    var ints = (function () { var p = new C.Pos(startFen); return moves.map(function (u) { var m = p.parseMove(u); p.make(m); return m; }); })();
     function posAt(n) {
       var p = new C.Pos(startFen), last = null;
-      for (var i = 0; i < n; i++) { last = p.parseMove(moves[i]); p.make(last); }
+      for (var i = 0; i < n; i++) { last = ints[i]; p.make(last); }
       return { pos: p, last: last };
     }
-    function goPly(n) {
+    function isWhiteMove(i) { return (i % 2 === 0) === (startSide === 1); }
+    function isMine(i) { return isWhiteMove(i) === (you === 'w'); }
+    function moveNo(i) { return startPos.full + Math.floor((i + (startSide === 1 ? 0 : 1)) / 2); }
+    function moveLabel(i) { return moveNo(i) + (isWhiteMove(i) ? '.' : '...') + sans[i]; }
+    function sanOf(pos, uci) { var m = uci && pos.parseMove(uci); return m ? pos.san(m) : null; }
+    function arrow(uci, color) { return { from: uci.slice(0, 2), to: uci.slice(2, 4), color: color }; }
+
+    /* ---------- navigation ---------- */
+    function goPly(n, o) {
       n = Math.max(0, Math.min(moves.length, n));
-      st.ply = n; st.retry = null;
+      st.token++; st.ply = n; st.shown = n; st.mode = 'game'; st.retry = null;
       var a = posAt(n);
       board.setMovable(null);
       board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
-      decorate();
-      renderExplain(); renderMoves(); paintEvalBar();
+      decorate(); renderCard(); markMoves(); paintEval(); paintCursor();
+      if (o && o.reveal) revealBoard();
     }
+    /* keep the board on screen after a jump (on a phone the panel sits below it) */
+    function revealBoard() {
+      var r = board.el.getBoundingClientRect(), vh = window.innerHeight || document.documentElement.clientHeight;
+      var ok = r.height <= vh - 16 ? (r.top >= 0 && r.bottom <= vh) : Math.abs(r.top) <= 8;
+      if (ok) return;
+      var top = Math.max(0, (window.pageYOffset || 0) + r.top - 8);
+      var calm = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+      try { window.scrollTo({ top: top, behavior: calm ? 'auto' : 'smooth' }); } catch (e) { window.scrollTo(0, top); }
+    }
+    function jump(ply) { if (ply != null) goPly(ply, { reveal: true }); }
+    function nextKey(after) { return st.keyPlies.filter(function (p) { return p > after; })[0]; }
+
+    /* ---------- the board ---------- */
     function decorate() {
-      var n = st.ply;
       board.setArrows([]); board.setBadge(null); board.setMarks([]);
+      var n = st.ply;
       if (!st.res || n === 0) return;
-      var k = st.res.cls[n - 1], m = moves[n - 1];
-      board.setBadge({ sq: m.slice(2, 4), kind: k, text: KINDS[k].sym });
-      var e = st.evals[n - 1];
-      if (e && e.best && e.best !== m && ['inaccuracy', 'mistake', 'blunder', 'miss'].indexOf(k) >= 0) {
-        board.setArrows([{ from: e.best.slice(0, 2), to: e.best.slice(2, 4), color: 'green' }]);
+      var i = n - 1, k = st.res.cls[i];
+      board.setBadge({ sq: moves[i].slice(2, 4), kind: k, text: KINDS[k].sym });
+      // after a mistake, show the reply that punishes it
+      if (FLAGGED.indexOf(k) >= 0) {
+        var w = why(i);
+        var real = w && w.reply && (w.topic === 'threats' || w.topic === 'fork' || (w.topic === 'safety' && (k !== 'miss' || PIECE_VAL[w.piece] >= 3)));
+        if (real) board.setArrows([arrow(w.reply, 'red')]);
       }
     }
-    function paintEvalBar() {
-      var e = st.evals && st.evals[st.ply];
-      var w = e ? whiteWin(e) : 50;
-      var pctWhite = board.orient === 'w' ? w : 100 - w;
-      evalFill.style.height = pctWhite + '%';
-      evalFill.style.background = board.orient === 'w' ? '#F4EFE4' : '#2A2F3A';
-      evalBar.style.background = board.orient === 'w' ? '#2A2F3A' : '#F4EFE4';
+    function paintEval() {
+      var e = st.evals && st.evals[st.shown], w = e ? whiteWin(e) : 50, flip = board.orient !== 'w';
+      evalBar.classList.toggle('flip', flip);
+      evalFill.style.height = (flip ? 100 - w : w) + '%';
     }
 
-    function renderSummary() {
-      U.clear(summary);
-      if (!st.res) {
-        summary.appendChild(h('div', { class: 'label' }, 'Reviewing'));
-        summary.appendChild(h('div', { id: 'rv-progress', class: 'muted', style: { margin: '6px 0 10px' } }, 'Starting…'));
-        summary.appendChild(UI.meter(0));
+    /* ---------- explanations ---------- */
+    function replyLine(i) {
+      var e1 = st.evals[i + 1];
+      if (!e1 || e1.over) return null;
+      if (e1.line && e1.line.pv && e1.line.pv.length) return e1.line;
+      // an older saved review has no engine line here: fetch it, then refresh this move if it's still on screen
+      if (!st.pending[i + 1]) {
+        st.pending[i + 1] = true;
+        Engines.analyse(Object.assign({ fen: startFen, moves: moves.slice(0, i + 1) }, deepOpts())).then(function (r) {
+          if (R !== st || st.cancelled) return;
+          var l = r && r.lines && r.lines[0];
+          if (!l || !l.pv || !l.pv.length) return;
+          e1.line = { cp: l.cp, mate: l.mate, pv: l.pv }; e1.pv = l.pv;
+          delete st.why[i];
+          if (st.mode === 'game' && st.ply === i + 1) { decorate(); renderCard(); }
+        }, function () { /* no line: the move keeps its short explanation */ });
+      }
+      return null;
+    }
+    function why(i) {
+      if (st.why[i]) return st.why[i];
+      var reply = replyLine(i); if (!reply) return null;
+      var before = posAt(i).pos, m = ints[i], e0 = st.evals[i], side = before.side;
+      var w = Explain.bad(before, m, reply, e0 && e0.best, { you: isMine(i), name: oppShort, wb: winFor(e0, side), wa: winFor(st.evals[i + 1], side) });
+      st.why[i] = w;
+      return w;
+    }
+    /* a sentence about the best move before move i, with the reason when there is one:
+       bestSays(i, function (s) { return 'Best was ' + s; }) gives "Best was Nf3: it develops a knight." */
+    function bestSays(i, lead) {
+      var e0 = st.evals[i]; if (!e0 || !e0.best) return '';
+      var before = posAt(i).pos, san = sanOf(before, e0.best); if (!san) return '';
+      var rs = Explain.reasons(before, e0.best, e0.line);
+      return lead(san) + (rs.length ? ': it ' + rs.join(' and ') : '') + '.';
+    }
+    function bestWas(i) { return bestSays(i, function (s) { return 'Best was ' + s; }); }
+    function bestLine(i) {
+      var e0 = st.evals[i]; if (!e0 || !e0.best) return '';
+      var pv = e0.pv && e0.pv.length && e0.pv[0] === e0.best ? e0.pv : [e0.best];
+      var mateIn = e0.line && e0.line.mate > 0 ? e0.line.mate * 2 - 1 : 0;
+      var line = Explain.numberedLine(posAt(i).pos, pv, mateIn && mateIn <= 7 ? mateIn : 5);
+      return line.indexOf(' ') > 0 ? 'The line goes ' + line + '.' : '';
+    }
+    function openingName(i) {
+      if (!st.map) return null;
+      var a = posAt(i + 1).pos, o = st.map.get(epdOf(a));
+      return o && o.name ? o.name.replace(/'/g, '’') : null;
+    }
+    function moveText(i) {
+      var k = st.res.cls[i], e0 = st.evals[i], mine = isMine(i), before;
+      switch (k) {
+        case 'book': var nm = openingName(i); return { text: 'A standard opening move' + (nm ? ', part of the ' + nm : '') + '.' };
+        case 'best': return { text: 'The engine’s top choice.' };
+        case 'excellent': return { text: 'Nearly as good as the best move.' };
+        case 'good': return { text: ('A reasonable move. ' + bestSays(i, function (s) { return s + ' was a little better'; })).trim() };
+        case 'great': return { text: 'The only good move here, and ' + (mine ? 'you' : oppShort) + ' found it.' };
+        case 'brilliant': return { text: 'A strong sacrifice: it gives up material for a winning attack or a better position.' };
+        case 'miss':
+          before = posAt(i).pos;
+          var mi = Explain.missedInfo(before, e0.best, e0.line, { you: mine, name: oppShort });
+          // a miss can also be a blunder in its own right (mate, a fork, a piece): say what it allows too
+          var wm = why(i), real = wm && (wm.topic === 'threats' || wm.topic === 'fork' || (wm.topic === 'safety' && PIECE_VAL[wm.piece] >= 3));
+          return { text: (mi.sentence || 'This let a win slip away.') + (real ? ' ' + wm.text : ''), topic: real ? wm.topic : mi.topic };
+        default:
+          var w = why(i);
+          var text = w ? w.text : (st.pending[i + 1] ? 'Looking at what this allows…' : '');
+          return { text: ((text ? text + ' ' : '') + bestWas(i)).trim(), topic: w && (k === 'mistake' || k === 'blunder') ? w.topic : null };
+      }
+    }
+
+    /* ---------- the card under the board: mistake navigator, then this move ---------- */
+    function navigator() {
+      var keys = st.keyPlies, row = h('div', { class: 'rv-nav' });
+      if (!keys.length) { row.appendChild(h('span', { class: 'rv-nav-text' }, 'No mistakes to fix in this game.')); return row; }
+      var at = keys.indexOf(st.ply), prev = keys.filter(function (p) { return p < st.ply; }).pop(), next = nextKey(st.ply);
+      row.appendChild(h('button', { class: 'btn icon-only quiet', type: 'button', 'aria-label': 'Previous mistake', 'data-repeat': '', disabled: prev == null, onclick: function () { jump(prev); } }, U.icon('back')));
+      row.appendChild(h('span', { class: 'rv-nav-text' }, at >= 0 ? 'Mistake ' + (at + 1) + ' of ' + keys.length : U.plural(keys.length, 'mistake') + ' to fix'));
+      row.appendChild(h('button', { class: 'btn icon-only quiet', type: 'button', 'aria-label': 'Next mistake', 'data-repeat': '', disabled: next == null, onclick: function () { jump(next); } }, U.icon('next')));
+      return row;
+    }
+    function cardBody(fill) {
+      U.clear(card);
+      card.appendChild(navigator());
+      var body = h('div', { class: 'rv-body', 'aria-live': 'polite' });
+      card.appendChild(body);
+      fill(body);
+    }
+    function moveHead(kind, label, sub) {
+      return h('div', { class: 'rv-move' }, h('span', { class: 'chip rv-chip' }, h('span', { class: 'dot-k k-' + kind }), label), sub ? h('span', { class: 'rv-who' }, sub) : null);
+    }
+    function btn(label, fn, cls, icon) { return h('button', { class: 'btn small' + (cls ? ' ' + cls : ''), type: 'button', onclick: fn }, icon ? U.icon(icon) : null, label); }
+    function showBestBtn(i) { return btn('Show best move', function () { showBest(i); }, 'quiet', 'eye'); }
+    function backBtn(i) { return btn('Back to the game', function () { goPly(i + 1); }, 'quiet'); }
+    function renderCard() {
+      if (!st.res) return;
+      cardBody(function (body) {
+        if (st.ply === 0) { body.appendChild(h('p', { class: 'rv-text' }, 'This is where the game started. Step through it with the arrows under the board.')); return; }
+        var i = st.ply - 1, k = st.res.cls[i], mine = isMine(i), t = moveText(i);
+        body.appendChild(moveHead(k, KINDS[k].label, (mine ? 'You' : oppShort) + ' played ' + moveLabel(i)));
+        if (t.text) body.appendChild(h('p', { class: 'rv-text' }, t.text));
+        if (FLAGGED.indexOf(k) < 0) return;
+        body.appendChild(h('div', { class: 'rv-actions' },
+          mine ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null,
+          st.evals[i] && st.evals[i].best ? showBestBtn(i) : null));
+        if (mine && t.topic) { var sr = Explain.studyRow(t.topic); if (sr) body.appendChild(sr); }
+      });
+    }
+
+    /* ---------- show best move: the position before the move, the better move in green, and where it leads ---------- */
+    function showBest(i) {
+      var e0 = st.evals[i]; if (!e0 || !e0.best) return;
+      st.token++; st.mode = 'best'; st.retry = null; st.shown = i;
+      var a = posAt(i);
+      board.setMovable(null);
+      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
+      board.setBadge(null); board.setMarks([]);
+      board.setArrows([arrow(e0.best, 'green')]);
+      paintEval();
+      cardBody(function (body) {
+        body.appendChild(moveHead('best', 'Best move', 'Instead of ' + moveLabel(i)));
+        body.appendChild(h('p', { class: 'rv-text' }, (bestWas(i) + ' ' + bestLine(i)).trim()));
+        body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null, backBtn(i)));
+      });
+    }
+
+    /* ---------- find a better move ---------- */
+    function startRetry(i) {
+      var e0 = st.evals[i]; if (!e0) return;
+      st.token++; st.mode = 'retry'; st.shown = i;
+      st.retry = { ply: i, tries: st.retry && st.retry.ply === i ? st.retry.tries : 0 };
+      var a = posAt(i);
+      board.setArrows([]); board.setBadge(null); board.setMarks([]);
+      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
+      board.setMovable(a.pos.side === 1 ? 'w' : 'b');
+      paintEval();
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'label' }, 'Your turn'));
+        body.appendChild(h('p', { class: 'rv-text' }, 'Find a better move than ' + moveLabel(i) + ' and play it on the board.'));
+        body.appendChild(h('div', { class: 'rv-actions' }, showBestBtn(i), backBtn(i)));
+      });
+    }
+    function retryMove(uci, m) {
+      var r = st.retry; if (!r || st.mode !== 'retry') return;
+      var tok = ++st.token, i = r.ply, e0 = st.evals[i];
+      var before = posAt(i).pos, after = before.clone(); after.make(m);
+      var san = before.san(m);
+      board.setMovable(null);
+      board.setPosition(after, { last: m, animate: false });
+      cardBody(function (body) { body.appendChild(h('p', { class: 'rv-text' }, 'Checking ' + san, h('span', { class: 'thinking', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')))); });
+      if (uci === moves[i]) return sameMove(i);
+      var stx = after.status();
+      if (uci === e0.best || (stx.over && stx.reason === 'checkmate')) return verdict(tok, i, m, uci, san, { best: true, loss: 0 });
+      if (stx.over) return grade({ cp: 0, mate: null, pv: [] });
+      Engines.analyse(Object.assign({ fen: startFen, moves: moves.slice(0, i).concat([uci]) }, deepOpts())).then(function (res) {
+        grade(res && res.lines && res.lines[0]);
+      }, function () { grade(null); });
+      function grade(l) {
+        if (tok !== st.token || R !== st || st.cancelled) return; // they moved on: never show this verdict
+        var wb = winFor(e0, before.side), wa = l ? 100 - (l.mate != null ? (l.mate > 0 ? 100 : 0) : U.winPct(l.cp)) : wb;
+        verdict(tok, i, m, uci, san, { loss: wb - wa, line: l, wb: wb, wa: wa });
+      }
+    }
+    function sameMove(i) {
+      U.sound.bad();
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'feedback no' }, 'That’s the move from the game. Look for a different one.'));
+        body.appendChild(h('div', { class: 'rv-actions' }, btn('Try again', function () { startRetry(i); }, 'primary'), showBestBtn(i)));
+      });
+    }
+    function verdict(tok, i, m, uci, san, g) {
+      if (tok !== st.token || R !== st || st.cancelled) return;
+      var e0 = st.evals[i], before = posAt(i).pos;
+      if (g.best || g.loss < 2) {
+        U.sound.good();
+        Mistakes.solved('g' + (src.gameId || 'x') + '-' + i);
+        var bestSan = sanOf(before, e0.best);
+        answer(i, uci, 'ok', g.best ? 'Yes, ' + san + ' is the best move here.'
+          : 'Yes, ' + san + ' is about as good as the best move' + (bestSan ? ', ' + bestSan : '') + '.');
         return;
       }
-      var acc = st.res.acc, me = you, opp = you === 'w' ? 'b' : 'w';
-      summary.appendChild(h('div', { class: 'row between' },
-        h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, Math.round(acc[me]) + '%')),
-        h('div', { class: 'stat', style: { textAlign: 'right' } }, h('span', { class: 'label' }, src.oppName || 'Opponent'), h('b', null, Math.round(acc[opp]) + '%'))));
-      // how many moves of each kind, yours beside your opponent's
-      var tbl = h('table', { class: 'counts' }), body = h('tbody');
-      tbl.appendChild(h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Move type')), h('th', { scope: 'col' }, 'You'), h('th', { scope: 'col' }, src.oppName || 'Opponent'))));
+      var w = Explain.bad(before, m, g.line, e0.best, { you: true, name: oppShort, wb: g.wb, wa: g.wa });
+      if (w.topic === 'position' && g.loss < 10) {
+        answer(i, uci, 'safe', san + ' is safe, but ' + (bestSays(i, function (s) { return s + ' was best'; }) || 'the engine’s choice was better.'));
+        return;
+      }
+      U.sound.bad();
+      st.retry.tries++;
+      // leave the try on the board with the reply that punishes it
+      if (w.reply && w.topic !== 'position') board.setArrows([arrow(w.reply, 'red')]);
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'feedback no' }, san + ' doesn’t work. ' + w.text));
+        body.appendChild(h('div', { class: 'rv-actions' }, btn('Try again', function () { startRetry(i); }, 'primary'), showBestBtn(i)));
+      });
+    }
+    /* after a try that's good enough: the position before the move, the try in blue and the best move in green */
+    function answer(i, uci, tone, msg) {
+      var e0 = st.evals[i], a = posAt(i), arrows = [];
+      st.mode = 'answer'; st.shown = i;
+      board.setMovable(null);
+      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
+      if (uci !== e0.best) arrows.push(arrow(uci, 'blue'));
+      if (e0.best) arrows.push(arrow(e0.best, 'green'));
+      board.setBadge(null); board.setArrows(arrows);
+      paintEval();
+      var next = nextKey(i + 1);
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'feedback ' + (tone === 'ok' ? 'ok' : 'info') }, msg));
+        var line = bestLine(i);
+        if (line || arrows.length > 1) body.appendChild(h('p', { class: 'rv-line' }, (arrows.length > 1 ? 'Your move is in blue and the best move in green. ' : '') + line));
+        body.appendChild(h('div', { class: 'rv-actions' },
+          tone === 'ok' ? null : btn('Try again', function () { startRetry(i); }),
+          next != null ? btn('Next mistake', function () { jump(next); }, 'primary') : null,
+          backBtn(i)));
+      });
+    }
+
+    /* ---------- moves list ---------- */
+    function buildMoves() {
+      U.clear(movesBox);
+      var box = h('div', { class: 'moves rv-movelist' }), tb = h('table'), row = null, num = startPos.full;
+      st.mvButtons = [];
+      sans.forEach(function (san, i) {
+        var white = isWhiteMove(i);
+        if (white || !row) { row = h('tr', null, h('td', { class: 'n' }, num + '.')); tb.appendChild(row); if (!white) row.appendChild(h('td')); num++; }
+        var k = st.res ? st.res.cls[i] : null, sym = k && MARKED.indexOf(k) >= 0 ? KINDS[k].sym : '';
+        var b = h('button', { class: 'mv', type: 'button', 'aria-label': san + (sym ? ', ' + KINDS[k].label : ''), onclick: function () { goPly(i + 1, { reveal: true }); } },
+          san, sym ? h('span', { class: 'sym s-' + k, 'aria-hidden': 'true' }, sym) : null);
+        st.mvButtons.push(b);
+        row.appendChild(h('td', null, b));
+      });
+      box.appendChild(tb);
+      movesBox.appendChild(box);
+      st.mvBox = box;
+      markMoves();
+    }
+    function markMoves() {
+      if (!st.mvButtons) return;
+      st.mvButtons.forEach(function (b, i) { b.classList.toggle('on', st.ply === i + 1); });
+      var on = st.mvButtons[st.ply - 1], box = st.mvBox;
+      if (!box) return;
+      if (!on) { if (st.ply === 0) box.scrollTop = 0; return; }
+      // scroll the list itself, never the page
+      var br = box.getBoundingClientRect(), r = on.getBoundingClientRect();
+      if (r.top < br.top + 4 || r.bottom > br.bottom - 4) box.scrollTop += (r.top - br.top) - (box.clientHeight - r.height) / 2;
+    }
+
+    /* ---------- the evaluation graph ---------- */
+    function renderGraph() {
+      U.clear(graphBox);
+      if (!st.evals) return;
+      var W = 600, H = 110, n = st.evals.length, NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs) { var e = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); return e; }
+      var x = function (i) { return n <= 1 ? 0 : W * i / (n - 1); };
+      var y = function (i) { return H * (1 - whiteWin(st.evals[i]) / 100); };
+      var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', class: 'evalgraph', role: 'img', 'aria-label': 'Evaluation over the game' });
+      svg.appendChild(el('rect', { width: W, height: H, class: 'eg-black' }));
+      var d = 'M0 ' + H;
+      for (var i = 0; i < n; i++) d += ' L' + x(i).toFixed(1) + ' ' + y(i).toFixed(1);
+      d += ' L' + W + ' ' + H + ' Z';
+      svg.appendChild(el('path', { d: d, class: 'eg-white' }));
+      svg.appendChild(el('line', { x1: 0, x2: W, y1: H / 2, y2: H / 2, class: 'eg-mid' }));
+      var cur = el('line', { x1: x(st.ply), x2: x(st.ply), y1: 0, y2: H, class: 'eg-cur' });
+      svg.appendChild(cur);
+      var plot = h('div', { class: 'rv-plot' }, svg);
+      // markers sit on top as round dots, so stretching the graph doesn't squash them
+      st.res.cls.forEach(function (k, i) {
+        if (['mistake', 'blunder', 'miss', 'brilliant', 'great'].indexOf(k) < 0) return;
+        plot.appendChild(h('span', { class: 'rv-dot k-' + k, style: { left: (x(i + 1) / W * 100) + '%', top: (y(i + 1) / H * 100) + '%' } }));
+      });
+      plot.addEventListener('click', function (e) {
+        var rc = plot.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - rc.left) / rc.width));
+        goPly(Math.round(f * (n - 1)), { reveal: true });
+      });
+      graphBox.appendChild(plot);
+      graphBox.appendChild(h('p', { class: 'rv-key' },
+        h('span', null, h('i', { class: 'sw sw-white' }), 'White ahead'),
+        h('span', null, h('i', { class: 'sw sw-black' }), 'Black ahead'),
+        h('span', { class: 'rv-key-tip' }, U.touchWords('Click to jump to a move'))));
+      st.cur = cur; st.gx = x;
+    }
+    function paintCursor() { if (st.cur) { var xx = st.gx(st.ply); st.cur.setAttribute('x1', xx); st.cur.setAttribute('x2', xx); } }
+
+    /* ---------- details: accuracy, move counts and the PGN ---------- */
+    function renderDetails() {
+      U.clear(detailsBox);
+      if (!st.res) return;
+      var me = you, them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
+      function accText(side) { return acc[side] == null ? 'No moves' : Math.round(acc[side]) + '%'; }
+      var tbl = h('table', { class: 'counts rv-counts' }), body = h('tbody');
+      tbl.appendChild(h('thead', null, h('tr', null, h('th', { scope: 'col' }, h('span', { class: 'sr-only' }, 'Move type')),
+        h('th', { scope: 'col' }, 'You'), h('th', { scope: 'col', title: opp }, h('span', { class: 'rv-opp' }, opp)))));
+      body.appendChild(h('tr', { class: 'rv-acc' }, h('th', { scope: 'row' }, 'Accuracy'), h('td', { class: 'num' }, accText(me)), h('td', { class: 'num' }, accText(them))));
       ORDER.forEach(function (k) {
-        var a = st.res.counts[me][k] || 0, b = st.res.counts[opp][k] || 0;
+        var a = st.res.counts[me][k] || 0, b = st.res.counts[them][k] || 0;
         if (!a && !b) return;
         body.appendChild(h('tr', null, h('th', { scope: 'row' }, h('span', { class: 'dot-k k-' + k }), KINDS[k].label), h('td', { class: 'num' }, String(a)), h('td', { class: 'num' }, String(b))));
       });
       tbl.appendChild(body);
-      summary.appendChild(tbl);
-      var keyMoves = [];
-      st.res.cls.forEach(function (k, i) { if (isMine(i) && ['blunder', 'mistake', 'miss'].indexOf(k) >= 0) keyMoves.push(i + 1); });
-      summary.appendChild(h('div', { class: 'row', style: { marginTop: '12px' } },
-        h('button', { class: 'btn small quiet', type: 'button', onclick: function () { U.copyText(pgnText(), null).then(function (ok) { App.toast(ok ? 'PGN copied' : 'Copying isn\u2019t allowed here'); }); } }, U.icon('copy'), 'Copy PGN'),
-        U.canSaveFile() ? h('button', { class: 'btn small quiet', type: 'button', onclick: function () { U.saveFile('tempo-game.pgn', pgnText(), 'application/x-chess-pgn'); } }, U.icon('download'), 'Save PGN') : null));
-      if (keyMoves.length) summary.appendChild(h('div', { class: 'row', style: { marginTop: '12px' } },
-        h('button', { class: 'btn small primary', type: 'button', onclick: function () { var nx = keyMoves.filter(function (p) { return p > st.ply; })[0] || keyMoves[0]; goPly(nx); } }, 'Next mistake'),
-        h('span', { class: 'muted small' }, U.plural(keyMoves.length, 'key moment'))));
+      var pgnRow = h('div', { class: 'row rv-pgn' },
+        btn('Copy PGN', function () { U.copyText(pgnText(), null).then(function (ok) { App.toast(ok ? 'PGN copied' : 'Copying isn’t allowed here'); }); }, 'quiet', 'copy'),
+        U.canSaveFile() ? btn('Save PGN', function () { U.saveFile('tempo-game.pgn', pgnText(), 'application/x-chess-pgn'); }, 'quiet', 'download') : null);
+      var d = h('details', { class: 'rv-details' }, h('summary', null, h('span', null, 'Details'), U.icon('next', 'chev')), h('div', { class: 'rv-details-body' }, tbl, pgnRow));
+      if (st.details) d.open = true;
+      d.addEventListener('toggle', function () { st.details = d.open; });
+      detailsBox.appendChild(d);
     }
     function pgnText() {
       if (src.pgn) return src.pgn;
@@ -432,208 +987,107 @@ var Review = (function () {
       moves.forEach(function (u) { var m = p.parseMove(u); ms.push(m); p.make(m); });
       return C.pgnFromMoves({ Event: 'Tempo game' }, startFen, ms);
     }
-    function isMine(i) {
-      var startSide = new C.Pos(startFen).side;
-      return ((i % 2 === 0) === (startSide === 1)) === (you === 'w');
+
+    /* ---------- progress while the engine works ---------- */
+    function renderProgress() {
+      U.clear(card);
+      card.appendChild(h('div', { class: 'label' }, 'Reviewing'));
+      st.progText = h('div', { id: 'rv-progress', class: 'muted rv-prog' }, 'Starting…');
+      st.progBar = UI.meter(0);
+      card.appendChild(st.progText); card.appendChild(st.progBar);
+    }
+    function progress(done, j, deep) {
+      if (st.cancelled || !st.progText || !st.progText.isConnected) return;
+      var total = moves.length + 1, last = moveNo(moves.length - 1), at = Math.min(moveNo(j), last);
+      if (done != null) st.progDone = done;
+      st.progText.textContent = (deep ? 'Double-checking move ' : 'Checking move ') + at + ' of ' + last + (Engines.strong ? '' : ' with the built-in engine');
+      st.progFrac = Math.max(st.progFrac, ((st.progDone || 0) + (deep ? 0.5 : 0)) / total);
+      var bar = st.progBar.querySelector('i'); if (bar) bar.style.width = Math.round(Math.min(1, st.progFrac) * 100) + '%';
     }
 
-    function renderExplain() {
-      U.clear(explain);
-      var n = st.ply;
-      if (!st.res) { explain.hidden = true; return; }
-      explain.hidden = false;
-      if (n === 0) { explain.appendChild(h('div', { class: 'muted' }, 'Use the arrows to step through the game. Mistakes show the better move in green.')); return; }
-      var k = st.res.cls[n - 1], i = n - 1, a = posAt(i), before = a.pos, m = before.parseMove(moves[i]);
-      var e0 = st.evals[i], e1 = st.evals[i + 1];
-      var who = isMine(i) ? 'You' : (src.oppName || 'Opponent');
-      explain.appendChild(h('div', { class: 'row tight' }, h('span', { class: 'chip', style: { background: 'var(--surface-2)' } }, h('span', { class: 'dot-k k-' + k, style: { width: '10px', height: '10px', borderRadius: '50%', display: 'inline-block' } }), KINDS[k].label),
-        h('span', { class: 'muted small' }, who + ' played ' + sans[i])));
-      var text = '', topic = null;
-      if (k === 'book') text = 'A standard opening move.';
-      else if (k === 'best') text = 'The engine’s top choice.';
-      else if (k === 'excellent' || k === 'good') text = k === 'excellent' ? 'Nearly as good as the best move.' : 'A reasonable move. ' + bestText();
-      else if (k === 'great') text = 'The only good move here, and it was found.';
-      else if (k === 'brilliant') text = 'A strong sacrifice: it gives up material for a winning attack or a better position.';
-      else if (k === 'miss') { var mi = Explain.missedInfo(before, e0.best, e0.line); text = 'Your opponent had just made a mistake, and this let them off the hook. ' + mi.text; topic = mi.topic; }
-      else {
-        var reply = e1 && e1.line ? e1.line : null;
-        if (!reply && e1 && !e1.loading && e1.mate !== 0) {
-          e1.loading = true;
-          Engines.analyse({ fen: startFen, moves: moves.slice(0, i + 1), depth: Engines.strong ? 12 : 8, movetime: 700 }).then(function (rr) {
-            if (rr.lines[0]) e1.line = rr.lines[0];
-            if (R === st && st.ply === n && !st.retry) renderExplain();
-          });
-        }
-        var why = reply ? Explain.bad(before, m, reply, e0.best) : null;
-        text = (why ? why.text + ' ' : '') + bestText();
-        topic = why && (k === 'mistake' || k === 'blunder') ? why.topic : null;
-      }
-      explain.appendChild(h('p', null, text));
-      if (['inaccuracy', 'mistake', 'blunder', 'miss'].indexOf(k) >= 0 && isMine(i)) {
-        explain.appendChild(h('div', { class: 'row' },
-          h('button', { class: 'btn small', type: 'button', onclick: function () { startRetry(i); } }, U.icon('refresh'), 'Find a better move'),
-          h('button', { class: 'btn small quiet', type: 'button', onclick: function () { if (e0 && e0.best) board.setArrows([{ from: e0.best.slice(0, 2), to: e0.best.slice(2, 4), color: 'green' }]); } }, 'Show best')));
-        if (topic) { var sr = Explain.studyRow(topic); if (sr) explain.appendChild(sr); }
-      }
-      function bestText() {
-        if (!e0 || !e0.best || e0.best === moves[i]) return '';
-        var bm = before.parseMove(e0.best);
-        return bm ? 'Best was ' + before.san(bm) + '.' : '';
-      }
-    }
-
-    function startRetry(i) {
-      var a = posAt(i);
-      st.retry = { ply: i, tries: 0 };
-      st.ply = i;
-      board.setMovable(a.pos.side === 1 ? 'w' : 'b');
-      board.setPosition(a.pos, { last: a.last, animate: true });
-      board.setArrows([]); board.setBadge(null);
-      U.clear(explain);
-      explain.appendChild(h('div', { class: 'label' }, 'Your turn'));
-      explain.appendChild(h('p', null, 'Find a better move than ' + sans[i] + '.'));
-      renderMoves(); paintEvalBar();
-    }
-    function retryMove(uci, m) {
-      var r = st.retry; if (!r) return;
-      var a = posAt(r.ply), before = a.pos, e0 = st.evals[r.ply];
-      var after = before.clone(); after.make(m);
-      board.setMovable(null);
-      board.setPosition(after, { last: m, animate: false });
-      if (e0 && e0.best === uci) return good();
-      Engines.analyse({ fen: after.fen(), depth: Engines.strong ? 13 : 8, movetime: 800 }).then(function (res) {
-        var l = res.lines[0];
-        var wa = l ? 100 - (l.mate != null ? (l.mate > 0 ? 100 : 0) : U.winPct(l.cp)) : 0;
-        var wb = before.side === 1 ? whiteWin(e0) : 100 - whiteWin(e0);
-        if (wb - wa <= 4) good(); else bad(l);
-      });
-      function good() {
-        U.sound.good();
-        U.clear(explain);
-        explain.appendChild(h('div', { class: 'feedback ok' }, 'Yes, ' + before.san(m) + ' is a strong move.'));
-        explain.appendChild(h('div', { class: 'row' }, h('button', { class: 'btn small', type: 'button', onclick: function () { goPly(r.ply + 1); } }, 'Continue')));
-        var mid = 'g' + (src.gameId || 'x') + '-' + r.ply;
-        Mistakes.solved(mid);
-      }
-      function bad(l) {
-        U.sound.bad();
-        r.tries++;
-        U.clear(explain);
-        var why = l ? Explain.bad(before, m, l, e0 && e0.best) : null;
-        explain.appendChild(h('div', { class: 'feedback no' }, (why ? why.text : 'That isn’t better.')));
-        explain.appendChild(h('div', { class: 'row' },
-          h('button', { class: 'btn small primary', type: 'button', onclick: function () { startRetry(r.ply); } }, 'Try again'),
-          h('button', { class: 'btn small quiet', type: 'button', onclick: function () { goPly(r.ply + 1); if (e0 && e0.best) board.setArrows([{ from: e0.best.slice(0, 2), to: e0.best.slice(2, 4), color: 'green' }]); } }, 'Show the answer')));
-      }
-    }
-
-    function renderMoves() {
-      U.clear(movesBox);
-      var box = h('div', { class: 'moves' }), tb = h('table'), row = null, start = new C.Pos(startFen), num = start.full;
-      sans.forEach(function (san, i) {
-        var white = (i % 2 === 0) === (start.side === 1);
-        if (white || !row) { row = h('tr', null, h('td', { class: 'n' }, num + '.')); tb.appendChild(row); if (!white) row.appendChild(h('td')); num++; }
-        var k = st.res ? st.res.cls[i] : null;
-        row.appendChild(h('td', null, h('button', { class: 'mv' + (st.ply === i + 1 ? ' on' : ''), type: 'button', onclick: function () { goPly(i + 1); } },
-          k && ['brilliant', 'great', 'inaccuracy', 'mistake', 'miss', 'blunder'].indexOf(k) >= 0 ? h('span', { class: 'dot-k k-' + k }) : null, san)));
-      });
-      box.appendChild(tb);
-      movesBox.appendChild(box);
-      var on = box.querySelector('.mv.on');
-      if (on) { var top = on.offsetTop - box.clientHeight / 2; box.scrollTop = Math.max(0, top); }
-    }
-
-    function renderGraph() {
-      U.clear(graphBox);
-      if (!st.evals) return;
-      var W = 600, H = 110, n = st.evals.length;
-      var NS = 'http://www.w3.org/2000/svg', svg = document.createElementNS(NS, 'svg');
-      svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('class', 'evalgraph');
-      svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', 'Evaluation over the game');
-      var bg = document.createElementNS(NS, 'rect'); bg.setAttribute('width', W); bg.setAttribute('height', H); bg.setAttribute('fill', '#22314F'); svg.appendChild(bg);
-      var x = function (i) { return n <= 1 ? 0 : W * i / (n - 1); };
-      var y = function (i) { return H * (1 - whiteWin(st.evals[i]) / 100); };
-      var d = 'M0 ' + H;
-      for (var i = 0; i < n; i++) d += ' L' + x(i).toFixed(1) + ' ' + y(i).toFixed(1);
-      d += ' L' + W + ' ' + H + ' Z';
-      var area = document.createElementNS(NS, 'path'); area.setAttribute('d', d); area.setAttribute('fill', '#F4EFE4'); svg.appendChild(area);
-      var mid = document.createElementNS(NS, 'line'); mid.setAttribute('x1', 0); mid.setAttribute('x2', W); mid.setAttribute('y1', H / 2); mid.setAttribute('y2', H / 2); mid.setAttribute('stroke', '#8A92A4'); mid.setAttribute('stroke-dasharray', '4 4'); mid.setAttribute('stroke-width', 1); svg.appendChild(mid);
-      var cur = document.createElementNS(NS, 'line'); cur.setAttribute('x1', x(st.ply)); cur.setAttribute('x2', x(st.ply)); cur.setAttribute('y1', 0); cur.setAttribute('y2', H); cur.setAttribute('stroke', '#D4AF37'); cur.setAttribute('stroke-width', 2.5); svg.appendChild(cur);
-      st.res.cls.forEach(function (k, i) {
-        if (['mistake', 'blunder', 'miss', 'brilliant', 'great'].indexOf(k) < 0) return;
-        var c = document.createElementNS(NS, 'circle');
-        c.setAttribute('cx', x(i + 1)); c.setAttribute('cy', y(i + 1)); c.setAttribute('r', 5);
-        c.setAttribute('fill', { mistake: '#DD6E26', blunder: '#DE4F36', miss: '#C2558E', brilliant: '#178F9C', great: '#3667CF' }[k]);
-        c.setAttribute('stroke', '#fff'); c.setAttribute('stroke-width', 1.5);
-        svg.appendChild(c);
-      });
-      svg.addEventListener('click', function (e) {
-        var rc = svg.getBoundingClientRect(), f = (e.clientX - rc.left) / rc.width;
-        goPly(Math.round(f * (n - 1)));
-      });
-      graphBox.appendChild(svg);
-      graphBox.appendChild(h('p', { class: 'faint small', style: { marginTop: '6px' } }, 'Above the middle line White is better, below it Black is. Tap the graph to jump to that moment.'));
-      st.curLine = cur;
-    }
-
-    st.keys = function (e) {
+    st.keydown = function (e) {
       if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
-      if (e.key === 'ArrowLeft') goPly(st.ply - 1);
-      else if (e.key === 'ArrowRight') goPly(st.ply + 1);
+      if (e.key === 'ArrowLeft') goPly(st.shown - 1);
+      else if (e.key === 'ArrowRight') goPly(st.shown + 1);
       else if (e.key === 'Home') goPly(0);
       else if (e.key === 'End') goPly(moves.length);
     };
-    document.addEventListener('keydown', st.keys);
+    document.addEventListener('keydown', st.keydown);
 
+    buildMoves();
     goPly(moves.length);
-    renderSummary();
 
-    // use a saved review if we have one
-    var saved = src.saved;
-    if (saved && saved.ev && saved.cls && saved.ev.length === moves.length + 1) {
-      st.evals = saved.ev.map(function (v, i) { return unpackEval(v, saved.best[i]); });
-      st.res = { cls: saved.cls.split('').map(function (c) { return FROM_CODE[c]; }), acc: saved.acc, counts: saved.counts };
-      // explanations need replies' principal lines; refill them lazily from the stored best move
+    function done() {
+      st.keyPlies = [];
+      st.res.cls.forEach(function (k, i) { if (isMine(i) && SERIOUS.indexOf(k) >= 0) st.keyPlies.push(i + 1); });
+      st.why = {};
+      buildMoves(); renderGraph(); renderDetails();
+      goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
+    }
+
+    // use a saved review if it was made the current way
+    var saved = src.saved, extra = src.savedExtra;
+    if (saved && extra && extra.v === SAVE_VERSION && saved.ev && saved.cls && saved.ev.length === moves.length + 1 && saved.cls.length === moves.length) {
+      st.evals = saved.ev.map(function (v, i) {
+        var side = i % 2 === 0 ? startSide : -startSide, pv = extra.pv && typeof extra.pv[i] === 'string' ? extra.pv[i].split(' ').filter(Boolean) : null;
+        return unpackEval(v, saved.best[i], pv, side);
+      });
+      var counts = saved.counts || { w: {}, b: {} };
+      function sideAcc(s) { return Object.keys(counts[s] || {}).length ? saved.acc[s] : null; }
+      st.res = { cls: saved.cls.split('').map(function (c) { return FROM_CODE[c]; }), acc: { w: sideAcc('w'), b: sideAcc('b') }, counts: counts };
       done();
+      Data.openings().then(function (map) { if (R !== st) return; st.map = map; if (st.mode === 'game') renderCard(); });
       return;
     }
+    renderProgress();
     Promise.all([Data.openings(), Engines.sfReady()]).then(function (res) {
-      var map = res[0];
-      return analyseAll(startFen, moves, function (i, n) {
-        var el = document.getElementById('rv-progress');
-        if (el) el.textContent = 'Checking move ' + Math.min(i, n - 1) + ' of ' + (n - 1) + (Engines.strong ? '' : ' with the built-in engine');
-        var mt = summary.querySelector('.meter > i'); if (mt) mt.style.width = Math.round(i / n * 100) + '%';
-      }, function () { return st.cancelled; }).then(function (evals) {
+      if (st.cancelled) return;
+      st.map = res[0];
+      return analyseAll({ startFen: startFen, moves: moves, map: st.map, mine: isMine, cancelled: function () { return st.cancelled; }, progress: progress }).then(function (evals) {
         if (!evals || st.cancelled) return;
         st.evals = evals;
-        st.res = classify(startFen, moves, evals, map);
-        save(map);
+        st.res = classify(startFen, moves, evals, st.map);
+        save();
         done();
       });
+    }).catch(function (e) {
+      if (st.cancelled) return;
+      if (st.progText) st.progText.textContent = 'The review stopped: ' + (e && e.message ? e.message : 'something went wrong') + '.';
     });
-    function done() {
-      renderSummary(); renderGraph(); goPly(st.ply === moves.length ? firstKey() : st.ply);
-    }
-    function firstKey() {
-      for (var i = 0; i < st.res.cls.length; i++) if (isMine(i) && ['blunder', 'mistake', 'miss'].indexOf(st.res.cls[i]) >= 0) return i + 1;
-      return moves.length;
-    }
+
     function save() {
       if (!src.gameId) return;
       var g = gameById(src.gameId); if (!g) return;
-      g.reviewed = true; g.acc = st.res.acc[you]; g.counts = st.res.counts[you];
+      var mineAcc = st.res.acc[you];
+      if (mineAcc != null) { g.reviewed = true; g.acc = mineAcc; g.counts = st.res.counts[you]; }
       var idx = Store.state.games.list.indexOf(g);
-      if (idx < 30) g.rv = { ev: st.evals.map(packEval), best: st.evals.map(function (e) { return e.best || ''; }), cls: st.res.cls.map(function (k) { return CODE[k]; }).join(''), acc: st.res.acc, counts: st.res.counts };
+      if (idx < 30 && mineAcc != null) {
+        var acc = st.res.acc;
+        g.rv = { ev: st.evals.map(packEval), best: st.evals.map(function (e) { return e.best || ''; }), cls: st.res.cls.map(function (k) { return CODE[k]; }).join(''),
+          acc: { w: acc.w == null ? 100 : acc.w, b: acc.b == null ? 100 : acc.b }, counts: st.res.counts };
+        g.rvx = { v: SAVE_VERSION, pv: savedLines() };
+      }
       Store.touch('games');
       Mistakes.addFromReview(src.gameId, startFen, moves, st.evals, st.res.cls, isMine);
     }
-    function packEval(e) { if (e.mate === 0) return e.mateWinner === 1 ? 20000 : -20000; if (e.mate != null) return e.mate > 0 ? 10000 - e.mate : -10000 - e.mate; return Math.max(-9000, Math.min(9000, e.cp || 0)); }
-    function unpackEval(v, best) {
-      if (v >= 20000) return { mate: 0, mateWinner: 1, best: null, pv: [] };
-      if (v <= -20000) return { mate: 0, mateWinner: -1, best: null, pv: [] };
-      if (v > 9000) return { cp: null, mate: 10000 - v, best: best || null, pv: best ? [best] : [] };
-      if (v < -9000) return { cp: null, mate: -10000 - v, best: best || null, pv: best ? [best] : [] };
-      return { cp: v, mate: null, best: best || null, pv: best ? [best] : [] };
+    /* the engine lines around each flagged move, so a saved review can explain itself without the engine */
+    function savedLines() {
+      var out = {};
+      st.res.cls.forEach(function (k, i) {
+        if (FLAGGED.indexOf(k) < 0 && k !== 'good') return;
+        [i, i + 1].forEach(function (j) { var e = st.evals[j]; if (e && e.pv && e.pv.length) out[j] = e.pv.slice(0, 8).join(' '); });
+      });
+      return out;
+    }
+    function packEval(e) { if (e.mate === 0) return e.mateWinner === 1 ? 20000 : -20000; if (e.mate != null) return e.mate > 0 ? 10000 - e.mate : -10000 - e.mate; return Math.max(-9000, Math.min(9000, Math.round(e.cp || 0))); }
+    function unpackEval(v, best, pv, side) {
+      if (v >= 20000) return { mate: 0, mateWinner: 1, best: null, pv: [], over: true };
+      if (v <= -20000) return { mate: 0, mateWinner: -1, best: null, pv: [], over: true };
+      var e = v > 9000 ? { cp: null, mate: 10000 - v } : v < -9000 ? { cp: null, mate: -10000 - v } : { cp: v, mate: null };
+      e.best = best || null;
+      e.pv = pv && pv.length ? pv : (best ? [best] : []);
+      e.line = pv && pv.length ? { cp: e.cp == null ? null : e.cp * side, mate: e.mate == null ? null : e.mate * side, pv: e.pv } : null;
+      return e;
     }
   }
 
@@ -642,22 +1096,32 @@ var Review = (function () {
       if (params && params.gameId) {
         var g = gameById(params.gameId);
         if (!g) { renderList(root); return; }
-        var parsed = C.parsePgn(g.pgn), fen = parsed.headers.FEN || C.START_FEN, r = C.replay(fen, parsed.sans);
-        var bot = TempoBots.byId(g.bot);
+        var parsed = C.parsePgn(g.pgn), fen = parsed.headers.FEN || C.START_FEN;
+        if (C.validFen(fen)) { renderList(root); return; }
+        var r = C.replay(fen, parsed.sans), bot = TempoBots.byId(g.bot);
         renderReview(root, { gameId: g.id, pgn: g.pgn, startFen: fen, moves: r.moves.map(C.uci), sans: sansOf(fen, r.moves), color: g.color,
-          label: resultPhrase(g, bot ? bot.name : 'opponent') + ', ' + U.dateShort(g.ts), oppName: bot ? bot.name : 'Opponent', saved: g.rv });
+          label: resultPhrase(g, bot ? bot.name : 'opponent') + ', ' + U.dateShort(g.ts), oppName: bot ? bot.name : (g.opp || 'Opponent'), saved: g.rv, savedExtra: g.rvx });
       } else if (params && params.pgn) {
-        var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN, r2 = C.replay(fen2, p2.sans);
+        var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN;
+        if (C.validFen(fen2)) { renderList(root); return; }
+        var r2 = C.replay(fen2, p2.sans);
         renderReview(root, { pgn: params.pgn, startFen: fen2, moves: r2.moves.map(C.uci), sans: sansOf(fen2, r2.moves), color: params.color || 'w', label: params.label || 'Imported game',
           oppName: params.color === 'b' ? (p2.headers.White || 'White') : (p2.headers.Black || 'Black') });
       } else renderList(root);
     },
-    leave: function () { if (R) { R.cancelled = true; document.removeEventListener('keydown', R.keys); R = null; } Engines.stopAll(); },
+    leave: function () { if (R) { R.cancelled = true; R.token++; document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
     busy: function () { return !!R; }
   });
   function sansOf(fen, ms) { var p = new C.Pos(fen), out = []; ms.forEach(function (m) { out.push(p.san(m)); p.make(m); }); return out; }
 
-  return { openGame: openGame, openPgn: openPgn, classify: classify, KINDS: KINDS };
+  /* for tests: what the review screen is showing */
+  function testState() {
+    if (!R) return null;
+    return { ply: R.ply, mode: R.mode, done: !!R.res, token: R.token, keyPlies: R.keyPlies.slice(), moves: R.moves.slice(), cls: R.res ? R.res.cls.slice() : null,
+      evals: R.evals ? R.evals.map(function (e) { return e ? { cp: e.cp, mate: e.mate, best: e.best, deep: !!e.deep, pv: (e.pv || []).slice(0, 8) } : null; }) : null };
+  }
+
+  return { openGame: openGame, openPgn: openPgn, classify: classify, KINDS: KINDS, _state: testState };
 })();
 
 /* Positions from your own games where you went wrong, replayed with spaced repetition. */
@@ -665,23 +1129,31 @@ var Mistakes = (function () {
   'use strict';
   var C = TempoCore;
   function addFromReview(gameId, startFen, moves, evals, cls, isMine) {
-    var S = Store.state, items = S.mistakes.items, p = new C.Pos(startFen), added = 0;
+    var S = Store.state, items = S.mistakes.items, p = new C.Pos(startFen), changed = false, keep = {};
     for (var i = 0; i < moves.length; i++) {
       var k = cls[i];
       if (isMine(i) && (k === 'blunder' || k === 'mistake' || k === 'miss') && evals[i] && evals[i].best && evals[i].best !== moves[i]) {
-        var id = 'g' + gameId + '-' + i;
-        if (!items.some(function (x) { return x.id === id; })) {
-          items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, ts: Date.now(), box: 0, due: Date.now(), seen: 0 });
-          added++;
+        var id = 'g' + gameId + '-' + i, ex = items.filter(function (x) { return x.id === id; })[0];
+        keep[id] = true;
+        if (!ex) { items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, ts: Date.now(), box: 0, due: Date.now(), seen: 0 }); changed = true; }
+        else if (ex.gone || ex.best !== evals[i].best || ex.kind !== k) {
+          // a newer review of the same game: keep the item, with the newer answer
+          if (ex.gone) { delete ex.gone; ex.seen = (ex.seen || 0) + 1; }
+          ex.best = evals[i].best; ex.kind = k; changed = true;
         }
       }
       p.make(p.parseMove(moves[i]));
     }
+    // a move this review no longer calls a mistake leaves the queue (marked, so a synced copy doesn't bring it back)
+    var prefix = 'g' + gameId + '-';
+    items.forEach(function (it) {
+      if (it.id.indexOf(prefix) === 0 && !keep[it.id] && !it.gone) { it.gone = true; it.seen = (it.seen || 0) + 1; changed = true; }
+    });
     if (items.length > 200) items.length = 200;
-    if (added) Store.touch('mistakes');
+    if (changed) Store.touch('mistakes');
   }
   function solved(id) {
-    var it = Store.state.mistakes.items.filter(function (x) { return x.id === id; })[0];
+    var it = Store.state.mistakes.items.filter(function (x) { return x.id === id && !x.gone; })[0];
     if (!it) return;
     grade(it, true);
   }
@@ -692,6 +1164,6 @@ var Mistakes = (function () {
     it.seen = (it.seen || 0) + 1;
     Store.touch('mistakes');
   }
-  function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return x.due <= now; }); }
+  function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return !x.gone && x.due <= now; }); }
   return { addFromReview: addFromReview, solved: solved, grade: grade, due: due };
 })();

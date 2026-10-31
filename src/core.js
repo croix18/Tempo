@@ -146,6 +146,55 @@ Pos.fenError = function (fen) {
   return null;
 };
 
+/* Stricter than fenError: a position that could come up in a real game. fenError (and load) stay lenient for
+   lessons and puzzles; use this for positions typed or pasted by the user and for saved data.
+   Returns null, or the reason in plain words, written to follow "That FEN isn’t valid: ". */
+function validFen(fen) {
+  var err = Pos.fenError(fen);
+  if (err) return err;
+  var parts = fen.trim().split(/\s+/), rows = parts[0].split('/');
+  if (parts.length > 6) return 'it has more than six fields';
+  var b = new Int8Array(128), count = { w: 0, b: 0 }, pawns = { w: 0, b: 0 }, wk = -1, bk = -1;
+  for (var r = 7; r >= 0; r--) {
+    var row = rows[7 - r], f = 0;
+    for (var i = 0; i < row.length; i++) {
+      var ch = row.charAt(i);
+      if (ch >= '1' && ch <= '8') { f += +ch; continue; }
+      var t = PIECE_CHARS.indexOf(ch.toLowerCase()), white = ch !== ch.toLowerCase(), sq = (r << 4) | f;
+      b[sq] = white ? t : -t;
+      count[white ? 'w' : 'b']++;
+      if (t === PAWN) pawns[white ? 'w' : 'b']++;
+      if (t === KING) { if (white) wk = sq; else bk = sq; }
+      f++;
+    }
+  }
+  if (count.w > 16) return 'White has more than 16 pieces';
+  if (count.b > 16) return 'Black has more than 16 pieces';
+  if (pawns.w > 8) return 'White has more than 8 pawns';
+  if (pawns.b > 8) return 'Black has more than 8 pawns';
+  if (Math.abs((wk >> 4) - (bk >> 4)) <= 1 && Math.abs((wk & 7) - (bk & 7)) <= 1) return 'the kings are next to each other';
+  var stm = parts[1] === 'w' ? 1 : -1;
+  // isAttacked only reads the board, so it can run on a bare one
+  if (P.isAttacked.call({ b: b }, stm === 1 ? bk : wk, stm)) return stm === 1 ? 'Black is in check, but it’s White’s turn' : 'White is in check, but it’s Black’s turn';
+  var cas = parts.length > 2 ? parts[2] : '-';
+  if (cas !== '-') {
+    if (!/^[KQkq]{1,4}$/.test(cas) || /(.).*\1/.test(cas)) return 'castling rights must be K, Q, k and q, or -';
+    if ((cas.indexOf('K') >= 0 && !(b[4] === KING && b[7] === ROOK)) || (cas.indexOf('Q') >= 0 && !(b[4] === KING && b[0] === ROOK)) ||
+        (cas.indexOf('k') >= 0 && !(b[0x74] === -KING && b[0x77] === -ROOK)) || (cas.indexOf('q') >= 0 && !(b[0x74] === -KING && b[0x70] === -ROOK))) {
+      return 'the castling rights don’t match where the kings and rooks are';
+    }
+  }
+  var ep = parts.length > 3 ? parts[3] : '-';
+  if (ep !== '-') {
+    var es = ep.length === 2 ? sqIndex(ep) : -1;
+    if (es < 0) return 'the en passant square isn’t a square on the board';
+    // White to move: a black pawn just went from rank 7 to rank 5, passing the square on rank 6 (and the reverse for Black)
+    if ((es >> 4) !== (stm === 1 ? 5 : 2) || b[es - 16 * stm] !== -PAWN * stm || b[es] || b[es + 16 * stm]) return 'the en passant square doesn’t match the last move';
+  }
+  for (var k = 4; k < parts.length; k++) if (!/^\d+$/.test(parts[k])) return 'the move counters must be whole numbers';
+  return null;
+}
+
 P.fen = function () {
   var out = '', b = this.b;
   for (var r = 7; r >= 0; r--) {
@@ -647,7 +696,7 @@ var Core = {
   START_FEN: START_FEN, SEE_VAL: SEE_VAL,
   Pos: Pos, sqName: sqName, sqIndex: sqIndex, to64: to64, from64: from64,
   mFrom: mFrom, mTo: mTo, mPromo: mPromo, mFlags: mFlags, mk: mk, uci: uci,
-  parsePgn: parsePgn, pgnFromMoves: pgnFromMoves, replay: replay,
+  parsePgn: parsePgn, pgnFromMoves: pgnFromMoves, replay: replay, validFen: validFen,
   N_DIRS: N_DIRS, K_DIRS: K_DIRS, B_DIRS: B_DIRS, R_DIRS: R_DIRS
 };
 G.TempoCore = Core;

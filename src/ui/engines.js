@@ -7,8 +7,33 @@ var Engines = (function () {
 
   /* ---------- built-in engine ---------- */
   var tw = null, seq = 0, waiting = {}, inline = false, answered = false;
+
+  /* When workers are blocked the engine runs on the page, where every search freezes it. Each search is capped
+     at INLINE_MS, searches run one at a time with a pause between them so taps and paints get through, and
+     searches queued for a screen that was left are skipped. */
+  var INLINE_MS = 700, inlineChain = Promise.resolve(), inlineGen = 0;
+  function inlineMsg(msg) {
+    var m = Object.assign({}, msg);
+    if (m.cmd === 'bot') {
+      var cfg = Object.assign({}, m.cfg || {});
+      // weak bots score every move at a fixed depth of 4 or less (well under 100 ms); the rest search by time
+      if (!(cfg.temp > 0 && (cfg.depth || 1) <= 4)) cfg.movetime = Math.min(cfg.movetime || INLINE_MS, INLINE_MS);
+      m.cfg = cfg;
+    } else if (m.cmd === 'analyse') {
+      m.movetime = Math.min(m.movetime || INLINE_MS, INLINE_MS);
+    } else if (m.cmd === 'scoremoves') {
+      m.depth = Math.min(m.depth || 2, 4);
+    }
+    return m;
+  }
   function runInline(msg) {
-    return U.sleep(30).then(function () { try { return TempoEngine.handle(msg); } catch (e) { return { error: String(e) }; } });
+    var gen = inlineGen;
+    var job = inlineChain.then(function () { return U.sleep(30); }).then(function () {
+      if (gen !== inlineGen) return { error: 'stopped' };
+      try { return TempoEngine.handle(inlineMsg(msg)); } catch (e) { return { error: String(e) }; }
+    });
+    inlineChain = job.then(null, function () { /* keep the queue going */ });
+    return job;
   }
   function startTempo() {
     if (tw || inline) return;
@@ -43,7 +68,11 @@ var Engines = (function () {
     var id = ++seq; msg.id = id;
     var limit = (msg.movetime || 4000) + 25000;
     return new Promise(function (resolve) {
-      waiting[id] = { msg: msg, resolve: resolve, timer: setTimeout(function () { failTempo(); resolve({ error: 'timeout' }); }, limit) };
+      waiting[id] = { msg: msg, resolve: resolve, timer: setTimeout(function () {
+        // a worker that never answered anything is blocked without saying so: run on the page from now on
+        if (!answered) inline = true;
+        failTempo();
+      }, limit) };
       tw.postMessage(msg);
     });
   }
@@ -51,6 +80,12 @@ var Engines = (function () {
 
   /* ---------- Stockfish ---------- */
   var SF = { status: 'idle', worker: null, queue: [], cur: null, opts: { skill: 20, multipv: 1 }, readyP: null };
+  var statusFns = [];
+  function setStatus(s) {
+    if (SF.status === s) return;
+    SF.status = s;
+    statusFns.forEach(function (fn) { try { fn(s); } catch (e) { console.error(e); } });
+  }
   function b64FromBytes(bytes) {
     var parts = [], CH = 0x8000;
     for (var i = 0; i < bytes.length; i += CH) parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CH)));
@@ -58,7 +93,7 @@ var Engines = (function () {
   }
   function sfInit() {
     if (SF.readyP) return SF.readyP;
-    SF.status = 'loading';
+    setStatus('loading');
     SF.readyP = Promise.all([
       TempoInflate.unpackText(scriptText('d-sfjs')),
       TempoInflate.unpackBytes(scriptText('d-sfwasm'))
@@ -82,11 +117,11 @@ var Engines = (function () {
         };
         w.postMessage('uci');
       });
-    }).then(function (ok) { SF.status = ok ? 'ready' : 'failed'; return ok; }, function () { SF.status = 'failed'; return false; });
+    }).then(function (ok) { setStatus(ok ? 'ready' : 'failed'); return ok; }, function () { setStatus('failed'); return false; });
     return SF.readyP;
   }
   function sfDead() {
-    SF.status = 'failed';
+    setStatus('failed');
     try { if (SF.worker) SF.worker.terminate(); } catch (e) { /* ignore */ }
     SF.worker = null;
     if (SF.cur) { clearTimeout(SF.cur.timer); SF.cur.resolve(null); SF.cur = null; }
@@ -147,8 +182,14 @@ var Engines = (function () {
   /* opts: fen (start), moves (uci list), depth, movetime, multipv. Scores are from the side to move. */
   function analyse(opts) {
     if (sfReady()) {
-      return sfRun({ fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo })
-        .then(function (r) { return r || tempoAnalyse(opts); });
+      // newGame clears Stockfish's memory first, so one review isn't coloured by the searches before it
+      var job = { fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo, newGame: !!opts.newGame };
+      return sfRun(job).then(function (r) {
+        if (r) return r;
+        // a search cancelled because you left the screen has no one waiting for it: don't redo it on the built-in engine
+        if (job.cancelled) return { best: null, lines: [], engine: 'none', cancelled: true };
+        return tempoAnalyse(opts);
+      });
     }
     return tempoAnalyse(opts);
   }
@@ -191,7 +232,7 @@ var Engines = (function () {
     return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (r) { return r.move; });
   }
 
-  function stopAll() { sfStop(); }
+  function stopAll() { sfStop(); inlineGen++; }
 
   return {
     init: function () { startTempo(); return sfInit(); },
@@ -199,6 +240,10 @@ var Engines = (function () {
     tempo: tempo,
     get strong() { return sfReady(); },
     get status() { return SF.status; },
+    /* fn(status) runs whenever status changes: 'loading', 'ready' or 'failed' */
+    onStatus: function (fn) { statusFns.push(fn); },
+    get inline() { return inline; },
+    INLINE_MS: INLINE_MS,
     sfReady: function () { return SF.readyP || sfInit(); }
   };
 })();

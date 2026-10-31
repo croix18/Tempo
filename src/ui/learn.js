@@ -24,13 +24,23 @@ var Learn = (function () {
       h('p', { class: 'grow' }, h('b', null, 'Up next: ' + nx.lesson.title + '. '), h('span', { class: 'muted' }, nx.lesson.summary)),
       h('button', { class: 'btn primary small', type: 'button', onclick: function () { open(nx.lesson.id); } }, finished ? 'Continue' : 'Start')));
     if (!units.length) root.appendChild(h('div', { class: 'empty' }, 'Lessons are missing from this build.'));
-    var col = h('div', { class: 'stack', style: { gap: '16px' } });
+    var col = h('div', { class: 'stack', style: { gap: '12px' } });
     units.forEach(function (u, ui) {
-      var n = u.lessons.filter(function (l) { return done(l.id); }).length;
-      var card = h('div', { class: 'card' });
-      card.appendChild(h('div', { class: 'unit' }, h('div', { class: 'unit-num' }, String(ui + 1)),
-        h('div', null, h('h2', null, u.title), h('div', { class: 'muted small' }, u.summary))));
-      card.appendChild(h('div', { class: 'row', style: { margin: '12px 0 4px' } }, h('div', { class: 'grow' }, UI.meter(n / u.lessons.length, 'green')), h('span', { class: 'faint small' }, n + '/' + u.lessons.length)));
+      var n = u.lessons.filter(function (l) { return done(l.id); }).length, all = n === u.lessons.length;
+      // the unit you're working through starts open; any unit stays the way you left it while the app is open
+      var isOpen = openUnits[u.id] != null ? openUnits[u.id] : !!(nx && nx.unit.id === u.id);
+      var card = h('div', { class: 'card unit-card' });
+      var body = h('div', { class: 'unit-body', id: 'unit-' + u.id });
+      body.hidden = !isOpen;
+      var head = h('button', { class: 'unit-head', type: 'button', 'aria-expanded': isOpen ? 'true' : 'false', 'aria-controls': 'unit-' + u.id,
+        onclick: function () { var on = body.hidden; body.hidden = !on; head.setAttribute('aria-expanded', on ? 'true' : 'false'); openUnits[u.id] = on; } },
+        h('span', { class: 'unit-num' + (all ? ' done' : '') }, all ? U.icon('check') : String(ui + 1)),
+        h('span', { class: 'txt' }, h('span', { class: 't' }, u.title),
+          h('span', { class: 's' }, all ? 'All ' + u.lessons.length + ' lessons done' : n ? n + ' of ' + u.lessons.length + ' lessons done' : U.plural(u.lessons.length, 'lesson'))),
+        U.icon('next', 'chev'));
+      card.appendChild(head);
+      body.appendChild(h('p', { class: 'muted', style: { margin: '0 0 10px' } }, u.summary));
+      if (n && !all) body.appendChild(h('div', { style: { margin: '0 0 6px' } }, UI.meter(n / u.lessons.length, 'green')));
       var list = h('div', { class: 'list' });
       u.lessons.forEach(function (l) {
         var d = done(l.id);
@@ -39,11 +49,13 @@ var Learn = (function () {
           h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, l.title), h('div', { class: 'muted small' }, l.summary)),
           d ? UI.stars(d.stars) : h('span', { class: 'faint small' }, l.steps.length + ' steps')));
       });
-      card.appendChild(list);
+      body.appendChild(list);
+      card.appendChild(body);
       col.appendChild(card);
     });
     root.appendChild(col);
   }
+  var openUnits = {};
 
   /* ---------- lesson player ---------- */
   function renderLesson(root, id) {
@@ -60,9 +72,9 @@ var Learn = (function () {
       h('span', { class: 'muted small' }, unit.title)));
     root.appendChild(h('h1', { style: { fontSize: '26px', marginBottom: '10px' } }, lesson.title));
     root.appendChild(stepper);
-    var board = new Board({ orient: 'w', coords: Store.state.settings.coords !== false, onMove: onMove, onSquare: null });
+    var board = new Board({ orient: 'w', coords: Store.state.settings.coords !== false, onMove: onMove, onSquare: null, autoQueen: false });
     st.board = board;
-    var textBox = h('div', { class: 'lesson-text' }), feedback = h('div'), actions = h('div', { class: 'row' }), stepNo = h('div', { class: 'faint small' });
+    var textBox = h('div', { class: 'lesson-text' }), feedback = h('div'), actions = h('div', { class: 'row lesson-actions' }), stepNo = h('div', { class: 'faint small' });
     var panel = h('div', { class: 'card stack' }, stepNo, textBox, feedback, actions);
     root.appendChild(h('div', { class: 'arena', style: { marginTop: '14px' } }, h('div', { class: 'board-col' }, board.el), h('div', { class: 'panel' }, panel)));
 
@@ -85,7 +97,7 @@ var Learn = (function () {
         board.setMovable(null);
         board.setPosition(st.pos, { animate: false, last: null, clearLast: true });
         board.setArrows((s.arrows || []).map(function (a) { return { from: a.slice(0, 2), to: a.slice(2, 4), color: 'gold' }; }));
-        board.setMarks((s.marks || []).map(function (m) { return { sq: m, kind: 'gold' }; }));
+        board.setMarks((s.marks || []).map(function (m) { return { sq: m, kind: 'gold' }; }).concat(boxMarks(s, st.pos)));
       } else {
         st.pos = new C.Pos(C.START_FEN);
         board.setOrientation('w');
@@ -97,9 +109,11 @@ var Learn = (function () {
     function navRow(canNext, label) {
       U.clear(actions);
       if (st.i > 0) actions.appendChild(h('button', { class: 'btn quiet', type: 'button', onclick: function () { show(st.i - 1); } }, U.icon('back'), 'Back'));
-      var nx = h('button', { class: 'btn primary', type: 'button', disabled: !canNext, onclick: function () { advance(); } }, label || (st.i === lesson.steps.length - 1 ? 'Finish' : 'Next'), U.icon('next'));
       actions.appendChild(h('span', { class: 'grow' }));
+      if (!canNext) return null;
+      var nx = h('button', { class: 'btn primary', type: 'button', onclick: function () { advance(); } }, label || (st.i === lesson.steps.length - 1 ? 'Finish' : 'Next'), U.icon('next'));
       actions.appendChild(nx);
+      if (st.complete) setTimeout(function () { if (document.activeElement === document.body || !document.activeElement) try { nx.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
       return nx;
     }
     function advance() { if (st.i < lesson.steps.length - 1) show(st.i + 1); else finish(); }
@@ -118,6 +132,7 @@ var Learn = (function () {
       var tok = ++st.token, p = new C.Pos(s.fen), k = 0;
       board.setPosition(p, { animate: false, clearLast: true });
       board.setArrows([]);
+      if (s.box) board.setMarks(boxMarks(s, p));
       (function stepAnim() {
         if (tok !== st.token) return;
         if (k >= s.play.length) {
@@ -129,6 +144,7 @@ var Learn = (function () {
           var m = p.parseMove(s.play[k++]); if (!m) return;
           p.make(m); U.sound.move();
           board.setPosition(p, { last: m, animate: true });
+          if (s.box) board.setMarks(boxMarks(s, p));
           stepAnim();
         }, k === 0 ? 600 : 850);
       })();
@@ -142,7 +158,7 @@ var Learn = (function () {
       var hintBtn = h('button', { class: 'btn small', type: 'button', onclick: function () {
         st.hints++; st.hintLevel++;
         if (st.hintLevel === 1 && s.hint) fb('info', s.hint);
-        else { var mv = s.line[st.ply]; board.setMarks([{ sq: mv.slice(0, 2), kind: 'gold' }]); fb('info', (s.hint ? s.hint + ' ' : '') + 'Move the highlighted piece.'); }
+        else { var mv = s.line[st.ply], pc = PIECE_NAME[Math.abs(st.pos.b[C.sqIndex(mv.slice(0, 2))])] || 'piece'; board.setMarks([{ sq: mv.slice(0, 2), kind: 'hint' }]); fb('info', (s.hint ? s.hint + ' ' : '') + 'Move your ' + pc + ' on ' + mv.slice(0, 2) + '.'); }
       } }, U.icon('hint'), 'Hint');
       actions.insertBefore(hintBtn, actions.querySelector('.grow'));
     }
@@ -219,7 +235,7 @@ var Learn = (function () {
             board.setMarks(s.squares.map(function (q) { return { sq: q, kind: 'green' }; }));
             fb('info', 'Here are the answers. ' + (s.done || ''));
             navRow(true);
-          } else fb('no', 'You have ' + right + ' of ' + s.squares.length + (st.picked.length > right ? ', plus ' + (st.picked.length - right) + ' that don’t belong' : '') + '. Try again.');
+          } else fb('no', pickFeedback(s, right));
         }
       } }, 'Check');
       actions.insertBefore(check, actions.querySelector('.grow'));
@@ -249,6 +265,9 @@ var Learn = (function () {
       navRow(false);
       var goalText = { mate: 'Checkmate within ' + s.limit + ' moves.', promote: 'Promote a pawn and keep it.', draw: 'Hold the draw' + (s.limit ? ' for ' + s.limit + ' moves.' : '.'), win: 'Win decisively' + (s.limit ? ' within ' + s.limit + ' moves.' : '.') }[s.goal];
       fb('info', goalText);
+      var left = h('div', { class: 'moves-left muted small', 'aria-live': 'polite' });
+      st.leftEl = left; paintLeft(s);
+      feedback.appendChild(left);
       actions.insertBefore(h('button', { class: 'btn small', type: 'button', onclick: function () { show(st.i); } }, U.icon('refresh'), 'Restart'), actions.querySelector('.grow'));
       actions.insertBefore(h('button', { class: 'btn small quiet', type: 'button', onclick: function () {
         st.hints++;
@@ -264,6 +283,7 @@ var Learn = (function () {
       board.setMovable(null);
       if (st.pos.inCheck()) U.sound.check(); else U.sound.move();
       board.setPosition(st.pos, { last: m, animate: false });
+      if (s.box) board.setMarks(boxMarks(s, st.pos));
       var status = st.pos.status();
       if (status.over) return judge(status);
       if (s.goal === 'promote' && promo) st.promoted = true;
@@ -277,6 +297,7 @@ var Learn = (function () {
         st.pos.make(em); st.history.push(r.best);
         if (st.pos.inCheck()) U.sound.check(); else if ((em >>> 17) & 1) U.sound.capture(); else U.sound.move();
         board.setPosition(st.pos, { last: em, animate: true });
+        if (s.box) board.setMarks(boxMarks(s, st.pos));
         var st2 = st.pos.status();
         if (st2.over) return judge(st2);
         if (s.goal === 'promote' && st.promoted) {
@@ -285,12 +306,52 @@ var Learn = (function () {
           if (has) return success();
           st.promoted = false;
         }
+        paintLeft(s);
         if (s.limit && st.moves >= s.limit) {
           if (s.goal === 'draw') return evalDraw();
           return fail('Out of moves. Restart and try a faster plan.');
         }
         board.setMovable(st.learner === 1 ? 'w' : 'b');
       });
+    }
+    /* The "box" the mating lessons talk about: the part of the board the lone king is shut into
+       by the files and ranks your queen or rooks control. */
+    function boxMarks(s, pos) {
+      if (!s.box) return [];
+      var side = s.box === 'w' ? 1 : -1, ksq = side === 1 ? pos.wk : pos.bk;
+      if (ksq == null || ksq < 0) return [];
+      var b = pos.b.slice(); b[ksq] = 0;
+      function walled(t) {
+        if (b[t]) return true;
+        for (var k = 0; k < 4; k++) {
+          var d = [16, -16, 1, -1][k], x = t + d;
+          while (!(x & 0x88)) { var pc = b[x]; if (pc) { if (pc === -4 * side || pc === -5 * side) return true; break; } x += d; }
+        }
+        return false;
+      }
+      var seen = {}, inBox = {}, queue = [ksq], squares = [], DIRS = [-17, -16, -15, -1, 1, 15, 16, 17];
+      seen[ksq] = true;
+      while (queue.length) {
+        var q = queue.shift();
+        squares.push(q); inBox[q] = true;
+        for (var i = 0; i < 8; i++) {
+          var t = q + DIRS[i];
+          if ((t & 0x88) || seen[t]) continue;
+          seen[t] = true;
+          if (!walled(t)) queue.push(t);
+        }
+      }
+      // fence the box: a line on each side that borders a square the king can't reach
+      return squares.map(function (q) {
+        var edges = '';
+        [['n', 16], ['s', -16], ['e', 1], ['w', -1]].forEach(function (d) { var t = q + d[1]; if (!(t & 0x88) && !inBox[t]) edges += d[0]; });
+        return { sq: q, kind: 'area', edges: edges };
+      });
+    }
+    function paintLeft(s) {
+      if (!st.leftEl || !s.limit) return;
+      var n = Math.max(0, s.limit - st.moves);
+      st.leftEl.textContent = s.goal === 'draw' ? (n ? 'Hold for ' + U.plural(n, 'more move') + '.' : 'Last move.') : U.plural(n, 'move') + ' left.';
     }
     function evalDraw() {
       var s = lesson.steps[st.i];
@@ -310,6 +371,20 @@ var Learn = (function () {
       return fail(status.reason === 'stalemate' ? 'Stalemate: the defending king had no legal move. Leave it a square.' : 'The game ended in a draw. Restart and try again.');
     }
     function success() { st.complete = true; U.sound.good(); board.setMovable(null); fb('ok', lesson.steps[st.i].done || 'Done.'); navRow(true); }
+    function pickFeedback(s, right) {
+      var wrong = st.picked.filter(function (q) { return s.squares.indexOf(q) < 0; });
+      var RANK = ['', 'first', 'second', 'third', 'fourth', 'fifth', 'sixth', 'seventh', 'eighth'];
+      if (s.squares.length === 1 && st.picked.length === 1 && wrong.length === 1) {
+        var q = s.squares[0];
+        return 'That\u2019s ' + wrong[0] + '. ' + q + ' is where the ' + q[0] + '-file meets the ' + RANK[+q[1]] + ' rank. Try again.';
+      }
+      if (!st.picked.length) return 'Choose at least one square, then Check.';
+      var out = right ? 'You found ' + right + ' of ' + s.squares.length + '. ' : 'None of those yet. ';
+      if (wrong.length === 1) out += wrong[0] + ' isn\u2019t one of them. ';
+      else if (wrong.length > 1) out += wrong.join(', ') + ' aren\u2019t among them. ';
+      else out += 'There ' + (s.squares.length - right === 1 ? 'is 1 more' : 'are ' + (s.squares.length - right) + ' more') + ' to find. ';
+      return out + 'Try again.';
+    }
     /* a reason for a wrong move that we can see without an engine: it leaves the moved piece en prise */
     function wrongWhy(m, after) {
       var to = (m >> 7) & 127, piece = Math.abs(after.b[to]);
@@ -327,10 +402,14 @@ var Learn = (function () {
       Store.touch('learn');
       if (firstTime) Store.activity('l');
       U.sound.end();
-      var nx = nextLesson();
+      // the next lesson in this unit first, then the first unfinished one anywhere
+      var li = found.li, nx = li + 1 < unit.lessons.length ? { unit: unit, lesson: unit.lessons[li + 1] } : nextLesson();
+      if (nx && nx.lesson.id === lesson.id) nx = null;
+      var why = st.mistakes + st.hints === 0 ? 'No mistakes and no hints.'
+        : [st.mistakes ? U.plural(st.mistakes, 'mistake') : '', st.hints ? U.plural(st.hints, 'hint') : ''].filter(Boolean).join(' and ') + '. Replay it any time to earn more stars.';
       App.sheet(function (box, api) {
         box.appendChild(h('div', { class: 'result-hero' }, h('div', { class: 'big' }, 'Lesson complete'), h('div', { style: { marginTop: '8px' } }, UI.stars(stars))));
-        box.appendChild(h('p', { class: 'muted', style: { textAlign: 'center' } }, stars === 3 ? 'No mistakes and no hints.' : 'Replay it any time to earn more stars.'));
+        box.appendChild(h('p', { class: 'muted', style: { textAlign: 'center' } }, why));
         var practice = practiceTheme(lesson.id);
         var col = h('div', { class: 'stack', style: { marginTop: '12px' } });
         if (nx) col.appendChild(h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); open(nx.lesson.id); } }, 'Next: ' + nx.lesson.title));

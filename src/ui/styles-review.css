@@ -1,0 +1,128 @@
+/* Review: the mistake navigator and move card under the board, the graph, the move list and the details. */
+:root {
+  --rv-white: #F4EFE4;          /* White's share of the graph and eval bar */
+  --rv-black: #22314F;          /* Black's share */
+  --rv-midline: rgba(138, 146, 164, 0.9);
+  --rv-ring: #FFFDF8;
+  --rv-inaccuracy: #C9A82A;
+  --rv-mistake: #E5802A;
+  --rv-blunder: #CC2F2F;
+  --rv-miss: #C2558E;
+  --rv-ink-inaccuracy: #8A6C00;
+  --rv-ink-mistake: #B4580F;
+  --rv-ink-blunder: #BE2A26;
+  --rv-ink-miss: #A63E75;
+  --rv-ink-great: #2C5DC4;
+  --rv-ink-brilliant: #0F7D89;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --rv-white: #BDB4A0; --rv-black: #1A2642; --rv-midline: rgba(125, 135, 156, 0.75); --rv-ring: #141E34;
+    --rv-inaccuracy: #EAC54F; --rv-mistake: #F39444; --rv-blunder: #F0524A; --rv-miss: #D46CA3;
+    --rv-ink-inaccuracy: #EAC54F; --rv-ink-mistake: #F7A65A; --rv-ink-blunder: #FF7A6B; --rv-ink-miss: #E48BB9;
+    --rv-ink-great: #8AAEF2; --rv-ink-brilliant: #4CC3CF;
+  }
+}
+:root[data-theme="dark"] {
+  --rv-white: #BDB4A0; --rv-black: #1A2642; --rv-midline: rgba(125, 135, 156, 0.75); --rv-ring: #141E34;
+  --rv-inaccuracy: #EAC54F; --rv-mistake: #F39444; --rv-blunder: #F0524A; --rv-miss: #D46CA3;
+  --rv-ink-inaccuracy: #EAC54F; --rv-ink-mistake: #F7A65A; --rv-ink-blunder: #FF7A6B; --rv-ink-miss: #E48BB9;
+  --rv-ink-great: #8AAEF2; --rv-ink-brilliant: #4CC3CF;
+}
+
+/* mistake orange and blunder red, far enough apart to tell at a glance */
+.k-inaccuracy { background: var(--rv-inaccuracy); }
+.k-mistake { background: var(--rv-mistake); }
+.k-blunder { background: var(--rv-blunder); }
+.k-miss { background: var(--rv-miss); }
+.v-review .badge { text-shadow: 0 1px 1px rgba(0, 0, 0, 0.28); }
+
+/* header: back link and the game's name, which may be long */
+.rv-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; min-width: 0; }
+.rv-head .back { flex: none; }
+.rv-label {
+  min-width: 0; flex: 0 1 auto; text-align: right; font-size: 13px; color: var(--ink-2); overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden;
+}
+.rv-none { max-width: 520px; display: flex; flex-direction: column; align-items: flex-start; gap: 14px; }
+.v-review .panel, .v-review .board-col { min-width: 0; }
+.v-review .panel { overflow-wrap: anywhere; }
+
+/* eval bar: cream for White, navy for Black, in both themes */
+.v-review .rv-evalbar { background: var(--rv-black); }
+.v-review .rv-evalbar i { background: var(--rv-white); }
+.v-review .rv-evalbar.flip { background: var(--rv-white); }
+.v-review .rv-evalbar.flip i { background: var(--rv-black); }
+
+/* the card under the board */
+.rv-card { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; }
+.rv-nav { display: flex; align-items: center; gap: 6px; margin: -4px -8px 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.rv-nav .btn { width: 40px; min-height: 40px; flex: none; color: var(--ink); }
+.rv-nav .btn[disabled] { opacity: 0.3; }
+.rv-nav-text { flex: 1; min-width: 0; text-align: center; font-weight: 600; font-size: 14.5px; }
+.rv-body { display: flex; flex-direction: column; gap: 10px; }
+.rv-move { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.rv-chip { background: var(--surface-2); color: var(--ink); font-size: 13px; padding: 4px 11px 4px 9px; }
+.rv-chip .dot-k { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+.rv-who { font-size: 13.5px; color: var(--ink-2); }
+.rv-text { font-size: 15.5px; line-height: 1.5; margin: 0; }
+.rv-line { font-size: 14px; color: var(--ink-2); margin: 0; }
+.rv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.rv-actions:empty { display: none; }
+.rv-card .study { padding-top: 8px; }
+.rv-prog { margin: 6px 0 10px; }
+.rv-card .thinking { margin-left: 8px; vertical-align: middle; }
+
+/* the move list: chess marks after the move, colored by kind */
+.rv-movelist .mv { gap: 2px; }
+.rv-movelist .sym { font-weight: 800; font-size: 13px; letter-spacing: -0.02em; margin-left: 1px; }
+.sym.s-inaccuracy { color: var(--rv-ink-inaccuracy); }
+.sym.s-mistake { color: var(--rv-ink-mistake); }
+.sym.s-blunder { color: var(--rv-ink-blunder); }
+.sym.s-miss { color: var(--rv-ink-miss); }
+.sym.s-great { color: var(--rv-ink-great); }
+.sym.s-brilliant { color: var(--rv-ink-brilliant); }
+
+/* the evaluation graph */
+.rv-plot { position: relative; cursor: pointer; }
+.rv-plot .evalgraph { cursor: pointer; }
+.evalgraph .eg-black { fill: var(--rv-black); }
+.evalgraph .eg-white { fill: var(--rv-white); }
+.evalgraph .eg-mid { stroke: var(--rv-midline); stroke-width: 1; stroke-dasharray: 4 4; vector-effect: non-scaling-stroke; }
+.evalgraph .eg-cur { stroke: var(--gold-fill); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
+.rv-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--rv-ring); pointer-events: none; }
+.rv-dot.k-blunder { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; box-shadow: 0 0 0 2px var(--rv-ring); }
+.rv-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 7px 0 0; font-size: 12.5px; color: var(--ink-2); }
+.rv-key span { display: inline-flex; align-items: center; gap: 6px; }
+.rv-key .sw { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line); }
+.rv-key .sw-white { background: var(--rv-white); }
+.rv-key .sw-black { background: var(--rv-black); }
+.rv-key .rv-key-tip { color: var(--ink-3); }
+
+/* details: accuracy, counts and the PGN, folded away */
+.rv-details { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.rv-details > summary {
+  list-style: none; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  min-height: 48px; padding: 0 16px; font-weight: 600; cursor: pointer; border-radius: var(--radius);
+}
+.rv-details > summary::-webkit-details-marker { display: none; }
+.rv-details > summary:hover { background: var(--surface-2); }
+.rv-details > summary .chev { width: 16px; height: 16px; color: var(--ink-3); transition: transform 0.15s ease; }
+.rv-details[open] > summary .chev { transform: rotate(90deg); }
+.rv-details-body { padding: 0 16px 14px; }
+.rv-counts { margin-top: 2px; }
+.rv-counts .rv-opp { display: inline-block; max-width: 8.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+.rv-counts .rv-acc th { display: table-cell; font-weight: 600; }
+.rv-counts .rv-acc th, .rv-counts .rv-acc td { padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+.rv-counts .rv-acc + tr th, .rv-counts .rv-acc + tr td { padding-top: 8px; }
+.rv-pgn { margin-top: 10px; gap: 4px; }
+
+/* big enough to tap */
+@media (pointer: coarse) {
+  .v-review .rv-card .btn, .v-review .rv-controls .btn, .v-review .rv-pgn .btn { min-height: 44px; }
+  .v-review .rv-nav .btn { width: 44px; min-height: 44px; }
+  .v-review .rv-movelist .mv { min-height: 34px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .rv-details > summary .chev { transition: none; }
+}

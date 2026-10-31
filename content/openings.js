@@ -364,7 +364,7 @@ module.exports = {
     }
   ],
   traps: [
-    { id: 'scholars-mate', name: 'Scholar’s Mate', side: 'b',
+    { id: 'scholars-mate', name: 'Scholar’s Mate', side: 'b', defend: true,
       summary: 'White aims queen and bishop at f7 for a four-move checkmate. Learn the calm defense.',
       moves: 'e4 e5 Bc4 Nc6 Qh5 g6 Qf3 Nf6 Qb3 Qe7 Nc3 Nd4',
       notes: {

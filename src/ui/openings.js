@@ -12,33 +12,29 @@ var Openings = (function () {
 
   function renderMenu(root) {
     var D = Data.reps();
-    root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Openings'))));
+    root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Openings')));
     if (!D.repertoires.length) { root.appendChild(h('div', { class: 'empty' }, 'Opening lines are missing from this build.')); return; }
-    var grid = h('div', { class: 'grid two' });
+    var list = h('nav', { class: 'menu-list', 'aria-label': 'Repertoires', style: { maxWidth: '640px' } });
     D.repertoires.forEach(function (rep) {
       var learned = 0, due = 0, now = Date.now();
       rep.lines.forEach(function (ln) { var s = lineState(rep, ln); if (s && s.learned) { learned++; if ((s.due || 0) <= now) due++; } });
-      grid.appendChild(h('button', { class: 'card theme', type: 'button', style: { padding: '18px' }, onclick: function () { App.go('openings', { rep: rep.id }); } },
-        h('div', { class: 'row tight' }, UI.turnPill(sideNum(rep.side), rep.side === 'w' ? 'As White' : 'As Black')),
-        h('b', { style: { fontSize: '18px', fontFamily: 'var(--serif)', fontWeight: 400 } }, rep.name),
-        h('span', { class: 'muted small' }, rep.summary),
-        h('div', { class: 'row', style: { marginTop: '6px' } }, h('div', { class: 'grow' }, UI.meter(learned / rep.lines.length, 'green')), h('span', { class: 'faint small' }, learned + '/' + rep.lines.length + ' lines')),
-        due ? h('span', { class: 'chip gold' }, U.plural(due, 'line') + ' ready to drill') : null));
+      var sub = learned ? learned + ' of ' + rep.lines.length + ' lines learned.' + (due ? ' ' + U.plural(due, 'line') + ' ready to drill.' : '') : U.plural(rep.lines.length, 'line') + ' to learn.';
+      list.appendChild(UI.menuRow(kingIcon(rep.side), rep.name, sub, function () { App.go('openings', { rep: rep.id }); }));
     });
-    root.appendChild(grid);
+    root.appendChild(list);
     if (D.traps.length) {
-      root.appendChild(h('h2', { style: { margin: '26px 0 12px' } }, 'Traps to know'));
-      var tg = h('div', { class: 'theme-grid' });
+      root.appendChild(h('h2', { style: { margin: '32px 0 12px' } }, 'Traps to know'));
+      var tl = h('nav', { class: 'menu-list', 'aria-label': 'Traps', style: { maxWidth: '640px' } });
       D.traps.forEach(function (t) {
-        var seen = Store.state.openings.lines['trap/' + t.id];
-        tg.appendChild(h('button', { class: 'theme', type: 'button', onclick: function () { App.go('openings', { trap: t.id }); } },
-          h('b', null, t.name), h('span', { class: 'muted small' }, t.summary),
-          h('div', { class: 'row tight' }, h('span', { class: 'chip' }, t.side === 'w' ? 'For White' : 'For Black'), seen ? h('span', { class: 'chip green' }, U.icon('check'), 'Done') : null)));
+        var seen = Store.state.openings.lines['trap/' + t.id], victim = t.trapper && t.trapper !== t.side && t.keyPly != null;
+        var who = t.side === 'w' ? 'White' : 'Black';
+        // three kinds: a trap you set, one you must not fall into, and an attack you learn to stop
+        tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (victim ? 'Learn to avoid it as ' : t.defend ? 'Learn to stop it as ' : 'Learn to spring it as ') + who + '.' + (seen ? ' Done.' : ''), function () { App.go('openings', { trap: t.id }); }));
       });
-      root.appendChild(tg);
+      root.appendChild(tl);
     }
   }
-
+  function kingIcon(side) { return h('span', { class: 'cp ' + side + 'k row-king', 'aria-hidden': 'true' }); }
   function renderRep(root, rep) {
     root.appendChild(h('button', { class: 'back', type: 'button', onclick: function () { App.go('openings'); } }, U.icon('back'), 'Openings'));
     root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, rep.name), h('div', { class: 'sub' }, rep.intro))));
@@ -60,7 +56,7 @@ var Openings = (function () {
   }
   function movesText(ms) {
     var out = '';
-    ms.forEach(function (m, i) { if (i % 2 === 0) out += (i / 2 + 1) + '.'; out += m + ' '; });
+    ms.forEach(function (m, i) { if (i % 2 === 0) out += (i / 2 + 1) + '.'; out += m.replace(/-/g, '\u2011') + ' '; });
     return out.trim();
   }
 
@@ -90,7 +86,7 @@ var Openings = (function () {
       h('button', { class: 'back', type: 'button', onclick: function () { App.go('openings', isTrap ? {} : { rep: rep.id }); } }, U.icon('back'), isTrap ? 'Openings' : rep.name),
       h('span', { class: 'chip' }, { learn: 'Learn', drill: 'Drill', trap: 'Walkthrough', 'trap-practice': 'Your turn', 'trap-avoid': 'Avoid the trap' }[mode])));
     root.appendChild(h('h1', { style: { fontSize: '26px', marginBottom: '12px' } }, title));
-    var board = new Board({ orient: side, coords: Store.state.settings.coords !== false, onMove: onMove });
+    var board = new Board({ orient: side, coords: Store.state.settings.coords !== false, onMove: onMove, autoQueen: false });
     var noteBox = h('div', { class: 'lesson-text' }), fbBox = h('div'), actions = h('div', { class: 'row' }), movesLine = h('div', { class: 'muted small' });
     root.appendChild(h('div', { class: 'arena' }, h('div', { class: 'board-col' }, board.el),
       h('div', { class: 'panel' }, h('div', { class: 'card stack' }, movesLine, noteBox, fbBox, actions))));
@@ -128,7 +124,12 @@ var Openings = (function () {
       board.setMovable(side);
       if (mode === 'learn' || mode === 'trap-practice') {
         var exp = st.pos.parseMove(moves[st.ply]);
-        if (exp && (st.misses[st.ply] || mode === 'learn' && st.ply < 2)) board.setArrows([{ from: C.sqName(exp & 127), to: C.sqName((exp >> 7) & 127), color: 'gold', opacity: '0.55' }]);
+        if (exp && (mode === 'learn' || st.misses[st.ply])) board.setArrows([{ from: C.sqName(exp & 127), to: C.sqName((exp >> 7) & 127), color: 'green', opacity: '0.7' }]);
+        if (mode === 'learn' && exp) {
+          U.clear(noteBox);
+          noteBox.appendChild(h('p', { class: 'small muted' }, 'Play ' + st.pos.san(exp) + '.'));
+          if (notes[st.ply] != null) noteBox.appendChild(U.rich(notes[st.ply]));
+        }
       }
     }
     function onMove(uci, m) {
@@ -145,7 +146,7 @@ var Openings = (function () {
         st.mistakes++; st.misses[st.ply] = true;
         U.sound.bad();
         var san = st.pos.san(exp);
-        fb('no', mode === 'drill' ? 'The repertoire move is ' + san + '.' : 'In this line, play ' + san + '.');
+        fb('info', mode === 'drill' ? 'Your line plays ' + san + ' here. Play it to go on.' : 'This line plays ' + san + ' here.');
         board.setPosition(st.pos, { animate: true });
         board.setArrows([{ from: C.sqName(exp & 127), to: C.sqName((exp >> 7) & 127), color: 'green' }]);
         board.setMovable(side);
@@ -191,7 +192,7 @@ var Openings = (function () {
       if (mode === 'learn') {
         var nxt = rep.lines.filter(function (ln) { var s2 = lineState(rep, ln); return !s2 || !s2.learned; })[0];
         if (nxt) actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { playLine(rep, nxt, 'learn'); } }, 'Next line'));
-        actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { playLine(rep, line, 'learn'); } }, 'Again'));
+        actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { playLine(rep, line, 'learn'); } }, 'Repeat this line'));
       } else actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('openings'); } }, 'Done'));
     }
 
@@ -209,7 +210,8 @@ var Openings = (function () {
         paint(last);
         U.clear(noteBox);
         if (n === 0) noteBox.appendChild(U.rich(line.summary));
-        else note(n - 1);
+        else if (notes[n - 1] != null) note(n - 1);
+        else noteBox.appendChild(h('p', { class: 'muted' }, 'Ordinary opening moves so far. Keep going.'));
         prevB.disabled = n === 0;
         nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
       };
@@ -287,8 +289,8 @@ var Openings = (function () {
 
     paint(null);
     if (mode === 'learn') { U.clear(noteBox); noteBox.appendChild(U.rich(rep.intro)); }
-    if (mode === 'trap-practice') { U.clear(noteBox); noteBox.appendChild(h('p', null, 'Play the ' + (side === 'w' ? 'White' : 'Black') + ' moves. The other side plays the trap line.')); }
-    if (mode === 'drill') note(0);
+    if (mode === 'trap-practice') { U.clear(noteBox); noteBox.appendChild(h('p', null, 'Play the ' + (side === 'w' ? 'White' : 'Black') + ' moves. ' + (line.defend ? 'The other side tries the attack.' : 'The other side plays the trap line.'))); }
+    if (mode === 'drill') { U.clear(noteBox); noteBox.appendChild(h('p', { class: 'muted' }, 'Play ' + (side === 'w' ? 'White' : 'Black') + '\u2019s moves from memory. Each note appears after you play the move.')); }
     step();
   }
 
