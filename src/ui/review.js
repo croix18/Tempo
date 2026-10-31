@@ -129,6 +129,7 @@ var Explain = (function () {
       if (reply.mate === 1) {
         r.title = 'This allows checkmate';
         r.text = cap1(pieceWords(after, rm)) + (after.moveCaptured(rm) ? ' takes on ' : ' goes to ') + C.sqName((rm >> 7) & 127) + ', and that’s checkmate: ' + replySan + '.';
+        r.ask = { prompt: 'After this move ' + them.subj + ' can checkmate you in one. Tap the square the checkmate lands on.', squares: [C.sqName((rm >> 7) & 127)] };
       } else {
         r.title = 'This allows a forced checkmate';
         r.text = them.Subj + ' can force checkmate in ' + plural(reply.mate, 'move') + ', starting with ' + replySan + '.';
@@ -158,6 +159,7 @@ var Explain = (function () {
         r.text = them.Subj + ' can answer ' + replySan + ', and the ' + PIECE_NAME[by] + ' attacks ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at the same time.';
         r.short = replySan + ' would have attacked ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at once.';
         r.topic = 'fork';
+        r.ask = { prompt: 'After this move ' + them.subj + ' can attack two of ' + me.poss + ' pieces at once. Tap one of the two.', squares: hits.slice(0, 2).map(function (t) { return C.sqName(t.sq); }) };
         return r;
       }
     }
@@ -167,6 +169,7 @@ var Explain = (function () {
       if (loss >= 2) lost.forEach(function (y) { if (PIECE_VAL[Math.abs(y.cap)] > PIECE_VAL[Math.abs(x.cap)]) x = y; });
       var nm = PIECE_NAME[Math.abs(x.cap)], sq = C.sqName(x.capSq), taker = 'the ' + PIECE_NAME[x.by] + ' on ' + C.sqName(x.from);
       r.topic = 'safety'; r.piece = Math.abs(x.cap);
+      if (x.i === 0) r.ask = { prompt: 'After this move one of ' + me.poss + ' pieces can be taken for free. Tap it.', squares: [sq] };
       r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This drops a pawn';
       r.short = x.san + ' would have won ' + me.poss + ' ' + nm + '.';
       if (x.i > 0) r.text = 'After ' + sanLine(after, pv, x.i).join(' ') + ', ' + taker + ' can take ' + me.poss + ' ' + nm + ' on ' + sq + ': ' + x.san + '.';
@@ -301,10 +304,10 @@ var Explain = (function () {
     mates: { lesson: 'mating-patterns', theme: 'mateIn2', practice: 'Mate-in-2 puzzles' }
   };
   /* a row of two quiet buttons: the lesson that teaches this, and puzzles to practice it */
-  function studyRow(topic) {
+  function studyRow(topic, lead) {
     var t = TOPICS[topic]; if (!t) return null;
     var found = Data.lesson(t.lesson), h = U.h;
-    return h('div', { class: 'study' }, h('span', { class: 'muted small' }, 'Work on this'),
+    return h('div', { class: 'study' }, lead === '' ? null : h('span', { class: 'muted small' }, lead || 'Work on this'),
       found ? h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Learn.open(t.lesson); } }, U.icon('book'), found.lesson.title) : null,
       h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
   }
@@ -335,7 +338,7 @@ var Coach = (function () {
       var drop = wb - wa;
       if (mateAgainst || (drop >= 18 && wa < 62)) {
         var why = Explain.bad(before, m, post, res[0].best);
-        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short,
+        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short, ask: why.ask || null,
           reply: (post.pv && post.pv[0]) || null, line: (post.pv || []).slice(0, 6) };
       }
       return { warn: false };
@@ -626,7 +629,8 @@ var Review = (function () {
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
     var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
     var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Game summary', hidden: true });
-    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, graphBox, movesBox, detailsBox);
+    var patternBox = h('div', { class: 'rv-pattern' });
+    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, patternBox, graphBox, movesBox, detailsBox);
     root.appendChild(h('div', { class: 'arena rv-arena' },
       h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls), panel));
 
@@ -1124,6 +1128,8 @@ var Review = (function () {
       st.why = {};
       function show() {
         buildMoves(); renderGraph(); renderSummary(); renderDetails(); renderOpening();
+        U.clear(patternBox);
+        if (src.gameId) { var pc = UI.patternCard({ label: 'Across your games', cls: 'rv-pattern-card' }); if (pc) patternBox.appendChild(pc); }
         goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
       }
       if (fresh) U.glide(panel, show);
@@ -1240,13 +1246,13 @@ var Mistakes = (function () {
     for (var i = 0; i < moves.length; i++) {
       var k = cls[i];
       if (isMine(i) && (k === 'blunder' || k === 'mistake' || k === 'miss') && evals[i] && evals[i].best && evals[i].best !== moves[i]) {
-        var id = 'g' + gameId + '-' + i, ex = items.filter(function (x) { return x.id === id; })[0];
+        var id = 'g' + gameId + '-' + i, ex = items.filter(function (x) { return x.id === id; })[0], topic = topicOf(p, moves[i], k, evals[i], evals[i + 1]);
         keep[id] = true;
-        if (!ex) { items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, ts: Date.now(), box: 0, due: Date.now(), seen: 0 }); changed = true; }
-        else if (ex.gone || ex.best !== evals[i].best || ex.kind !== k) {
+        if (!ex) { items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, topic: topic, ts: Date.now(), box: 0, due: Date.now(), seen: 0 }); changed = true; }
+        else if (ex.gone || ex.best !== evals[i].best || ex.kind !== k || ex.topic !== topic) {
           // a newer review of the same game: keep the item, with the newer answer
           if (ex.gone) { delete ex.gone; ex.seen = (ex.seen || 0) + 1; }
-          ex.best = evals[i].best; ex.kind = k; changed = true;
+          ex.best = evals[i].best; ex.kind = k; ex.topic = topic; changed = true;
         }
       }
       p.make(p.parseMove(moves[i]));
@@ -1259,6 +1265,39 @@ var Mistakes = (function () {
     if (items.length > 200) items.length = 200;
     if (changed) Store.touch('mistakes');
   }
+  /* what kind of mistake this was, so they can be added up: safety, fork, threats, mates, free, or position */
+  function topicOf(before, uci, kind, e0, e1) {
+    try {
+      var m = before.parseMove(uci); if (!m) return 'position';
+      if (kind === 'miss') { var mi = e0 && e0.best ? Explain.missedInfo(before, e0.best, e0.line) : null; return (mi && mi.topic) || 'position'; }
+      if (!e1 || !e1.line || !e1.line.pv || !e1.line.pv.length) return 'position';
+      return Explain.bad(before, m, e1.line, e0 && e0.best).topic || 'position';
+    } catch (e) { return 'position'; }
+  }
+  /* What keeps going wrong: the mistake topic that shows up in the most of your recent reviewed games.
+     Returns { topic, games, of, n } or null when nothing repeats yet. */
+  var SAYS = {
+    safety: 'left a piece where it could be taken', fork: 'walked into a fork', threats: 'missed a checkmate threat against you',
+    mates: 'missed a checkmate', free: 'missed a free piece'
+  };
+  function patterns() {
+    var items = Store.state.mistakes.items.filter(function (x) { return !x.gone && x.topic && SAYS[x.topic]; });
+    var byGame = {}, order = [];
+    items.forEach(function (it) {
+      var g = it.id.replace(/-\d+$/, '');
+      if (!byGame[g]) { byGame[g] = { ts: it.ts, topics: {} }; order.push(g); }
+      byGame[g].topics[it.topic] = (byGame[g].topics[it.topic] || 0) + 1;
+    });
+    order.sort(function (a, b) { return byGame[b].ts - byGame[a].ts; });
+    var recent = order.slice(0, 8), counts = {};
+    recent.forEach(function (g) { Object.keys(byGame[g].topics).forEach(function (t) { counts[t] = counts[t] || { games: 0, n: 0 }; counts[t].games++; counts[t].n += byGame[g].topics[t]; }); });
+    var best = null;
+    Object.keys(counts).forEach(function (t) { if (!best || counts[t].games > counts[best].games || (counts[t].games === counts[best].games && counts[t].n > counts[best].n)) best = t; });
+    if (!best || counts[best].games < 2) return null;
+    return { topic: best, games: counts[best].games, of: recent.length, n: counts[best].n, says: SAYS[best] };
+  }
+  /* "You left a piece where it could be taken in 4 of your last 6 games." */
+  function patternText(pt) { return 'You ' + pt.says + ' in ' + pt.games + ' of your last ' + pt.of + ' games.'; }
   function solved(id) {
     var it = Store.state.mistakes.items.filter(function (x) { return x.id === id && !x.gone; })[0];
     if (!it) return;
@@ -1272,5 +1311,5 @@ var Mistakes = (function () {
     Store.touch('mistakes');
   }
   function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return !x.gone && x.due <= now; }); }
-  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due };
+  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, patternText: patternText, topicOf: topicOf };
 })();

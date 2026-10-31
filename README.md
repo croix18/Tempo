@@ -4,12 +4,13 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 
 ## What's in it
 
-- **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Each win unlocks the next bot, or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board, threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
+- **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Your next opponent sits at the top; each win unlocks the next bot, or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board (or, with Ask me first, a question that has you find the problem on the board before the coach explains), threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
 - **Review** any game with Stockfish: a summary up top with both sides' accuracy and a count of every kind of move from brilliant to blunder (tap one to step through those moves), your mistakes first, move-by-move labels (best, inaccuracy, mistake, blunder and so on) double-checked before a move is called bad, plain-language explanations, a retry of each mistake graded against the best move, and where the game left an opening line you've learned (that line goes first in your drills).
 - **Chess clock** for a game on a real board: the screen becomes a two-sided clock (on a phone or tablet held upright, the far half faces the other player). Tap your half after you move. Common times or your own, extra seconds per move, more time for one player, pause, and the clock keeps the screen on where the browser allows it.
 - **Puzzles**: about 9,000 rated Lichess puzzles, a daily puzzle, and practice by theme.
 - **Learn**: 8 units, 42 interactive lessons, from the basics through tactics, mates, opening principles, endgames, strategy and how to think during a game.
 - **Openings**: three repertoires (1.e4 with the Italian, and 1...e5 and 1...d5 as Black) with drills on spaced repetition, plus 10 traps to spring or avoid.
+- **Your pattern**: saved mistakes carry their kind (a piece left en prise, a fork, a missed mate, and so on), and the kind that shows up in the most of your recent games is named on Home, at the end of a game and after each review, with the lesson, puzzles and positions that fix it. Home lists what to do next in that order, with a rough time for each.
 - **Trainers**: coordinates, board vision, a review queue of your own mistakes, mating and endgame play-outs, and an analysis board.
 - **Progress**: rating history, a practice calendar and stats. Data stays in the browser and is checked and repaired every time it loads, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
 - **Pieces**: an original Staunton-style set drawn for Tempo, in ivory and navy.

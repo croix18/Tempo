@@ -266,7 +266,7 @@ var Board = (function () {
     if (!d && e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return;
     // Steering with the keys is for a board you reached with the keyboard and that can take a move. Otherwise the
     // keys belong to the page, so after a click on the board the arrows still step through the game.
-    if (!this.kbd && (this.viaPointer || !this.canMove())) {
+    if (!this.kbd && !this.opts.onSquare && (this.viaPointer || !this.canMove())) {
       if (e.key === 'Escape' && this.sel >= 0) { e.preventDefault(); this.select(-1); }
       return;
     }

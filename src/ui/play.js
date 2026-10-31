@@ -2,7 +2,7 @@
 var Play = (function () {
   'use strict';
   var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS;
-  var G = null, view = null;
+  var G = null, view = null, showLocked = false; // the folded list of locked opponents stays the way you left it
 
   function botIndex(id) { for (var i = 0; i < BOTS.length; i++) if (BOTS[i].id === id) return i; return -1; }
   function unlockedIdx() { var S = Store.state; return S.settings.unlockAll ? BOTS.length - 1 : Math.min(S.play.unlocked || 0, BOTS.length - 1); }
@@ -18,8 +18,18 @@ var Play = (function () {
       h('div', { class: 'row tight' },
         h('button', { class: 'btn quiet small', type: 'button', onclick: function () { abandon().then(function (ok) { if (ok) App.refresh(); }); } }, 'Abandon'),
         h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
-    var list = UI.ladder({ lo: 0, hi: BOTS.length - 1, full: true, playing: cb && cb.id });
+    // your next opponent at the top, the ones you've beaten below; the rest wait in a folded list, nearest first
+    var nextIdx = unlockedIdx();
+    var list = UI.ladder({ lo: 0, hi: nextIdx, full: true, playing: cb && cb.id });
     root.appendChild(list);
+    if (nextIdx < BOTS.length - 1) {
+      var n = BOTS.length - 1 - nextIdx, open = showLocked;
+      var body = h('div', { class: 'unit-body' + (open ? ' open' : ''), id: 'locked-bots' }, h('div', { class: 'unit-inner' }, UI.ladder({ lo: nextIdx + 1, hi: BOTS.length - 1, full: true, asc: true })));
+      var head = h('button', { class: 'unit-head locked-head', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'locked-bots',
+        onclick: function () { var on = !body.classList.contains('open'); body.classList.toggle('open', on); head.setAttribute('aria-expanded', on ? 'true' : 'false'); showLocked = on; } },
+        U.icon('lock'), h('span', { class: 'txt' }, h('span', { class: 't' }, U.plural(n, 'more opponent') + ' to unlock'), h('span', { class: 's' }, 'Beat ' + BOTS[nextIdx].name + ' to unlock ' + BOTS[nextIdx + 1].name + '.')), U.icon('next', 'chev'));
+      root.appendChild(h('div', { class: 'card unit-card locked-card' }, head, body));
+    }
     // playing someone across a real board: the screen becomes the clock
     root.appendChild(h('nav', { class: 'menu-list', 'aria-label': 'Over the board', style: { maxWidth: '720px', marginTop: '20px' } },
       UI.menuRow('clock', 'Chess clock', 'For a game on a real board', function () { App.go('clock'); })));
@@ -36,11 +46,6 @@ var Play = (function () {
     }
     root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px', maxWidth: '62ch' } },
       'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn\u2019t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
-    // on a phone the next opponent can sit below the fold; bring it into view
-    if (list._next) requestAnimationFrame(function () {
-      var r = list._next.getBoundingClientRect();
-      if (r.bottom > window.innerHeight - 90) list._next.scrollIntoView({ block: 'center' });
-    });
   }
   /* asks before throwing away an unfinished game; resolves true when there is nothing left to lose */
   function abandon() {
@@ -56,7 +61,7 @@ var Play = (function () {
   /* ---------- setup ---------- */
   function setup(bot) {
     var S = Store.state.settings;
-    var choice = { color: S.color || 'w', coach: S.coach !== false, takebacks: S.takebacks !== false, hanging: S.hanging !== false, clock: S.clock || 'none' };
+    var choice = { color: S.color || 'w', coach: S.coach !== false, ask: S.coachAsk === true, takebacks: S.takebacks !== false, hanging: S.hanging !== false, clock: S.clock || 'none' };
     App.sheet(function (box, api) {
       box.appendChild(h('div', { class: 'row', style: { marginBottom: '12px' } }, UI.avatar(bot, 'lg'),
         h('div', null, h('h2', null, bot.name), h('div', { class: 'muted' }, bot.id === 'stockfish' ? 'Full strength' : 'About ' + bot.rating))));
@@ -71,6 +76,7 @@ var Play = (function () {
       box.lastChild.children[2].title = '15 minutes, plus 10 seconds for each move';
       var tg = h('div', { style: { marginTop: '10px' } });
       tg.appendChild(toggle('Coach', 'Warns you before a move that loses material.', choice.coach, function (v) { choice.coach = v; }));
+      tg.appendChild(toggle('Ask me first', 'The coach asks you to find the problem before it explains.', choice.ask, function (v) { choice.ask = v; }));
       tg.appendChild(toggle('Show threats', 'Rings pieces you could lose, and warns you when checkmate is threatened.', choice.hanging, function (v) { choice.hanging = v; }));
       tg.appendChild(toggle('Takebacks', 'Lets you undo a move.', choice.takebacks, function (v) { choice.takebacks = v; }));
       box.appendChild(tg);
@@ -78,7 +84,7 @@ var Play = (function () {
       box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
         h('button', { class: 'btn primary block', type: 'button', onclick: function () {
           var s = Store.state.settings;
-          s.color = choice.color; s.coach = choice.coach; s.takebacks = choice.takebacks; s.hanging = choice.hanging; s.clock = choice.clock;
+          s.color = choice.color; s.coach = choice.coach; s.coachAsk = choice.ask; s.takebacks = choice.takebacks; s.hanging = choice.hanging; s.clock = choice.clock;
           Store.touch('settings');
           abandon().then(function (ok) { if (!ok) return; api.close(); start(bot, choice); });
         } }, 'Start game')));
@@ -110,7 +116,7 @@ var Play = (function () {
   function start(bot, choice) {
     var color = choice.color === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : choice.color;
     var spec = clockSpec(choice.clock);
-    G = { id: U.uid(), bot: bot.id, color: color, startFen: C.START_FEN, moves: [], sans: [], coach: choice.coach, hanging: choice.hanging,
+    G = { id: U.uid(), bot: bot.id, color: color, startFen: C.START_FEN, moves: [], sans: [], coach: choice.coach, ask: !!choice.ask, hanging: choice.hanging,
       takebacks: choice.takebacks, clock: spec, times: spec ? { w: spec.base, b: spec.base } : null, hints: 0, undos: 0, warned: 0,
       result: null, reason: null, startedAt: Date.now() };
     Store.state.current = G; Store.touch();
@@ -404,20 +410,46 @@ var Play = (function () {
        Nothing else can happen until you choose. */
     function warnInline(res, temp, cb) {
       st.deciding = true; renderControls();
-      if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
       var take = h('button', { class: 'btn primary', type: 'button', onclick: function () { choose(true); } }, 'Take it back');
-      U.glide(panel, function () {
-        U.clear(coach);
-        coach.className = 'coach alert decide';
-        coach.appendChild(U.icon('shield'));
-        coach.appendChild(h('div', { class: 'grow' },
-          h('b', null, res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
-          h('div', { class: 'row', style: { marginTop: '10px' } }, take,
-            h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
-        coach.hidden = false;
-      });
-      setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
-      function choose(v) { if (!st.deciding) return; st.deciding = false; say(null); cb(v); }
+      // with Ask me first on, the coach asks you to find the problem on the board before it explains
+      if (G.ask && res.ask && res.ask.squares && res.ask.squares.length) ask(); else explain('');
+      function ask() {
+        var tries = 0, text = h('span', null, res.ask.prompt);
+        board.opts.onSquare = function (name) {
+          if (!st.deciding) return;
+          if (res.ask.squares.indexOf(name) >= 0) { U.sound.good(); explain('You found it. '); return; }
+          tries++;
+          board.setMarks([{ sq: name, kind: 'red' }]);
+          if (tries >= 2) { explain('Not that one. '); return; }
+          text.textContent = 'Not that one. ' + res.ask.prompt;
+        };
+        U.glide(panel, function () {
+          U.clear(coach);
+          coach.className = 'coach alert decide asking';
+          coach.appendChild(U.icon('shield'));
+          coach.appendChild(h('div', { class: 'grow' }, h('b', null, 'Hold on. '), text,
+            h('div', { class: 'row', style: { marginTop: '10px' } }, h('button', { class: 'btn', type: 'button', onclick: function () { explain(''); } }, 'Show me'))));
+          coach.hidden = false;
+        });
+      }
+      function explain(lead) {
+        if (!st.deciding) return;
+        board.opts.onSquare = null;
+        board.setMarks(res.ask && res.ask.squares ? res.ask.squares.map(function (q) { return { sq: q, kind: 'danger' }; }) : []);
+        if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
+        U.glide(panel, function () {
+          U.clear(coach);
+          coach.className = 'coach alert decide';
+          coach.appendChild(U.icon('shield'));
+          coach.appendChild(h('div', { class: 'grow' },
+            h('b', null, lead + res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
+            h('div', { class: 'row', style: { marginTop: '10px' } }, take,
+              h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
+          coach.hidden = false;
+        });
+        setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
+      }
+      function choose(v) { if (!st.deciding) return; st.deciding = false; board.opts.onSquare = null; board.setMarks([]); say(null); cb(v); }
     }
 
     /* ---------- the bot's move ---------- */
@@ -552,7 +584,7 @@ var Play = (function () {
     function finish(result, reason) {
       if (G.result) return;
       st.token++; st.thinking = false; st.ended = true;
-      if (st.deciding || st.checking) { st.deciding = false; st.checking = false; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
+      if (st.deciding || st.checking) { st.deciding = false; st.checking = false; board.opts.onSquare = null; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
       G.result = result; G.reason = reason;
       clearInterval(st.clockT);
       var record = Play.record(G, bot);
@@ -579,6 +611,8 @@ var Play = (function () {
           box.appendChild(h('p', { style: { textAlign: 'center' } }, 'Rating ', h('b', null, String(rec.after)), ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)));
         } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: ' + (G.undos ? 'you took back a move.' : G.hints ? 'you used a hint.' : 'games shorter than three moves each don\u2019t count.')));
         if (rec.unlocked) box.appendChild(h('div', { class: 'feedback ok', style: { textAlign: 'center', marginBottom: '8px' } }, rec.unlocked.name + ' is now unlocked.'));
+        var pt = Mistakes.patterns();
+        if (pt) box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Your pattern so far: ' + Mistakes.patternText(pt).replace(/^You /, 'you ').replace(/\.$/, '') + '. The review shows whether this game fits it.'));
         var row = h('div', { class: 'stack', style: { marginTop: '14px' } },
           h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); Review.openGame(G.id); } }, U.icon('review'), 'Review this game'));
         var row2 = h('div', { class: 'row' }, h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(bot); } }, 'Rematch'));

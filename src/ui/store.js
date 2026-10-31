@@ -9,9 +9,10 @@ var Store = (function () {
   var SECTIONS = SYNC.concat(['games']);
   var THEMES = ['system', 'light', 'dark'], BOARDS = ['tempo', 'classic', 'walnut', 'slate'];
   var CLOCKS = ['none', '10', '15+10', '30'], COLORS = ['w', 'r', 'b'];
-  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
+  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'coachAsk', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
   var LIMIT = { playHist: 400, puzzleHist: 600, bots: 100, games: 100, mistakes: 200, days: 400, moves: 1200, seen: 200000 };
   var RESULTS = ['1-0', '0-1', '1/2-1/2', '*'], KINDS = ['blunder', 'mistake', 'miss'], REVIEW_CODES = 'RGBEOKIMSX';
+  var TOPICS = ['safety', 'fork', 'threats', 'mates', 'free', 'position'];
   var UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/, DAY_KEY = /^\d{4}-\d{2}-\d{2}$/, B64 = /^[A-Za-z0-9+\/]*={0,2}$/;
   var NAMES = { settings: 'preferences', play: 'games against the bots', puzzles: 'puzzles', learn: 'lessons', openings: 'openings',
     mistakes: 'saved mistakes', games: 'game history', days: 'practice days' };
@@ -21,7 +22,7 @@ var Store = (function () {
     return {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
-        autoQueen: false, coach: true, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
+        autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
         otb: '10+0' },
       play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
@@ -164,6 +165,7 @@ var Store = (function () {
       var rec = { id: it.id, fen: it.fen, played: it.played, best: it.best, kind: oneOf(it.kind, KINDS, 'mistake'),
         ts: finite(it.ts) ? it.ts : 0, box: within(it.box, 0, 5, 0), due: finite(it.due) ? it.due : 0, seen: count(it.seen) };
       if (it.gone === true) rec.gone = true;
+      if (TOPICS.indexOf(it.topic) >= 0) rec.topic = it.topic;
       out.items.push(rec);
     }
     return out;
@@ -236,7 +238,7 @@ var Store = (function () {
     return out;
   }
   /* the unfinished game: null unless its start position is legal and every move replays */
-  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt'];
+  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'ask', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt'];
   function cleanCurrent(c) {
     if (!isObj(c) || c.result != null) return null;
     var C = TempoCore;
@@ -255,7 +257,7 @@ var Store = (function () {
     out.id = typeof c.id === 'string' && c.id ? c.id : 'c' + Date.now().toString(36);
     out.bot = c.bot; out.color = c.color; out.startFen = fen;
     out.moves = c.moves.slice(); out.sans = sans;
-    out.coach = c.coach !== false; out.hanging = c.hanging !== false; out.takebacks = c.takebacks !== false;
+    out.coach = c.coach !== false; out.ask = c.ask === true; out.hanging = c.hanging !== false; out.takebacks = c.takebacks !== false;
     var timed = isObj(c.clock) && finite(c.clock.base) && c.clock.base > 0 && finite(c.clock.inc) && c.clock.inc >= 0 &&
       isObj(c.times) && finite(c.times.w) && finite(c.times.b);
     out.clock = timed ? { base: c.clock.base, inc: c.clock.inc } : null;

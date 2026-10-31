@@ -438,6 +438,16 @@ body.focus .tabs { display: none; }
 .unit-body.open .unit-inner { opacity: 1; transition-delay: 0.05s; }
 .unit-inner > .list { padding-bottom: 8px; }
 @media (prefers-reduced-motion: reduce) { .unit-head .chev, .unit-body, .unit-body.open, .unit-inner { transition: none; } }
+.pattern { padding: 16px 18px; margin-bottom: 14px; border-left: 3px solid var(--gold-fill); }
+.pattern-text { font-family: var(--serif); font-size: 20px; line-height: 1.3; margin: 2px 0 10px; }
+.pattern .study { padding-top: 0; border-top: 0; }
+.rv-pattern:empty { display: none; }
+.rv-pattern-card { margin-bottom: 0; }
+.locked-card { max-width: 520px; margin-top: 18px; }
+.locked-head > .ic { width: 20px; height: 20px; color: var(--ink-3); flex: none; }
+.locked-head .t { font-family: var(--sans); font-size: 16px; font-weight: 600; }
+.locked-card .unit-inner { padding: 0 6px; }
+.locked-card .rungs { max-width: none; }
 .lesson-row .tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .lesson-row .tick.done { background: var(--green); border-color: var(--green); color: #fff; }
 .lesson-row .tick .ic { width: 15px; height: 15px; }
@@ -520,6 +530,7 @@ body.focus .tabs { display: none; }
 .home-fig figcaption { margin-top: 12px; max-width: 460px; font-size: 15px; line-height: 1.45; color: var(--ink-2); }
 
 .home-todo { max-width: 460px; }
+.home-pattern { order: 3; max-width: 460px; margin-bottom: -14px; }
 
 /* grouped list: rows of icon, title, optional line, chevron (home, puzzles, trainers, more) */
 .menu-list { display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
@@ -2786,9 +2797,10 @@ var Store = (function () {
   var SECTIONS = SYNC.concat(['games']);
   var THEMES = ['system', 'light', 'dark'], BOARDS = ['tempo', 'classic', 'walnut', 'slate'];
   var CLOCKS = ['none', '10', '15+10', '30'], COLORS = ['w', 'r', 'b'];
-  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
+  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'coachAsk', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
   var LIMIT = { playHist: 400, puzzleHist: 600, bots: 100, games: 100, mistakes: 200, days: 400, moves: 1200, seen: 200000 };
   var RESULTS = ['1-0', '0-1', '1/2-1/2', '*'], KINDS = ['blunder', 'mistake', 'miss'], REVIEW_CODES = 'RGBEOKIMSX';
+  var TOPICS = ['safety', 'fork', 'threats', 'mates', 'free', 'position'];
   var UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/, DAY_KEY = /^\d{4}-\d{2}-\d{2}$/, B64 = /^[A-Za-z0-9+\/]*={0,2}$/;
   var NAMES = { settings: 'preferences', play: 'games against the bots', puzzles: 'puzzles', learn: 'lessons', openings: 'openings',
     mistakes: 'saved mistakes', games: 'game history', days: 'practice days' };
@@ -2798,7 +2810,7 @@ var Store = (function () {
     return {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
-        autoQueen: false, coach: true, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
+        autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
         otb: '10+0' },
       play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
@@ -2941,6 +2953,7 @@ var Store = (function () {
       var rec = { id: it.id, fen: it.fen, played: it.played, best: it.best, kind: oneOf(it.kind, KINDS, 'mistake'),
         ts: finite(it.ts) ? it.ts : 0, box: within(it.box, 0, 5, 0), due: finite(it.due) ? it.due : 0, seen: count(it.seen) };
       if (it.gone === true) rec.gone = true;
+      if (TOPICS.indexOf(it.topic) >= 0) rec.topic = it.topic;
       out.items.push(rec);
     }
     return out;
@@ -3013,7 +3026,7 @@ var Store = (function () {
     return out;
   }
   /* the unfinished game: null unless its start position is legal and every move replays */
-  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt'];
+  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'ask', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt'];
   function cleanCurrent(c) {
     if (!isObj(c) || c.result != null) return null;
     var C = TempoCore;
@@ -3032,7 +3045,7 @@ var Store = (function () {
     out.id = typeof c.id === 'string' && c.id ? c.id : 'c' + Date.now().toString(36);
     out.bot = c.bot; out.color = c.color; out.startFen = fen;
     out.moves = c.moves.slice(); out.sans = sans;
-    out.coach = c.coach !== false; out.hanging = c.hanging !== false; out.takebacks = c.takebacks !== false;
+    out.coach = c.coach !== false; out.ask = c.ask === true; out.hanging = c.hanging !== false; out.takebacks = c.takebacks !== false;
     var timed = isObj(c.clock) && finite(c.clock.base) && c.clock.base > 0 && finite(c.clock.inc) && c.clock.inc >= 0 &&
       isObj(c.times) && finite(c.times.w) && finite(c.times.b);
     out.clock = timed ? { base: c.clock.base, inc: c.clock.inc } : null;
@@ -3960,7 +3973,7 @@ var Board = (function () {
     if (!d && e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return;
     // Steering with the keys is for a board you reached with the keyboard and that can take a move. Otherwise the
     // keys belong to the page, so after a click on the board the arrows still step through the game.
-    if (!this.kbd && (this.viaPointer || !this.canMove())) {
+    if (!this.kbd && !this.opts.onSquare && (this.viaPointer || !this.canMove())) {
       if (e.key === 'Escape' && this.sel >= 0) { e.preventDefault(); this.select(-1); }
       return;
     }
@@ -4473,8 +4486,11 @@ var UI = (function () {
       placed = true;
       list.appendChild(h('li', { class: 'you-mark', 'aria-label': 'Your rating, ' + S.play.rating }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
     }
-    for (var i = o.hi; i >= o.lo; i--) (function (bot, i) {
-      if (!placed && S.play.rating >= bot.rating) you();
+    // strongest at the top, unless asked for the other way round (the locked list on Play: nearest to unlocking first)
+    var idx = []; for (var q = o.hi; q >= o.lo; q--) idx.push(q);
+    if (o.asc) idx.reverse();
+    idx.forEach(function (i) { (function (bot, i) {
+      if (!placed && !o.asc && S.play.rating >= bot.rating) you();
       var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !o.playing;
       var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
       var li = h('li', null, h('button', {
@@ -4486,8 +4502,8 @@ var UI = (function () {
         h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
       if (isNext) list._next = li;
       list.appendChild(li);
-    })(BOTS[i], i);
-    if (!placed) you();
+    })(BOTS[i], i); });
+    if (!placed && !o.asc) you();
     return list;
   }
 
@@ -4503,12 +4519,20 @@ var UI = (function () {
   }
 
   /* one row of a grouped list: icon, a title, an optional line under it, and a chevron */
+  /* what keeps going wrong in your games, with the lesson, puzzles and positions that fix it; null when nothing repeats yet */
+  function patternCard(opts) {
+    var pt = Mistakes.patterns(); if (!pt) return null;
+    var row = Explain.studyRow(pt.topic, '');
+    if (row && !(opts && opts.noRetry)) row.appendChild(h('button', { class: 'btn small quiet', type: 'button', onclick: function () { App.go('train', { mode: 'mistakes' }); } }, U.icon('target'), 'Retry those positions'));
+    return h('section', { class: 'card pattern' + (opts && opts.cls ? ' ' + opts.cls : ''), 'aria-label': 'Your pattern' },
+      h('div', { class: 'label' }, opts && opts.label || 'Your pattern'), h('p', { class: 'pattern-text' }, Mistakes.patternText(pt)), row);
+  }
   function menuRow(icon, title, sub, onclick, extra) {
     return h('button', { class: 'menu-row' + (extra ? ' ' + extra : ''), type: 'button', onclick: onclick },
       typeof icon === 'string' ? U.icon(icon) : icon, h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
   }
 
-  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow };
+  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow, patternCard: patternCard };
 })();
 
 /* ---------- Home ----------
@@ -4613,15 +4637,16 @@ App.register('home', {
       } catch (e) { return false; }
     }
 
-    /* due now: one sentence per item, only what is actually waiting */
-    function item(icon, text, open) { todo.appendChild(UI.menuRow(icon, text, null, open)); }
-    var nl = Learn.nextLesson();
-    if (nl) {
-      var num = 0, units = Data.lessons(), found = false;
-      for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
-      item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); });
+    /* due now: one sentence per item with a rough time, only what is actually waiting; what fixes your games comes first */
+    function item(icon, text, open, mins) { todo.appendChild(UI.menuRow(icon, text, mins ? 'About ' + U.plural(mins, 'minute') : null, open)); }
+    var pattern = UI.patternCard({ cls: 'home-pattern' });
+    if (pattern) todo.parentNode.insertBefore(pattern, todo);
+    var mistakes = Mistakes.due().length;
+    if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); }, Math.min(10, Math.ceil(mistakes * 0.75)));
+    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
+    if (last && !last.reviewed && lastBot) {
+      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); }, 3);
     }
-    if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); });
     var now = Date.now(), dueReps = {}, dueLines = 0;
     Object.keys(S.openings.lines).forEach(function (k) {
       var r = S.openings.lines[k];
@@ -4630,13 +4655,14 @@ App.register('home', {
     });
     if (dueLines) {
       var reps = Object.keys(dueReps);
-      item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); });
+      item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); }, Math.min(10, dueLines));
     }
-    var mistakes = Mistakes.due().length;
-    if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); });
-    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
-    if (last && !last.reviewed && lastBot) {
-      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); });
+    if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); }, 2);
+    var nl = Learn.nextLesson();
+    if (nl) {
+      var num = 0, units = Data.lessons(), found = false;
+      for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
+      item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); }, Math.max(3, Math.round(nl.lesson.steps.length * 0.6)));
     }
     if (!todo.childNodes.length) todo.remove();
 
@@ -4804,6 +4830,7 @@ var Explain = (function () {
       if (reply.mate === 1) {
         r.title = 'This allows checkmate';
         r.text = cap1(pieceWords(after, rm)) + (after.moveCaptured(rm) ? ' takes on ' : ' goes to ') + C.sqName((rm >> 7) & 127) + ', and that’s checkmate: ' + replySan + '.';
+        r.ask = { prompt: 'After this move ' + them.subj + ' can checkmate you in one. Tap the square the checkmate lands on.', squares: [C.sqName((rm >> 7) & 127)] };
       } else {
         r.title = 'This allows a forced checkmate';
         r.text = them.Subj + ' can force checkmate in ' + plural(reply.mate, 'move') + ', starting with ' + replySan + '.';
@@ -4833,6 +4860,7 @@ var Explain = (function () {
         r.text = them.Subj + ' can answer ' + replySan + ', and the ' + PIECE_NAME[by] + ' attacks ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at the same time.';
         r.short = replySan + ' would have attacked ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at once.';
         r.topic = 'fork';
+        r.ask = { prompt: 'After this move ' + them.subj + ' can attack two of ' + me.poss + ' pieces at once. Tap one of the two.', squares: hits.slice(0, 2).map(function (t) { return C.sqName(t.sq); }) };
         return r;
       }
     }
@@ -4842,6 +4870,7 @@ var Explain = (function () {
       if (loss >= 2) lost.forEach(function (y) { if (PIECE_VAL[Math.abs(y.cap)] > PIECE_VAL[Math.abs(x.cap)]) x = y; });
       var nm = PIECE_NAME[Math.abs(x.cap)], sq = C.sqName(x.capSq), taker = 'the ' + PIECE_NAME[x.by] + ' on ' + C.sqName(x.from);
       r.topic = 'safety'; r.piece = Math.abs(x.cap);
+      if (x.i === 0) r.ask = { prompt: 'After this move one of ' + me.poss + ' pieces can be taken for free. Tap it.', squares: [sq] };
       r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This drops a pawn';
       r.short = x.san + ' would have won ' + me.poss + ' ' + nm + '.';
       if (x.i > 0) r.text = 'After ' + sanLine(after, pv, x.i).join(' ') + ', ' + taker + ' can take ' + me.poss + ' ' + nm + ' on ' + sq + ': ' + x.san + '.';
@@ -4976,10 +5005,10 @@ var Explain = (function () {
     mates: { lesson: 'mating-patterns', theme: 'mateIn2', practice: 'Mate-in-2 puzzles' }
   };
   /* a row of two quiet buttons: the lesson that teaches this, and puzzles to practice it */
-  function studyRow(topic) {
+  function studyRow(topic, lead) {
     var t = TOPICS[topic]; if (!t) return null;
     var found = Data.lesson(t.lesson), h = U.h;
-    return h('div', { class: 'study' }, h('span', { class: 'muted small' }, 'Work on this'),
+    return h('div', { class: 'study' }, lead === '' ? null : h('span', { class: 'muted small' }, lead || 'Work on this'),
       found ? h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Learn.open(t.lesson); } }, U.icon('book'), found.lesson.title) : null,
       h('button', { class: 'btn small quiet', type: 'button', onclick: function () { Puzzles.themed(t.theme); } }, U.icon('puzzle'), t.practice));
   }
@@ -5010,7 +5039,7 @@ var Coach = (function () {
       var drop = wb - wa;
       if (mateAgainst || (drop >= 18 && wa < 62)) {
         var why = Explain.bad(before, m, post, res[0].best);
-        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short,
+        return { warn: true, title: why.title, text: why.text + ' Take the move back?', short: why.short, ask: why.ask || null,
           reply: (post.pv && post.pv[0]) || null, line: (post.pv || []).slice(0, 6) };
       }
       return { warn: false };
@@ -5301,7 +5330,8 @@ var Review = (function () {
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
     var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
     var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Game summary', hidden: true });
-    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, graphBox, movesBox, detailsBox);
+    var patternBox = h('div', { class: 'rv-pattern' });
+    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, patternBox, graphBox, movesBox, detailsBox);
     root.appendChild(h('div', { class: 'arena rv-arena' },
       h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls), panel));
 
@@ -5799,6 +5829,8 @@ var Review = (function () {
       st.why = {};
       function show() {
         buildMoves(); renderGraph(); renderSummary(); renderDetails(); renderOpening();
+        U.clear(patternBox);
+        if (src.gameId) { var pc = UI.patternCard({ label: 'Across your games', cls: 'rv-pattern-card' }); if (pc) patternBox.appendChild(pc); }
         goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
       }
       if (fresh) U.glide(panel, show);
@@ -5915,13 +5947,13 @@ var Mistakes = (function () {
     for (var i = 0; i < moves.length; i++) {
       var k = cls[i];
       if (isMine(i) && (k === 'blunder' || k === 'mistake' || k === 'miss') && evals[i] && evals[i].best && evals[i].best !== moves[i]) {
-        var id = 'g' + gameId + '-' + i, ex = items.filter(function (x) { return x.id === id; })[0];
+        var id = 'g' + gameId + '-' + i, ex = items.filter(function (x) { return x.id === id; })[0], topic = topicOf(p, moves[i], k, evals[i], evals[i + 1]);
         keep[id] = true;
-        if (!ex) { items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, ts: Date.now(), box: 0, due: Date.now(), seen: 0 }); changed = true; }
-        else if (ex.gone || ex.best !== evals[i].best || ex.kind !== k) {
+        if (!ex) { items.unshift({ id: id, fen: p.fen(), played: moves[i], best: evals[i].best, kind: k, topic: topic, ts: Date.now(), box: 0, due: Date.now(), seen: 0 }); changed = true; }
+        else if (ex.gone || ex.best !== evals[i].best || ex.kind !== k || ex.topic !== topic) {
           // a newer review of the same game: keep the item, with the newer answer
           if (ex.gone) { delete ex.gone; ex.seen = (ex.seen || 0) + 1; }
-          ex.best = evals[i].best; ex.kind = k; changed = true;
+          ex.best = evals[i].best; ex.kind = k; ex.topic = topic; changed = true;
         }
       }
       p.make(p.parseMove(moves[i]));
@@ -5934,6 +5966,39 @@ var Mistakes = (function () {
     if (items.length > 200) items.length = 200;
     if (changed) Store.touch('mistakes');
   }
+  /* what kind of mistake this was, so they can be added up: safety, fork, threats, mates, free, or position */
+  function topicOf(before, uci, kind, e0, e1) {
+    try {
+      var m = before.parseMove(uci); if (!m) return 'position';
+      if (kind === 'miss') { var mi = e0 && e0.best ? Explain.missedInfo(before, e0.best, e0.line) : null; return (mi && mi.topic) || 'position'; }
+      if (!e1 || !e1.line || !e1.line.pv || !e1.line.pv.length) return 'position';
+      return Explain.bad(before, m, e1.line, e0 && e0.best).topic || 'position';
+    } catch (e) { return 'position'; }
+  }
+  /* What keeps going wrong: the mistake topic that shows up in the most of your recent reviewed games.
+     Returns { topic, games, of, n } or null when nothing repeats yet. */
+  var SAYS = {
+    safety: 'left a piece where it could be taken', fork: 'walked into a fork', threats: 'missed a checkmate threat against you',
+    mates: 'missed a checkmate', free: 'missed a free piece'
+  };
+  function patterns() {
+    var items = Store.state.mistakes.items.filter(function (x) { return !x.gone && x.topic && SAYS[x.topic]; });
+    var byGame = {}, order = [];
+    items.forEach(function (it) {
+      var g = it.id.replace(/-\d+$/, '');
+      if (!byGame[g]) { byGame[g] = { ts: it.ts, topics: {} }; order.push(g); }
+      byGame[g].topics[it.topic] = (byGame[g].topics[it.topic] || 0) + 1;
+    });
+    order.sort(function (a, b) { return byGame[b].ts - byGame[a].ts; });
+    var recent = order.slice(0, 8), counts = {};
+    recent.forEach(function (g) { Object.keys(byGame[g].topics).forEach(function (t) { counts[t] = counts[t] || { games: 0, n: 0 }; counts[t].games++; counts[t].n += byGame[g].topics[t]; }); });
+    var best = null;
+    Object.keys(counts).forEach(function (t) { if (!best || counts[t].games > counts[best].games || (counts[t].games === counts[best].games && counts[t].n > counts[best].n)) best = t; });
+    if (!best || counts[best].games < 2) return null;
+    return { topic: best, games: counts[best].games, of: recent.length, n: counts[best].n, says: SAYS[best] };
+  }
+  /* "You left a piece where it could be taken in 4 of your last 6 games." */
+  function patternText(pt) { return 'You ' + pt.says + ' in ' + pt.games + ' of your last ' + pt.of + ' games.'; }
   function solved(id) {
     var it = Store.state.mistakes.items.filter(function (x) { return x.id === id && !x.gone; })[0];
     if (!it) return;
@@ -5947,7 +6012,7 @@ var Mistakes = (function () {
     Store.touch('mistakes');
   }
   function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return !x.gone && x.due <= now; }); }
-  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due };
+  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, patternText: patternText, topicOf: topicOf };
 })();
 
 ;
@@ -5955,7 +6020,7 @@ var Mistakes = (function () {
 var Play = (function () {
   'use strict';
   var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS;
-  var G = null, view = null;
+  var G = null, view = null, showLocked = false; // the folded list of locked opponents stays the way you left it
 
   function botIndex(id) { for (var i = 0; i < BOTS.length; i++) if (BOTS[i].id === id) return i; return -1; }
   function unlockedIdx() { var S = Store.state; return S.settings.unlockAll ? BOTS.length - 1 : Math.min(S.play.unlocked || 0, BOTS.length - 1); }
@@ -5971,8 +6036,18 @@ var Play = (function () {
       h('div', { class: 'row tight' },
         h('button', { class: 'btn quiet small', type: 'button', onclick: function () { abandon().then(function (ok) { if (ok) App.refresh(); }); } }, 'Abandon'),
         h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
-    var list = UI.ladder({ lo: 0, hi: BOTS.length - 1, full: true, playing: cb && cb.id });
+    // your next opponent at the top, the ones you've beaten below; the rest wait in a folded list, nearest first
+    var nextIdx = unlockedIdx();
+    var list = UI.ladder({ lo: 0, hi: nextIdx, full: true, playing: cb && cb.id });
     root.appendChild(list);
+    if (nextIdx < BOTS.length - 1) {
+      var n = BOTS.length - 1 - nextIdx, open = showLocked;
+      var body = h('div', { class: 'unit-body' + (open ? ' open' : ''), id: 'locked-bots' }, h('div', { class: 'unit-inner' }, UI.ladder({ lo: nextIdx + 1, hi: BOTS.length - 1, full: true, asc: true })));
+      var head = h('button', { class: 'unit-head locked-head', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'locked-bots',
+        onclick: function () { var on = !body.classList.contains('open'); body.classList.toggle('open', on); head.setAttribute('aria-expanded', on ? 'true' : 'false'); showLocked = on; } },
+        U.icon('lock'), h('span', { class: 'txt' }, h('span', { class: 't' }, U.plural(n, 'more opponent') + ' to unlock'), h('span', { class: 's' }, 'Beat ' + BOTS[nextIdx].name + ' to unlock ' + BOTS[nextIdx + 1].name + '.')), U.icon('next', 'chev'));
+      root.appendChild(h('div', { class: 'card unit-card locked-card' }, head, body));
+    }
     // playing someone across a real board: the screen becomes the clock
     root.appendChild(h('nav', { class: 'menu-list', 'aria-label': 'Over the board', style: { maxWidth: '720px', marginTop: '20px' } },
       UI.menuRow('clock', 'Chess clock', 'For a game on a real board', function () { App.go('clock'); })));
@@ -5989,11 +6064,6 @@ var Play = (function () {
     }
     root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px', maxWidth: '62ch' } },
       'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn\u2019t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
-    // on a phone the next opponent can sit below the fold; bring it into view
-    if (list._next) requestAnimationFrame(function () {
-      var r = list._next.getBoundingClientRect();
-      if (r.bottom > window.innerHeight - 90) list._next.scrollIntoView({ block: 'center' });
-    });
   }
   /* asks before throwing away an unfinished game; resolves true when there is nothing left to lose */
   function abandon() {
@@ -6009,7 +6079,7 @@ var Play = (function () {
   /* ---------- setup ---------- */
   function setup(bot) {
     var S = Store.state.settings;
-    var choice = { color: S.color || 'w', coach: S.coach !== false, takebacks: S.takebacks !== false, hanging: S.hanging !== false, clock: S.clock || 'none' };
+    var choice = { color: S.color || 'w', coach: S.coach !== false, ask: S.coachAsk === true, takebacks: S.takebacks !== false, hanging: S.hanging !== false, clock: S.clock || 'none' };
     App.sheet(function (box, api) {
       box.appendChild(h('div', { class: 'row', style: { marginBottom: '12px' } }, UI.avatar(bot, 'lg'),
         h('div', null, h('h2', null, bot.name), h('div', { class: 'muted' }, bot.id === 'stockfish' ? 'Full strength' : 'About ' + bot.rating))));
@@ -6024,6 +6094,7 @@ var Play = (function () {
       box.lastChild.children[2].title = '15 minutes, plus 10 seconds for each move';
       var tg = h('div', { style: { marginTop: '10px' } });
       tg.appendChild(toggle('Coach', 'Warns you before a move that loses material.', choice.coach, function (v) { choice.coach = v; }));
+      tg.appendChild(toggle('Ask me first', 'The coach asks you to find the problem before it explains.', choice.ask, function (v) { choice.ask = v; }));
       tg.appendChild(toggle('Show threats', 'Rings pieces you could lose, and warns you when checkmate is threatened.', choice.hanging, function (v) { choice.hanging = v; }));
       tg.appendChild(toggle('Takebacks', 'Lets you undo a move.', choice.takebacks, function (v) { choice.takebacks = v; }));
       box.appendChild(tg);
@@ -6031,7 +6102,7 @@ var Play = (function () {
       box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
         h('button', { class: 'btn primary block', type: 'button', onclick: function () {
           var s = Store.state.settings;
-          s.color = choice.color; s.coach = choice.coach; s.takebacks = choice.takebacks; s.hanging = choice.hanging; s.clock = choice.clock;
+          s.color = choice.color; s.coach = choice.coach; s.coachAsk = choice.ask; s.takebacks = choice.takebacks; s.hanging = choice.hanging; s.clock = choice.clock;
           Store.touch('settings');
           abandon().then(function (ok) { if (!ok) return; api.close(); start(bot, choice); });
         } }, 'Start game')));
@@ -6063,7 +6134,7 @@ var Play = (function () {
   function start(bot, choice) {
     var color = choice.color === 'r' ? (Math.random() < 0.5 ? 'w' : 'b') : choice.color;
     var spec = clockSpec(choice.clock);
-    G = { id: U.uid(), bot: bot.id, color: color, startFen: C.START_FEN, moves: [], sans: [], coach: choice.coach, hanging: choice.hanging,
+    G = { id: U.uid(), bot: bot.id, color: color, startFen: C.START_FEN, moves: [], sans: [], coach: choice.coach, ask: !!choice.ask, hanging: choice.hanging,
       takebacks: choice.takebacks, clock: spec, times: spec ? { w: spec.base, b: spec.base } : null, hints: 0, undos: 0, warned: 0,
       result: null, reason: null, startedAt: Date.now() };
     Store.state.current = G; Store.touch();
@@ -6357,20 +6428,46 @@ var Play = (function () {
        Nothing else can happen until you choose. */
     function warnInline(res, temp, cb) {
       st.deciding = true; renderControls();
-      if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
       var take = h('button', { class: 'btn primary', type: 'button', onclick: function () { choose(true); } }, 'Take it back');
-      U.glide(panel, function () {
-        U.clear(coach);
-        coach.className = 'coach alert decide';
-        coach.appendChild(U.icon('shield'));
-        coach.appendChild(h('div', { class: 'grow' },
-          h('b', null, res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
-          h('div', { class: 'row', style: { marginTop: '10px' } }, take,
-            h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
-        coach.hidden = false;
-      });
-      setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
-      function choose(v) { if (!st.deciding) return; st.deciding = false; say(null); cb(v); }
+      // with Ask me first on, the coach asks you to find the problem on the board before it explains
+      if (G.ask && res.ask && res.ask.squares && res.ask.squares.length) ask(); else explain('');
+      function ask() {
+        var tries = 0, text = h('span', null, res.ask.prompt);
+        board.opts.onSquare = function (name) {
+          if (!st.deciding) return;
+          if (res.ask.squares.indexOf(name) >= 0) { U.sound.good(); explain('You found it. '); return; }
+          tries++;
+          board.setMarks([{ sq: name, kind: 'red' }]);
+          if (tries >= 2) { explain('Not that one. '); return; }
+          text.textContent = 'Not that one. ' + res.ask.prompt;
+        };
+        U.glide(panel, function () {
+          U.clear(coach);
+          coach.className = 'coach alert decide asking';
+          coach.appendChild(U.icon('shield'));
+          coach.appendChild(h('div', { class: 'grow' }, h('b', null, 'Hold on. '), text,
+            h('div', { class: 'row', style: { marginTop: '10px' } }, h('button', { class: 'btn', type: 'button', onclick: function () { explain(''); } }, 'Show me'))));
+          coach.hidden = false;
+        });
+      }
+      function explain(lead) {
+        if (!st.deciding) return;
+        board.opts.onSquare = null;
+        board.setMarks(res.ask && res.ask.squares ? res.ask.squares.map(function (q) { return { sq: q, kind: 'danger' }; }) : []);
+        if (res.reply) board.setArrows([{ from: res.reply.slice(0, 2), to: res.reply.slice(2, 4), color: 'red' }]);
+        U.glide(panel, function () {
+          U.clear(coach);
+          coach.className = 'coach alert decide';
+          coach.appendChild(U.icon('shield'));
+          coach.appendChild(h('div', { class: 'grow' },
+            h('b', null, lead + res.title + '. '), document.createTextNode(res.text.replace(/ Take the move back\?$/, '')),
+            h('div', { class: 'row', style: { marginTop: '10px' } }, take,
+              h('button', { class: 'btn', type: 'button', onclick: function () { choose(false); } }, 'Play it anyway'))));
+          coach.hidden = false;
+        });
+        setTimeout(function () { try { take.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }, 0);
+      }
+      function choose(v) { if (!st.deciding) return; st.deciding = false; board.opts.onSquare = null; board.setMarks([]); say(null); cb(v); }
     }
 
     /* ---------- the bot's move ---------- */
@@ -6505,7 +6602,7 @@ var Play = (function () {
     function finish(result, reason) {
       if (G.result) return;
       st.token++; st.thinking = false; st.ended = true;
-      if (st.deciding || st.checking) { st.deciding = false; st.checking = false; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
+      if (st.deciding || st.checking) { st.deciding = false; st.checking = false; board.opts.onSquare = null; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
       G.result = result; G.reason = reason;
       clearInterval(st.clockT);
       var record = Play.record(G, bot);
@@ -6532,6 +6629,8 @@ var Play = (function () {
           box.appendChild(h('p', { style: { textAlign: 'center' } }, 'Rating ', h('b', null, String(rec.after)), ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)));
         } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: ' + (G.undos ? 'you took back a move.' : G.hints ? 'you used a hint.' : 'games shorter than three moves each don\u2019t count.')));
         if (rec.unlocked) box.appendChild(h('div', { class: 'feedback ok', style: { textAlign: 'center', marginBottom: '8px' } }, rec.unlocked.name + ' is now unlocked.'));
+        var pt = Mistakes.patterns();
+        if (pt) box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Your pattern so far: ' + Mistakes.patternText(pt).replace(/^You /, 'you ').replace(/\.$/, '') + '. The review shows whether this game fits it.'));
         var row = h('div', { class: 'stack', style: { marginTop: '14px' } },
           h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); Review.openGame(G.id); } }, U.icon('review'), 'Review this game'));
         var row2 = h('div', { class: 'row' }, h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(bot); } }, 'Rematch'));

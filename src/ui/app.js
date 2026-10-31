@@ -377,8 +377,11 @@ var UI = (function () {
       placed = true;
       list.appendChild(h('li', { class: 'you-mark', 'aria-label': 'Your rating, ' + S.play.rating }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
     }
-    for (var i = o.hi; i >= o.lo; i--) (function (bot, i) {
-      if (!placed && S.play.rating >= bot.rating) you();
+    // strongest at the top, unless asked for the other way round (the locked list on Play: nearest to unlocking first)
+    var idx = []; for (var q = o.hi; q >= o.lo; q--) idx.push(q);
+    if (o.asc) idx.reverse();
+    idx.forEach(function (i) { (function (bot, i) {
+      if (!placed && !o.asc && S.play.rating >= bot.rating) you();
       var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !o.playing;
       var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
       var li = h('li', null, h('button', {
@@ -390,8 +393,8 @@ var UI = (function () {
         h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
       if (isNext) list._next = li;
       list.appendChild(li);
-    })(BOTS[i], i);
-    if (!placed) you();
+    })(BOTS[i], i); });
+    if (!placed && !o.asc) you();
     return list;
   }
 
@@ -407,12 +410,20 @@ var UI = (function () {
   }
 
   /* one row of a grouped list: icon, a title, an optional line under it, and a chevron */
+  /* what keeps going wrong in your games, with the lesson, puzzles and positions that fix it; null when nothing repeats yet */
+  function patternCard(opts) {
+    var pt = Mistakes.patterns(); if (!pt) return null;
+    var row = Explain.studyRow(pt.topic, '');
+    if (row && !(opts && opts.noRetry)) row.appendChild(h('button', { class: 'btn small quiet', type: 'button', onclick: function () { App.go('train', { mode: 'mistakes' }); } }, U.icon('target'), 'Retry those positions'));
+    return h('section', { class: 'card pattern' + (opts && opts.cls ? ' ' + opts.cls : ''), 'aria-label': 'Your pattern' },
+      h('div', { class: 'label' }, opts && opts.label || 'Your pattern'), h('p', { class: 'pattern-text' }, Mistakes.patternText(pt)), row);
+  }
   function menuRow(icon, title, sub, onclick, extra) {
     return h('button', { class: 'menu-row' + (extra ? ' ' + extra : ''), type: 'button', onclick: onclick },
       typeof icon === 'string' ? U.icon(icon) : icon, h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
   }
 
-  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow };
+  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow, patternCard: patternCard };
 })();
 
 /* ---------- Home ----------
@@ -517,15 +528,16 @@ App.register('home', {
       } catch (e) { return false; }
     }
 
-    /* due now: one sentence per item, only what is actually waiting */
-    function item(icon, text, open) { todo.appendChild(UI.menuRow(icon, text, null, open)); }
-    var nl = Learn.nextLesson();
-    if (nl) {
-      var num = 0, units = Data.lessons(), found = false;
-      for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
-      item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); });
+    /* due now: one sentence per item with a rough time, only what is actually waiting; what fixes your games comes first */
+    function item(icon, text, open, mins) { todo.appendChild(UI.menuRow(icon, text, mins ? 'About ' + U.plural(mins, 'minute') : null, open)); }
+    var pattern = UI.patternCard({ cls: 'home-pattern' });
+    if (pattern) todo.parentNode.insertBefore(pattern, todo);
+    var mistakes = Mistakes.due().length;
+    if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); }, Math.min(10, Math.ceil(mistakes * 0.75)));
+    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
+    if (last && !last.reviewed && lastBot) {
+      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); }, 3);
     }
-    if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); });
     var now = Date.now(), dueReps = {}, dueLines = 0;
     Object.keys(S.openings.lines).forEach(function (k) {
       var r = S.openings.lines[k];
@@ -534,13 +546,14 @@ App.register('home', {
     });
     if (dueLines) {
       var reps = Object.keys(dueReps);
-      item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); });
+      item('openings', U.plural(dueLines, 'opening line') + ' to drill', function () { App.go('openings', reps.length === 1 ? { rep: reps[0] } : {}); }, Math.min(10, dueLines));
     }
-    var mistakes = Mistakes.due().length;
-    if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); });
-    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
-    if (last && !last.reviewed && lastBot) {
-      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); });
+    if (curBot && !solved) item('puzzle', 'Today\u2019s puzzle', function () { Puzzles.daily({ from: 'home' }); }, 2);
+    var nl = Learn.nextLesson();
+    if (nl) {
+      var num = 0, units = Data.lessons(), found = false;
+      for (var ui = 0; ui < units.length && !found; ui++) for (var li = 0; li < units[ui].lessons.length; li++) { num++; if (units[ui].lessons[li].id === nl.lesson.id) { found = true; break; } }
+      item('book', 'Lesson ' + num + ': ' + nl.lesson.title, function () { Learn.open(nl.lesson.id); }, Math.max(3, Math.round(nl.lesson.steps.length * 0.6)));
     }
     if (!todo.childNodes.length) todo.remove();
 
