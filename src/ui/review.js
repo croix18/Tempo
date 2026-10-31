@@ -884,6 +884,18 @@ var Review = (function () {
         answer(i, uci, 'safe', san + ' is safe, but ' + (bestSays(i, function (s) { return s + ' was best'; }) || 'the engine’s choice was better.'));
         return;
       }
+      // nothing punishes the try, but it misses something much better: say so calmly, point at the idea, and let them look again
+      if (w.topic === 'position') {
+        st.retry.tries++;
+        var r0 = (e0.best ? Explain.reasons(before, e0.best, e0.line) : [])[0] || '';
+        var nudge = /checkmate/.test(r0) ? 'Look for a checkmate.' : /attacks two/.test(r0) ? 'Look for a move that attacks two things at once.'
+          : /wins|takes/.test(r0) ? 'Look for a way to win material.' : 'Look for a stronger move.';
+        cardBody(function (body) {
+          body.appendChild(h('div', { class: 'feedback info' }, san + ' is safe, but there’s a much stronger move here. ' + nudge));
+          body.appendChild(h('div', { class: 'rv-actions' }, btn('Try again', function () { startRetry(i); }, 'primary'), showBestBtn(i)));
+        });
+        return;
+      }
       U.sound.bad();
       st.retry.tries++;
       // leave the try on the board with the reply that punishes it

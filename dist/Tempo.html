@@ -263,7 +263,7 @@ button.list-row:hover { background: var(--surface-2); }
 }
 .b-sq { position: absolute; inset: 0; background: var(--board-light); }
 .b-sq .dk { position: absolute; width: 12.5%; height: 12.5%; background: var(--board-dark); }
-.b-coords span { position: absolute; font-size: clamp(10px, 2.3vmin, 13px); font-weight: 700; pointer-events: none; line-height: 1; }
+.b-coords span { position: absolute; font-size: clamp(11px, 2.6vmin, 13px); font-weight: 700; pointer-events: none; line-height: 1; }
 .b-coords .cf { bottom: 0.35%; width: 12.5%; text-align: right; padding-right: 0.6%; }
 .b-coords .cr { left: 0.6%; height: 12.5%; padding-top: 0.5%; }
 .b-coords .on-light { color: var(--coord-on-light); }
@@ -3950,14 +3950,14 @@ var App = (function () {
     var reps = Data.reps(), hasOpenings = reps.repertoires.length > 0 || reps.traps.length > 0;
     NAV.forEach(function (n) {
       if (n.id === 'openings' && !hasOpenings) return;
-      sideNav.appendChild(h('button', { class: 'nav-item', type: 'button', dataset: { go: n.id }, onclick: function () { go(n.id); } }, U.icon(n.icon), n.label));
+      sideNav.appendChild(h('button', { class: 'nav-item', type: 'button', dataset: { go: n.id }, onclick: function () { navigate(n.id); } }, U.icon(n.icon), n.label));
     });
     sideNav.appendChild(h('div', { class: 'side-foot', id: 'engine-note' }));
     mainEl = h('main', { id: 'main' });
     tabNav = h('nav', { class: 'tabs', 'aria-label': 'Main' });
     TABS.forEach(function (id) {
       var n = NAV.filter(function (x) { return x.id === id; })[0] || { id: 'more', label: 'More', icon: 'more' };
-      tabNav.appendChild(h('button', { class: 'tab', type: 'button', dataset: { go: n.id }, onclick: function () { go(n.id); } }, U.icon(n.icon), n.label));
+      tabNav.appendChild(h('button', { class: 'tab', type: 'button', dataset: { go: n.id }, onclick: function () { navigate(n.id); } }, U.icon(n.icon), n.label));
     });
     app.appendChild(sideNav); app.appendChild(mainEl); app.appendChild(tabNav);
     layer = document.getElementById('layer');
@@ -3970,8 +3970,19 @@ var App = (function () {
   }
 
   /* opts: noHash (don't touch history), replace (replace the current entry), keepScroll */
+  /* A screen with something to lose (a Rush in progress) can ask before you leave it: its view's guard()
+     returns { title, text, ok } or null. The sidebar, the tab bar and the browser's Back all respect it. */
+  function guarded(then) {
+    var ask = null;
+    try { ask = current && current.guard ? current.guard() : null; } catch (e) { ask = null; }
+    if (!ask) { then(); return; }
+    confirm(ask.title, ask.text, ask.ok, !!ask.danger).then(function (yes) { if (yes) then(); });
+  }
+  function navigate(name) { guarded(function () { go(name); }); }
+  var currentEntry = null, skipGuard = false;
   function go(name, params, opts) {
     if (!isView(name)) name = 'home';
+    currentEntry = { v: name, p: params || {} };
     if (current && current.leave) { try { current.leave(); } catch (e) { console.error(e); } }
     closeSheet();
     currentName = name; current = views[name];
@@ -4103,9 +4114,18 @@ var App = (function () {
       if (what === 'remote' || what === 'import' || what === 'reset') { applySettings(); refresh(); }
     });
     window.addEventListener('popstate', function (e) {
-      var st = e.state;
-      if (st && isView(st.v)) go(st.v, st.p || {}, { noHash: true });
-      else { var n = location.hash.slice(1); go(isView(n) ? n : 'home', {}, { noHash: true }); }
+      var st = e.state, n = location.hash.slice(1);
+      var target = st && isView(st.v) ? { v: st.v, p: st.p || {} } : { v: isView(n) ? n : 'home', p: {} };
+      var ask = null;
+      if (!skipGuard) { try { ask = current && current.guard ? current.guard() : null; } catch (err) { ask = null; } }
+      skipGuard = false;
+      if (ask && currentEntry) {
+        // stay on this screen until they answer: put it back on top of the history, and go back again only if they agree
+        try { history.pushState(currentEntry, '', '#' + currentEntry.v); } catch (err) { /* history unavailable */ }
+        confirm(ask.title, ask.text, ask.ok, !!ask.danger).then(function (yes) { if (yes) { skipGuard = true; history.back(); } });
+        return;
+      }
+      go(target.v, target.p, { noHash: true });
     });
     window.addEventListener('pagehide', function () { Store.saveNow(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) Store.saveNow(); });
@@ -5306,6 +5326,18 @@ var Review = (function () {
         answer(i, uci, 'safe', san + ' is safe, but ' + (bestSays(i, function (s) { return s + ' was best'; }) || 'the engine’s choice was better.'));
         return;
       }
+      // nothing punishes the try, but it misses something much better: say so calmly, point at the idea, and let them look again
+      if (w.topic === 'position') {
+        st.retry.tries++;
+        var r0 = (e0.best ? Explain.reasons(before, e0.best, e0.line) : [])[0] || '';
+        var nudge = /checkmate/.test(r0) ? 'Look for a checkmate.' : /attacks two/.test(r0) ? 'Look for a move that attacks two things at once.'
+          : /wins|takes/.test(r0) ? 'Look for a way to win material.' : 'Look for a stronger move.';
+        cardBody(function (body) {
+          body.appendChild(h('div', { class: 'feedback info' }, san + ' is safe, but there’s a much stronger move here. ' + nudge));
+          body.appendChild(h('div', { class: 'rv-actions' }, btn('Try again', function () { startRetry(i); }, 'primary'), showBestBtn(i)));
+        });
+        return;
+      }
       U.sound.bad();
       st.retry.tries++;
       // leave the try on the board with the reply that punishes it
@@ -5925,6 +5957,7 @@ var Play = (function () {
     }
 
     function sync(last, animate) {
+      st.last = last || null; // the move highlighted on the board, kept for when a checked move is taken back
       board.setMovable(myTurn() ? G.color : null);
       board.setPosition(st.pos, { last: last, animate: animate });
       board.setArrows([]);
@@ -5982,7 +6015,7 @@ var Play = (function () {
               if (view !== st || !G || G.result) return;
               if (takeBack) {
                 assisted('a takeback'); G.undos++; Store.touch();
-                board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true }); markHanging();
+                board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true, last: st.last, clearLast: !st.last }); markHanging();
                 say('Taken back. ' + res.short + ' Try another move.', 'alert');
                 renderControls();
               } else { board.setArrows([]); commit(uci, G.color); if (!G.result) botTurn(); }
@@ -6162,7 +6195,8 @@ var Play = (function () {
     function endSheet(rec) {
       var won = rec.score === 1, drew = rec.score === 0.5;
       var why = { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
-        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition' }[rec.reason] || rec.reason;
+        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
+        'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason;
       App.sheet(function (box, api) {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),
@@ -6595,12 +6629,18 @@ var Puzzles = (function () {
     }
     function sideName(side) { return side === 1 ? 'White' : 'Black'; }
 
-    function goBack() {
+    /* the question to ask before leaving a run part way, or null when there's nothing to lose */
+    function leaveQuestion() {
       var running = (s.mode === 'streak' || s.mode === 'rush') && s.started && !s.done && score() > 0;
-      if (!running) { App.go(origin); return; }
+      if (!running) return null;
       var n = score();
-      App.confirm('End this run?', 'You’ve solved ' + U.plural(n, 'puzzle') + ' so far.' + (n > s.best0 ? ' That’s a new best, and it’s saved.' : ''), 'End run')
-        .then(function (yes) { if (yes && P === st) App.go(origin); });
+      return { title: 'End this run?', text: 'You’ve solved ' + U.plural(n, 'puzzle') + ' so far.' + (n > s.best0 ? ' That’s a new best, and it’s saved.' : ''), ok: 'End run' };
+    }
+    st.guard = leaveQuestion; // the tab bar and the browser's Back ask the same question
+    function goBack() {
+      var q = leaveQuestion();
+      if (!q) { App.go(origin); return; }
+      App.confirm(q.title, q.text, q.ok).then(function (yes) { if (yes && P === st) App.go(origin); });
     }
     /* a run's best is saved as it grows, so leaving a run part way never loses it */
     function saveBest() {
@@ -6910,7 +6950,8 @@ var Puzzles = (function () {
         else if (phase === 'wrong') {
           if (k === 'rush') status.appendChild(fb('no', 'Not the move. ' + (s.strikes >= 2 ? 'One miss left.' : 'Two misses left.')));
           else if (k === 'streak') status.appendChild(fb('no', 'Not the move.', st.why));
-          else status.appendChild(fb('no', 'Not the move. Try again.', st.why));
+          // with no specific reason to give, point at the beginner's checklist
+          else status.appendChild(fb('no', 'Not the move. Try again.', st.why || 'Look at checks, captures and threats first.'));
         } else if (phase === 'showing') status.appendChild(fb('info', 'Here’s the answer.'));
         else if (st.hintText) status.appendChild(fb('info', st.hintText, st.hintNote ? 'A hint lowers what this puzzle is worth.' : null, 'pz-note'));
         if (tools() && phase !== 'showing') {
@@ -6983,7 +7024,7 @@ var Puzzles = (function () {
       card.appendChild(h('div', null, h('div', { class: 'label' }, 'Answer'), h('div', { class: 'pz-line' }, answerLine(p))));
       card.appendChild(h('div', { class: 'row' },
         h('button', { class: 'btn small', type: 'button', onclick: replayAnswer }, U.icon('refresh'), 'Replay the answer'),
-        h('button', { class: 'btn small', type: 'button', onclick: function () { Train.analysis(p.fen, p.moves.slice(), 1); } }, U.icon('analyze'), 'Analyze')));
+        h('button', { class: 'btn small', type: 'button', onclick: function () { Train.analysis(p.fen, p.moves.slice(), 1); } }, U.icon('analyze'), 'Analysis board')));
       var themes = ideaThemes(p), others = themes.filter(function (t) { return !(s.mode === 'theme' && t === s.theme); });
       if (others.length) {
         var chips = h('div', { class: 'pills' });
@@ -7022,6 +7063,7 @@ var Puzzles = (function () {
       } else renderMenu(root);
     },
     leave: function () { stopSession(); },
+    guard: function () { return P && P.guard ? P.guard() : null; },
     busy: function () { return !!P; }
   });
 
@@ -7120,18 +7162,21 @@ var Learn = (function () {
   var openUnits = {};
 
   /* ---------- lesson player ---------- */
-  function renderLesson(root, id) {
+  /* from: a step to start at. Starting part-way through is practice: it never changes the lesson's stars. */
+  function renderLesson(root, id, from) {
     var found = Data.lesson(id);
     if (!found) { renderUnits(root); return; }
     App.focus(true);
     var lesson = found.lesson, unit = found.unit;
-    var st = { i: 0, mistakes: 0, hints: 0, token: 0, board: null, id: id };
+    var start = typeof from === 'number' && from > 0 && from < lesson.steps.length ? from : 0;
+    var st = { i: 0, mistakes: 0, hints: 0, token: 0, board: null, id: id, practice: start > 0 };
     L = st;
     var stepper = h('div', { class: 'stepper', 'aria-hidden': 'true' });
     lesson.steps.forEach(function () { stepper.appendChild(h('i')); });
     root.appendChild(h('div', { class: 'row between', style: { marginBottom: '8px' } },
-      h('button', { class: 'back', type: 'button', onclick: function () { App.go('learn'); } }, U.icon('back'), 'Learn'),
-      h('span', { class: 'muted small' }, unit.title)));
+      st.practice ? h('button', { class: 'back', type: 'button', onclick: function () { App.go('train'); } }, U.icon('back'), 'Trainers')
+        : h('button', { class: 'back', type: 'button', onclick: function () { App.go('learn'); } }, U.icon('back'), 'Learn'),
+      h('span', { class: 'muted small' }, st.practice ? 'Practice' : unit.title)));
     root.appendChild(h('h1', { style: { fontSize: '26px', marginBottom: '10px' } }, lesson.title));
     root.appendChild(stepper);
     var board = new Board({ orient: 'w', coords: Store.state.settings.coords !== false, onMove: onMove, onSquare: null, autoQueen: false });
@@ -7456,6 +7501,7 @@ var Learn = (function () {
     function fail(msg) { st.mistakes++; U.sound.bad(); board.setMovable(null); fb('no', msg); }
 
     function finish() {
+      if (st.practice) return finishPractice();
       var stars = st.mistakes + st.hints === 0 ? 3 : st.mistakes + st.hints <= 2 ? 2 : 1;
       var S = Store.state.learn, prev = S.done[lesson.id];
       var firstTime = !prev;
@@ -7481,7 +7527,21 @@ var Learn = (function () {
       });
     }
 
-    show(0);
+    /* a practice run ends without touching the lesson record */
+    function finishPractice() {
+      U.sound.end();
+      Store.activity('l');
+      App.sheet(function (box, api) {
+        box.appendChild(h('div', { class: 'result-hero' }, h('div', { class: 'big' }, 'Well played'),
+          h('div', { class: 'muted', style: { marginTop: '8px' } }, st.mistakes + st.hints === 0 ? 'No mistakes and no hints.' : [st.mistakes ? U.plural(st.mistakes, 'mistake') : '', st.hints ? U.plural(st.hints, 'hint') : ''].filter(Boolean).join(' and ') + '.')));
+        box.appendChild(h('div', { class: 'stack', style: { marginTop: '12px' } },
+          h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); st.mistakes = 0; st.hints = 0; show(start); } }, 'Play it again'),
+          h('button', { class: 'btn block', type: 'button', onclick: function () { api.close(); open(lesson.id); } }, 'Open the whole lesson'),
+          h('button', { class: 'btn quiet block', type: 'button', onclick: function () { api.close(); App.go('train'); } }, 'Back to trainers')));
+      });
+    }
+
+    show(start);
   }
 
   var PRACTICE = { 'fork': 'fork', 'pin': 'pin', 'skewer': 'skewer', 'discovered-attack': 'discoveredAttack', 'remove-defender': 'capturingDefender',
@@ -7491,14 +7551,20 @@ var Learn = (function () {
 
   App.register('learn', {
     render: function (root, params) {
-      if (params && params.lesson) renderLesson(root, params.lesson);
+      if (params && params.lesson) renderLesson(root, params.lesson, params.step);
       else renderUnits(root);
     },
     leave: function () { if (L) { L.token++; L.engineTok = (L.engineTok || 0) + 1; } L = null; },
     busy: function () { return !!L; }
   });
 
-  return { nextLesson: nextLesson, open: open,
+  /* straight to the first play-it-out step of a lesson */
+  function practice(id) {
+    var found = Data.lesson(id), k = found ? found.lesson.steps.map(function (s) { return s.t; }).indexOf('play') : -1;
+    App.go('learn', k > 0 ? { lesson: id, step: k } : { lesson: id });
+  }
+
+  return { nextLesson: nextLesson, open: open, practice: practice,
     _cur: function () { return L ? { id: L.id, i: L.i, ply: L.ply || 0, complete: !!L.complete, mistakes: L.mistakes, moves: L.history ? L.history.slice() : [] } : null; } };
 })();
 
@@ -7664,7 +7730,7 @@ var Openings = (function () {
       U.clear(actions);
       var key = isTrap ? 'trap/' + line.id : lineKey(rep, line);
       var S = Store.state.openings, rec = S.lines[key] || (S.lines[key] = { learned: false, box: 0, due: 0, drills: 0, right: 0 });
-      if (mode === 'learn') { rec.learned = true; rec.due = rec.due || Date.now(); }
+      if (mode === 'learn') { rec.learned = true; rec.due = rec.due || Date.now() + DAY; } // the first drill is tomorrow, as the end card says
       if (mode === 'trap-practice' || mode === 'trap') rec.learned = true;
       if (mode === 'drill') {
         rec.drills++; if (!st.mistakes) rec.right++;
@@ -7703,22 +7769,35 @@ var Openings = (function () {
 
     // trap walkthrough uses Back / Next buttons
     if (mode === 'trap') {
-      var prevB = h('button', { class: 'btn', type: 'button', onclick: function () { go(st.ply - 1); } }, U.icon('back'), 'Back');
-      var nextB = h('button', { class: 'btn primary', type: 'button', onclick: function () { if (st.ply >= moves.length) finished(); else go(st.ply + 1); } }, 'Next', U.icon('next'));
+      // Next plays on to the next move that has something to say, one move at a time; Back returns to the previous one
+      var walkTok = 0;
+      var nextStop = function (n) { for (var k = n + 1; k < moves.length; k++) if (notes[k - 1] != null) return k; return moves.length; };
+      var prevStop = function (n) { for (var k = n - 1; k > 0; k--) if (notes[k - 1] != null) return k; return 0; };
+      var walk = function (target) {
+        var tok = ++walkTok;
+        (function stepOn() {
+          if (tok !== walkTok) return;
+          go(st.ply + 1, st.ply + 1 < target);
+          if (st.ply < target) setTimeout(stepOn, 480);
+        })();
+      };
+      var prevB = h('button', { class: 'btn', type: 'button', onclick: function () { walkTok++; go(prevStop(st.ply)); } }, U.icon('back'), 'Back');
+      var nextB = h('button', { class: 'btn primary', type: 'button', onclick: function () { if (st.ply >= moves.length) finished(); else walk(nextStop(st.ply)); } }, 'Next', U.icon('next'));
       actions.appendChild(prevB); actions.appendChild(h('span', { class: 'grow' })); actions.appendChild(nextB);
-      var go = function (n) {
+      var go = function (n, passing) {
         n = Math.max(0, Math.min(moves.length, n));
         st.pos = new C.Pos(); var last = null;
         for (var i = 0; i < n; i++) { last = st.pos.parseMove(moves[i]); st.pos.make(last); }
         st.ply = n;
         if (last) sound(last);
         paint(last);
+        prevB.disabled = n === 0;
+        nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
+        if (passing) return; // moves on the way to the next note go by without one
         U.clear(noteBox);
         if (n === 0) noteBox.appendChild(U.rich(line.summary));
         else if (notes[n - 1] != null) note(n - 1);
-        else noteBox.appendChild(h('p', { class: 'muted' }, 'Ordinary opening moves so far. Keep going.'));
-        prevB.disabled = n === 0;
-        nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
+        else noteBox.appendChild(h('p', { class: 'muted' }, n >= moves.length ? 'That\u2019s the whole line.' : 'Ordinary opening moves so far. Keep going.'));
       };
       board.setMovable(null);
       paint(null);
@@ -7845,7 +7924,7 @@ var Train = (function () {
     if (plays.length) {
       root.appendChild(h('h2', { style: { margin: '32px 0 14px' } }, 'Play it out'));
       var pl = h('nav', { class: 'menu-list', 'aria-label': 'Play it out', style: { maxWidth: '640px' } });
-      plays.forEach(function (x) { pl.appendChild(UI.menuRow('crown', x.lesson.title, 'From ' + x.unit.title, function () { Learn.open(x.lesson.id); })); });
+      plays.forEach(function (x) { pl.appendChild(UI.menuRow('crown', x.lesson.title, 'From ' + x.unit.title, function () { Learn.practice(x.lesson.id); })); });
       root.appendChild(pl);
     }
   }

@@ -308,6 +308,7 @@ var Play = (function () {
     }
 
     function sync(last, animate) {
+      st.last = last || null; // the move highlighted on the board, kept for when a checked move is taken back
       board.setMovable(myTurn() ? G.color : null);
       board.setPosition(st.pos, { last: last, animate: animate });
       board.setArrows([]);
@@ -365,7 +366,7 @@ var Play = (function () {
               if (view !== st || !G || G.result) return;
               if (takeBack) {
                 assisted('a takeback'); G.undos++; Store.touch();
-                board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true }); markHanging();
+                board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true, last: st.last, clearLast: !st.last }); markHanging();
                 say('Taken back. ' + res.short + ' Try another move.', 'alert');
                 renderControls();
               } else { board.setArrows([]); commit(uci, G.color); if (!G.result) botTurn(); }
@@ -545,7 +546,8 @@ var Play = (function () {
     function endSheet(rec) {
       var won = rec.score === 1, drew = rec.score === 0.5;
       var why = { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
-        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition' }[rec.reason] || rec.reason;
+        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
+        'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason;
       App.sheet(function (box, api) {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),

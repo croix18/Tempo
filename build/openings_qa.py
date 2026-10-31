@@ -80,11 +80,20 @@ async def do_trap(pg, t, problems):
     label = 'trap/' + t['id']
     await pg.evaluate("(id) => App.go('openings', { trap: id })", t['id']); await pg.wait_for_timeout(300)
     n = len(t['moves'].split())
-    for i in range(n + 1):
+    # Next plays on to the next move with a note, so keep pressing it until it says Finish
+    for i in range(n + 2):
         nb = pg.locator('.panel button.btn.primary').last
         txt = (await nb.inner_text()).strip()
-        if i == n and txt != 'Finish': problems.append((label, i, 'expected Finish, got ' + txt))
-        await nb.click(); await pg.wait_for_timeout(120)
+        await nb.click()
+        if txt == 'Finish': break
+        if i == n + 1: problems.append((label, i, 'never reached Finish, last ' + txt)); break
+        # wait for the moves on the way to finish playing
+        prev = None
+        for _ in range(40):
+            await pg.wait_for_timeout(600)  # longer than one walk step, so a still board means the walk has stopped
+            fen = await pg.evaluate("document.querySelector('.board').__board.pos.fen()")
+            if fen == prev: break
+            prev = fen
         note = await pg.locator('.lesson-text').last.inner_text()
         if 'undefined' in note: problems.append((label, i, 'bad note text'))
     victim = t.get('trapper') and t['trapper'] != t['side'] and t.get('keyPly') is not None

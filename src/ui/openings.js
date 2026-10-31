@@ -159,7 +159,7 @@ var Openings = (function () {
       U.clear(actions);
       var key = isTrap ? 'trap/' + line.id : lineKey(rep, line);
       var S = Store.state.openings, rec = S.lines[key] || (S.lines[key] = { learned: false, box: 0, due: 0, drills: 0, right: 0 });
-      if (mode === 'learn') { rec.learned = true; rec.due = rec.due || Date.now(); }
+      if (mode === 'learn') { rec.learned = true; rec.due = rec.due || Date.now() + DAY; } // the first drill is tomorrow, as the end card says
       if (mode === 'trap-practice' || mode === 'trap') rec.learned = true;
       if (mode === 'drill') {
         rec.drills++; if (!st.mistakes) rec.right++;
@@ -198,22 +198,35 @@ var Openings = (function () {
 
     // trap walkthrough uses Back / Next buttons
     if (mode === 'trap') {
-      var prevB = h('button', { class: 'btn', type: 'button', onclick: function () { go(st.ply - 1); } }, U.icon('back'), 'Back');
-      var nextB = h('button', { class: 'btn primary', type: 'button', onclick: function () { if (st.ply >= moves.length) finished(); else go(st.ply + 1); } }, 'Next', U.icon('next'));
+      // Next plays on to the next move that has something to say, one move at a time; Back returns to the previous one
+      var walkTok = 0;
+      var nextStop = function (n) { for (var k = n + 1; k < moves.length; k++) if (notes[k - 1] != null) return k; return moves.length; };
+      var prevStop = function (n) { for (var k = n - 1; k > 0; k--) if (notes[k - 1] != null) return k; return 0; };
+      var walk = function (target) {
+        var tok = ++walkTok;
+        (function stepOn() {
+          if (tok !== walkTok) return;
+          go(st.ply + 1, st.ply + 1 < target);
+          if (st.ply < target) setTimeout(stepOn, 480);
+        })();
+      };
+      var prevB = h('button', { class: 'btn', type: 'button', onclick: function () { walkTok++; go(prevStop(st.ply)); } }, U.icon('back'), 'Back');
+      var nextB = h('button', { class: 'btn primary', type: 'button', onclick: function () { if (st.ply >= moves.length) finished(); else walk(nextStop(st.ply)); } }, 'Next', U.icon('next'));
       actions.appendChild(prevB); actions.appendChild(h('span', { class: 'grow' })); actions.appendChild(nextB);
-      var go = function (n) {
+      var go = function (n, passing) {
         n = Math.max(0, Math.min(moves.length, n));
         st.pos = new C.Pos(); var last = null;
         for (var i = 0; i < n; i++) { last = st.pos.parseMove(moves[i]); st.pos.make(last); }
         st.ply = n;
         if (last) sound(last);
         paint(last);
+        prevB.disabled = n === 0;
+        nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
+        if (passing) return; // moves on the way to the next note go by without one
         U.clear(noteBox);
         if (n === 0) noteBox.appendChild(U.rich(line.summary));
         else if (notes[n - 1] != null) note(n - 1);
-        else noteBox.appendChild(h('p', { class: 'muted' }, 'Ordinary opening moves so far. Keep going.'));
-        prevB.disabled = n === 0;
-        nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
+        else noteBox.appendChild(h('p', { class: 'muted' }, n >= moves.length ? 'That\u2019s the whole line.' : 'Ordinary opening moves so far. Keep going.'));
       };
       board.setMovable(null);
       paint(null);

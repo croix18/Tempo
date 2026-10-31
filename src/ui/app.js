@@ -75,14 +75,14 @@ var App = (function () {
     var reps = Data.reps(), hasOpenings = reps.repertoires.length > 0 || reps.traps.length > 0;
     NAV.forEach(function (n) {
       if (n.id === 'openings' && !hasOpenings) return;
-      sideNav.appendChild(h('button', { class: 'nav-item', type: 'button', dataset: { go: n.id }, onclick: function () { go(n.id); } }, U.icon(n.icon), n.label));
+      sideNav.appendChild(h('button', { class: 'nav-item', type: 'button', dataset: { go: n.id }, onclick: function () { navigate(n.id); } }, U.icon(n.icon), n.label));
     });
     sideNav.appendChild(h('div', { class: 'side-foot', id: 'engine-note' }));
     mainEl = h('main', { id: 'main' });
     tabNav = h('nav', { class: 'tabs', 'aria-label': 'Main' });
     TABS.forEach(function (id) {
       var n = NAV.filter(function (x) { return x.id === id; })[0] || { id: 'more', label: 'More', icon: 'more' };
-      tabNav.appendChild(h('button', { class: 'tab', type: 'button', dataset: { go: n.id }, onclick: function () { go(n.id); } }, U.icon(n.icon), n.label));
+      tabNav.appendChild(h('button', { class: 'tab', type: 'button', dataset: { go: n.id }, onclick: function () { navigate(n.id); } }, U.icon(n.icon), n.label));
     });
     app.appendChild(sideNav); app.appendChild(mainEl); app.appendChild(tabNav);
     layer = document.getElementById('layer');
@@ -95,8 +95,19 @@ var App = (function () {
   }
 
   /* opts: noHash (don't touch history), replace (replace the current entry), keepScroll */
+  /* A screen with something to lose (a Rush in progress) can ask before you leave it: its view's guard()
+     returns { title, text, ok } or null. The sidebar, the tab bar and the browser's Back all respect it. */
+  function guarded(then) {
+    var ask = null;
+    try { ask = current && current.guard ? current.guard() : null; } catch (e) { ask = null; }
+    if (!ask) { then(); return; }
+    confirm(ask.title, ask.text, ask.ok, !!ask.danger).then(function (yes) { if (yes) then(); });
+  }
+  function navigate(name) { guarded(function () { go(name); }); }
+  var currentEntry = null, skipGuard = false;
   function go(name, params, opts) {
     if (!isView(name)) name = 'home';
+    currentEntry = { v: name, p: params || {} };
     if (current && current.leave) { try { current.leave(); } catch (e) { console.error(e); } }
     closeSheet();
     currentName = name; current = views[name];
@@ -228,9 +239,18 @@ var App = (function () {
       if (what === 'remote' || what === 'import' || what === 'reset') { applySettings(); refresh(); }
     });
     window.addEventListener('popstate', function (e) {
-      var st = e.state;
-      if (st && isView(st.v)) go(st.v, st.p || {}, { noHash: true });
-      else { var n = location.hash.slice(1); go(isView(n) ? n : 'home', {}, { noHash: true }); }
+      var st = e.state, n = location.hash.slice(1);
+      var target = st && isView(st.v) ? { v: st.v, p: st.p || {} } : { v: isView(n) ? n : 'home', p: {} };
+      var ask = null;
+      if (!skipGuard) { try { ask = current && current.guard ? current.guard() : null; } catch (err) { ask = null; } }
+      skipGuard = false;
+      if (ask && currentEntry) {
+        // stay on this screen until they answer: put it back on top of the history, and go back again only if they agree
+        try { history.pushState(currentEntry, '', '#' + currentEntry.v); } catch (err) { /* history unavailable */ }
+        confirm(ask.title, ask.text, ask.ok, !!ask.danger).then(function (yes) { if (yes) { skipGuard = true; history.back(); } });
+        return;
+      }
+      go(target.v, target.p, { noHash: true });
     });
     window.addEventListener('pagehide', function () { Store.saveNow(); });
     document.addEventListener('visibilitychange', function () { if (document.hidden) Store.saveNow(); });

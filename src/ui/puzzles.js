@@ -271,12 +271,18 @@ var Puzzles = (function () {
     }
     function sideName(side) { return side === 1 ? 'White' : 'Black'; }
 
-    function goBack() {
+    /* the question to ask before leaving a run part way, or null when there's nothing to lose */
+    function leaveQuestion() {
       var running = (s.mode === 'streak' || s.mode === 'rush') && s.started && !s.done && score() > 0;
-      if (!running) { App.go(origin); return; }
+      if (!running) return null;
       var n = score();
-      App.confirm('End this run?', 'You’ve solved ' + U.plural(n, 'puzzle') + ' so far.' + (n > s.best0 ? ' That’s a new best, and it’s saved.' : ''), 'End run')
-        .then(function (yes) { if (yes && P === st) App.go(origin); });
+      return { title: 'End this run?', text: 'You’ve solved ' + U.plural(n, 'puzzle') + ' so far.' + (n > s.best0 ? ' That’s a new best, and it’s saved.' : ''), ok: 'End run' };
+    }
+    st.guard = leaveQuestion; // the tab bar and the browser's Back ask the same question
+    function goBack() {
+      var q = leaveQuestion();
+      if (!q) { App.go(origin); return; }
+      App.confirm(q.title, q.text, q.ok).then(function (yes) { if (yes && P === st) App.go(origin); });
     }
     /* a run's best is saved as it grows, so leaving a run part way never loses it */
     function saveBest() {
@@ -586,7 +592,8 @@ var Puzzles = (function () {
         else if (phase === 'wrong') {
           if (k === 'rush') status.appendChild(fb('no', 'Not the move. ' + (s.strikes >= 2 ? 'One miss left.' : 'Two misses left.')));
           else if (k === 'streak') status.appendChild(fb('no', 'Not the move.', st.why));
-          else status.appendChild(fb('no', 'Not the move. Try again.', st.why));
+          // with no specific reason to give, point at the beginner's checklist
+          else status.appendChild(fb('no', 'Not the move. Try again.', st.why || 'Look at checks, captures and threats first.'));
         } else if (phase === 'showing') status.appendChild(fb('info', 'Here’s the answer.'));
         else if (st.hintText) status.appendChild(fb('info', st.hintText, st.hintNote ? 'A hint lowers what this puzzle is worth.' : null, 'pz-note'));
         if (tools() && phase !== 'showing') {
@@ -659,7 +666,7 @@ var Puzzles = (function () {
       card.appendChild(h('div', null, h('div', { class: 'label' }, 'Answer'), h('div', { class: 'pz-line' }, answerLine(p))));
       card.appendChild(h('div', { class: 'row' },
         h('button', { class: 'btn small', type: 'button', onclick: replayAnswer }, U.icon('refresh'), 'Replay the answer'),
-        h('button', { class: 'btn small', type: 'button', onclick: function () { Train.analysis(p.fen, p.moves.slice(), 1); } }, U.icon('analyze'), 'Analyze')));
+        h('button', { class: 'btn small', type: 'button', onclick: function () { Train.analysis(p.fen, p.moves.slice(), 1); } }, U.icon('analyze'), 'Analysis board')));
       var themes = ideaThemes(p), others = themes.filter(function (t) { return !(s.mode === 'theme' && t === s.theme); });
       if (others.length) {
         var chips = h('div', { class: 'pills' });
@@ -698,6 +705,7 @@ var Puzzles = (function () {
       } else renderMenu(root);
     },
     leave: function () { stopSession(); },
+    guard: function () { return P && P.guard ? P.guard() : null; },
     busy: function () { return !!P; }
   });
 

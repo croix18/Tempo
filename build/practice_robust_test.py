@@ -533,8 +533,34 @@ async def t_style(b):
             check('no page errors (style %s)' % scheme, not P.errors, P.errors)
 
 
+# ---------------- the phone's Back button and the tab bar ask before ending a run, like the on-screen back link ----------------
+async def t_back_guard(b):
+    async with Page(b) as P:  # laptop size: during a run the phone's tab bar is hidden, the sidebar isn't
+        await P.only_puzzles(MATE1)
+        await P.ev("App.go('puzzles')"); await P.wait(200)
+        await P.pg.locator('.menu-row', has_text='Streak').first.click(); await P.movable()
+        await P.solve_current(); await P.wait(1200); await P.movable()
+        sheet_text = "(document.querySelector('.sheet') || {}).innerText || ''"
+        on_run = "App.name === 'puzzles' && !!document.querySelector('.view .board')"
+        await P.pg.go_back(); await P.wait(600)
+        s1 = await P.ev(sheet_text)
+        await P.pg.locator('.sheet button', has_text='Cancel').click(); await P.wait(300)
+        still1 = await P.ev(on_run)
+        await P.pg.locator('.side .nav-item', has_text='Home').click(); await P.wait(500)
+        s2 = await P.ev(sheet_text)
+        await P.pg.locator('.sheet button', has_text='Cancel').click(); await P.wait(300)
+        still2 = await P.ev(on_run)
+        await P.pg.go_back(); await P.wait(600)
+        await P.pg.locator('.sheet button', has_text='End run').click(); await P.wait(900)
+        left = await P.ev("App.name === 'puzzles' && !!document.querySelector('.view .menu-list')")
+        check('leaving a run: Back and the sidebar ask first, Cancel stays, End run leaves',
+              'End this run?' in s1 and still1 and 'End this run?' in s2 and still2 and left,
+              {'back': s1[:60], 'still1': still1, 'tab': s2[:60], 'still2': still2, 'left': left})
+        check('no page errors (back guard)', not P.errors, P.errors)
+
+
 TESTS = [('race', t_rush_race), ('daily', t_daily), ('promo', t_promotion), ('mistakes', t_mistakes), ('strikes', t_rush_strikes),
-         ('hints', t_hints), ('leaving', t_leaving), ('teaching', t_teaching), ('menus', t_menus), ('trainers', t_trainers), ('style', t_style)]
+         ('hints', t_hints), ('leaving', t_leaving), ('backguard', t_back_guard), ('teaching', t_teaching), ('menus', t_menus), ('trainers', t_trainers), ('style', t_style)]
 
 async def main():
     which = sys.argv[1:]

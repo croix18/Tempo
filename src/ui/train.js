@@ -22,7 +22,7 @@ var Train = (function () {
     if (plays.length) {
       root.appendChild(h('h2', { style: { margin: '32px 0 14px' } }, 'Play it out'));
       var pl = h('nav', { class: 'menu-list', 'aria-label': 'Play it out', style: { maxWidth: '640px' } });
-      plays.forEach(function (x) { pl.appendChild(UI.menuRow('crown', x.lesson.title, 'From ' + x.unit.title, function () { Learn.open(x.lesson.id); })); });
+      plays.forEach(function (x) { pl.appendChild(UI.menuRow('crown', x.lesson.title, 'From ' + x.unit.title, function () { Learn.practice(x.lesson.id); })); });
       root.appendChild(pl);
     }
   }

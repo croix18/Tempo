@@ -58,18 +58,21 @@ var Learn = (function () {
   var openUnits = {};
 
   /* ---------- lesson player ---------- */
-  function renderLesson(root, id) {
+  /* from: a step to start at. Starting part-way through is practice: it never changes the lesson's stars. */
+  function renderLesson(root, id, from) {
     var found = Data.lesson(id);
     if (!found) { renderUnits(root); return; }
     App.focus(true);
     var lesson = found.lesson, unit = found.unit;
-    var st = { i: 0, mistakes: 0, hints: 0, token: 0, board: null, id: id };
+    var start = typeof from === 'number' && from > 0 && from < lesson.steps.length ? from : 0;
+    var st = { i: 0, mistakes: 0, hints: 0, token: 0, board: null, id: id, practice: start > 0 };
     L = st;
     var stepper = h('div', { class: 'stepper', 'aria-hidden': 'true' });
     lesson.steps.forEach(function () { stepper.appendChild(h('i')); });
     root.appendChild(h('div', { class: 'row between', style: { marginBottom: '8px' } },
-      h('button', { class: 'back', type: 'button', onclick: function () { App.go('learn'); } }, U.icon('back'), 'Learn'),
-      h('span', { class: 'muted small' }, unit.title)));
+      st.practice ? h('button', { class: 'back', type: 'button', onclick: function () { App.go('train'); } }, U.icon('back'), 'Trainers')
+        : h('button', { class: 'back', type: 'button', onclick: function () { App.go('learn'); } }, U.icon('back'), 'Learn'),
+      h('span', { class: 'muted small' }, st.practice ? 'Practice' : unit.title)));
     root.appendChild(h('h1', { style: { fontSize: '26px', marginBottom: '10px' } }, lesson.title));
     root.appendChild(stepper);
     var board = new Board({ orient: 'w', coords: Store.state.settings.coords !== false, onMove: onMove, onSquare: null, autoQueen: false });
@@ -394,6 +397,7 @@ var Learn = (function () {
     function fail(msg) { st.mistakes++; U.sound.bad(); board.setMovable(null); fb('no', msg); }
 
     function finish() {
+      if (st.practice) return finishPractice();
       var stars = st.mistakes + st.hints === 0 ? 3 : st.mistakes + st.hints <= 2 ? 2 : 1;
       var S = Store.state.learn, prev = S.done[lesson.id];
       var firstTime = !prev;
@@ -419,7 +423,21 @@ var Learn = (function () {
       });
     }
 
-    show(0);
+    /* a practice run ends without touching the lesson record */
+    function finishPractice() {
+      U.sound.end();
+      Store.activity('l');
+      App.sheet(function (box, api) {
+        box.appendChild(h('div', { class: 'result-hero' }, h('div', { class: 'big' }, 'Well played'),
+          h('div', { class: 'muted', style: { marginTop: '8px' } }, st.mistakes + st.hints === 0 ? 'No mistakes and no hints.' : [st.mistakes ? U.plural(st.mistakes, 'mistake') : '', st.hints ? U.plural(st.hints, 'hint') : ''].filter(Boolean).join(' and ') + '.')));
+        box.appendChild(h('div', { class: 'stack', style: { marginTop: '12px' } },
+          h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); st.mistakes = 0; st.hints = 0; show(start); } }, 'Play it again'),
+          h('button', { class: 'btn block', type: 'button', onclick: function () { api.close(); open(lesson.id); } }, 'Open the whole lesson'),
+          h('button', { class: 'btn quiet block', type: 'button', onclick: function () { api.close(); App.go('train'); } }, 'Back to trainers')));
+      });
+    }
+
+    show(start);
   }
 
   var PRACTICE = { 'fork': 'fork', 'pin': 'pin', 'skewer': 'skewer', 'discovered-attack': 'discoveredAttack', 'remove-defender': 'capturingDefender',
@@ -429,13 +447,19 @@ var Learn = (function () {
 
   App.register('learn', {
     render: function (root, params) {
-      if (params && params.lesson) renderLesson(root, params.lesson);
+      if (params && params.lesson) renderLesson(root, params.lesson, params.step);
       else renderUnits(root);
     },
     leave: function () { if (L) { L.token++; L.engineTok = (L.engineTok || 0) + 1; } L = null; },
     busy: function () { return !!L; }
   });
 
-  return { nextLesson: nextLesson, open: open,
+  /* straight to the first play-it-out step of a lesson */
+  function practice(id) {
+    var found = Data.lesson(id), k = found ? found.lesson.steps.map(function (s) { return s.t; }).indexOf('play') : -1;
+    App.go('learn', k > 0 ? { lesson: id, step: k } : { lesson: id });
+  }
+
+  return { nextLesson: nextLesson, open: open, practice: practice,
     _cur: function () { return L ? { id: L.id, i: L.i, ply: L.ply || 0, complete: !!L.complete, mistakes: L.mistakes, moves: L.history ? L.history.slice() : [] } : null; } };
 })();
