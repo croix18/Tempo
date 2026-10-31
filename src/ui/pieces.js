@@ -33,20 +33,29 @@ var TempoPieces = (function () {
     w: { fill: '#FFFCF4', stroke: '#1B2A4A', detail: '#1B2A4A', eye: '#1B2A4A' },
     b: { fill: '#1F2C49', stroke: '#0A1222', detail: '#E8DCC0', eye: '#E8DCC0' }
   };
-  function svg(color, type, bold) {
-    var c = SETS[color];
+  // Black pieces drawn off the board on a dark page get a light outline, or they disappear.
+  var ON_DARK = { fill: '#3B4D74', stroke: '#D9CFBA', detail: '#E8DCC0', eye: '#E8DCC0' };
+  function svg(color, type, bold, onDark) {
+    var c = onDark && color === 'b' ? ON_DARK : SETS[color];
     return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">' +
       '<style>.g{fill:' + c.fill + ';stroke:' + c.stroke + ';stroke-width:' + (bold ? 6 : 3.2) + ';stroke-linejoin:round}' +
       '.g .d{fill:none;stroke:' + c.detail + ';stroke-width:2.6;stroke-linecap:round}' +
       '.g .e{fill:' + c.eye + ';stroke:none}</style>' +
       '<g class="g">' + SHAPES[type] + '</g></svg>';
   }
-  function uri(color, type, bold) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(color, type, bold)); }
+  function uri(color, type, bold, onDark) { return 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg(color, type, bold, onDark)); }
+  /* board pieces (.pc) and the bolder captured-piece icons (.cp), with outlined black icons in dark mode */
   function css() {
-    var out = '';
+    var out = '', dark = '';
     ['w', 'b'].forEach(function (c) {
-      'pnbrqk'.split('').forEach(function (t) { out += '.pc.' + c + t + '{background-image:url("' + uri(c, t) + '")}\n'; });
+      'pnbrqk'.split('').forEach(function (t) {
+        out += '.pc.' + c + t + '{background-image:url("' + uri(c, t) + '")}\n';
+        out += '.cp.' + c + t + '{background-image:url("' + uri(c, t, true) + '")}\n';
+        if (c === 'b') dark += '.cp.b' + t + '{background-image:url("' + uri('b', t, true, true) + '")}\n';
+      });
     });
+    out += '@media (prefers-color-scheme: dark) {\n' + dark.replace(/^\.cp/gm, ':root:not([data-theme="light"]) .cp') + '}\n';
+    out += dark.replace(/^\.cp/gm, ':root[data-theme="dark"] .cp');
     return out;
   }
   return { svg: svg, uri: uri, css: css, SHAPES: SHAPES };

@@ -211,11 +211,8 @@ var UI = (function () {
     return h('span', { class: 'turn-pill' }, h('i', { class: side === 1 ? 'w' : 'b' }), text || (side === 1 ? 'White to move' : 'Black to move'));
   }
   function meter(fraction, cls) { return h('div', { class: 'meter ' + (cls || '') }, h('i', { style: { width: Math.round(Math.max(0, Math.min(1, fraction)) * 100) + '%' } })); }
-  var iconCache = {};
-  function pieceIcon(code) {
-    var u = iconCache[code] || (iconCache[code] = TempoPieces.uri(code.charAt(0), code.charAt(1), true));
-    return h('span', { class: 'cp', style: { backgroundImage: 'url("' + u + '")' } });
-  }
+  /* captured-piece icon; its image comes from the stylesheet so it can follow light and dark mode */
+  function pieceIcon(code) { return h('span', { class: 'cp ' + code }); }
 
   /* material captured by each side and the balance */
   function material(pos) {

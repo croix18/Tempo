@@ -9,8 +9,8 @@ GAME = {"id": "capstest", "bot": "rosie", "color": "w", "startFen": "rnbqkbnr/pp
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for (w, h, tag) in [(390, 844, 'phone'), (1280, 860, 'desk')]:
-            pg = await b.new_page(viewport={'width': w, 'height': h})
+        for (w, h, tag, scheme) in [(390, 844, 'phone', 'light'), (1280, 860, 'desk', 'light'), (390, 844, 'phone-dark', 'dark'), (1280, 860, 'desk-dark', 'dark')]:
+            pg = await b.new_page(viewport={'width': w, 'height': h}, color_scheme=scheme, device_scale_factor=2)
             await pg.goto('file://' + ROOT + '/dist/Tempo.html'); await pg.wait_for_timeout(800)
             await pg.evaluate("""(g) => { const C = TempoCore, p = new C.Pos(); g.sans = g.moves.map(u => { const m = p.parseMove(u); const s = p.san(m); p.make(m); return s; }); Store.state.current = g; Store.touch(); Play.resume(); }""", GAME)
             await pg.wait_for_timeout(1500)
