@@ -230,7 +230,7 @@ var Engines = (function () {
   /* Stockfish analyses several moves at full skill; TempoBots.sfPick chooses among them for the character */
   function sfChoose(bot, game, st, ctx) {
     var t0 = Date.now();
-    return sfRun({ fen: game.fen, moves: game.moves, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {
+    return sfRun({ fen: game.fen, moves: game.moves, depth: st.depth || 0, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {
       if (!r || !r.lines || !r.lines.length) return null;
       var pick = TempoBots.sfPick(bot, TempoEngine.posFrom(game.fen, game.moves), r.lines, Math.random, ctx.last);
       if (!pick) return null;

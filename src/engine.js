@@ -723,7 +723,7 @@ function personaMove(p, cfg, rng, legal, ctx) {
     var pick = softPickItem(scored, temp, rng);
     return { move: pick.move, kind: oversight ? 'oversight' : 'soft', score: pick.score, best: best, top: top };
   }
-  var res = think(p, { depth: depth, movetime: cfg.movetime || 0 });
+  var t0 = Date.now(), res = think(p, { depth: depth, movetime: cfg.movetime || 0 });
   var slip = cfg.slip && rng() < cfg.slip, styled = !slip && cfg.styleRate && rng() < cfg.styleRate;
   if ((slip || styled) && res.depth >= 2) {
     var alt = scoreRoot(p, Math.max(1, Math.min(res.depth - 1, 4)), true);
@@ -737,10 +737,28 @@ function personaMove(p, cfg, rng, legal, ctx) {
       near.forEach(function (x) { var bn = Math.max(-margin, Math.min(margin, x.bonus)); x.adj = x.score + bn + (rng() - 0.5) * margin * 0.5; });
       near.sort(function (a, b) { return b.adj - a.adj; });
       var sp = near[0];
+      // the shortlist comes from a shallow search, so a deep searcher checks its choice nearly as deep as it thinks:
+      // taste never costs it more than the margin, and strength keeps growing with depth
+      if (sp.move !== res.best && res.depth >= 6) {
+        // inside the move's own time: half of it at most, and only what the search has left
+        var mt = cfg.movetime || 1000, left = Math.min(mt * 0.5, mt - (Date.now() - t0));
+        var vs = left < 40 ? null : verifyScore(p, sp.move, res.depth - 1, Math.round(left));
+        if (vs == null || vs < res.score - margin) return { move: res.best, kind: 'search', score: res.score, best: res.score, top: res.best, depth: res.depth };
+        return { move: sp.move, kind: 'style', score: vs, best: res.score, top: res.best, depth: res.depth };
+      }
       return { move: sp.move, kind: sp.move === res.best ? 'search' : 'style', score: sp.move === res.best ? res.score : res.score - (alt[0].score - sp.score), best: res.score, top: res.best, depth: res.depth };
     }
   }
   return { move: res.best, kind: 'search', score: res.score, best: res.score, top: res.best, depth: res.depth };
+}
+/* one move's score searched `depth` plies in all, from the mover's side (null if time ran out before one ply) */
+function verifyScore(p, m, depth, ms) {
+  p.make(m);
+  var st = p.status(), sc = null;
+  if (st.over) sc = st.reason === 'checkmate' ? MATE - 1 : 0;
+  else { var r = think(p, { depth: Math.max(1, depth - 1), movetime: ms }); if (r.depth >= 1) sc = -r.score; }
+  p.unmake();
+  return sc;
 }
 function softPickItem(list, temp, rng) {
   var max = list[0].adj, total = 0, ws = [];

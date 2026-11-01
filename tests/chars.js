@@ -25,7 +25,7 @@ async function move(bot, pos, game, st) {
     const plan = B.plan(bot, game, rnd, { sfReady: useSf, surge: st.surge });
     if (plan.book) { const m = pos.parseMove(plan.book); if (m) return { m, via: 'book' }; }
     if (plan.sf) {
-      const r = await engineSF().analyse(pos.fen(), { movetime: plan.sf.movetime, multipv: plan.sf.multipv });
+      const r = await engineSF().analyse(pos.fen(), { depth: plan.sf.depth, movetime: plan.sf.movetime, multipv: plan.sf.multipv });
       const pick = B.sfPick(bot, pos, r.lines, rnd, st.last);
       if (pick) { const m = pos.parseMove(pick.uci); if (m) return { m, via: 'sf', kind: pick.kind }; }
     }

@@ -2342,11 +2342,16 @@ var SOFT = [
   [1549, { depth: 4, qs: true, temp: 16, random: 0, blunder: 0.12, mateCap: 5000, jitter: 0 }]
 ];
 /* In the search picker most of a character's freedom goes to style (choosing among moves close to the best by what it
-   likes) rather than to slips (a random near move), so the Contenders play like themselves, not like noise. */
+   likes) rather than to slips (a random near move), so the Contenders play like themselves, not like noise.
+   Calibrated against the yardsticks: the bottom anchors are looser than Vera's settings because style picks made
+   them play about 60 points above their ratings, and depth 5 tops out a little above 1800, so 1850 and 1900 search
+   a ply and two plies deeper on the way to Celeste's depth 9. */
 var SEARCH = [
-  [1550, { depth: 5, slip: 0.14, margin: 70, blunder: 0.07, styleRate: 0.75, styleMargin: 50 }],
-  [1600, { depth: 5, slip: 0.12, margin: 60, blunder: 0.06, styleRate: 0.75, styleMargin: 45 }],
+  [1550, { depth: 5, slip: 0.17, margin: 85, blunder: 0.085, styleRate: 0.75, styleMargin: 55 }],
+  [1650, { depth: 5, slip: 0.12, margin: 60, blunder: 0.06, styleRate: 0.75, styleMargin: 45 }],
   [1800, { depth: 5, slip: 0.05, margin: 40, blunder: 0.03, styleRate: 0.7, styleMargin: 35 }],
+  [1850, { depth: 6, movetime: 1200, slip: 0.045, margin: 36, blunder: 0.025, styleRate: 0.68, styleMargin: 33 }],
+  [1900, { depth: 7, movetime: 1500, slip: 0.04, margin: 32, blunder: 0.02, styleRate: 0.66, styleMargin: 31 }],
   [2000, { depth: 9, movetime: 2000, slip: 0.02, margin: 20, blunder: 0.006, styleRate: 0.6, styleMargin: 25 }],
   [2500, { depth: 12, movetime: 2500, slip: 0.01, margin: 15, blunder: 0, styleRate: 0.5, styleMargin: 15 }],
   [3100, { depth: 30, movetime: 3000, slip: 0, margin: 0, blunder: 0, styleRate: 0.3, styleMargin: 6 }]
@@ -2366,26 +2371,36 @@ function lerpTable(table, r) {
   }
   return Object.assign({}, table[table.length - 1][1]);
 }
-function strength(r) {
-  var c = r < 1550 ? lerpTable(SOFT, r) : lerpTable(SEARCH, r);
+/* `base` (the character's own rating) picks the picker, so a small correction never moves a character from one
+   kind of play to the other; past the end of a table the settings stay at its last anchor. */
+function strength(r, base) {
+  var c = (base != null ? base : r) < 1550 ? lerpTable(SOFT, r) : lerpTable(SEARCH, r);
   ['temp', 'jitter', 'mateCap', 'margin', 'styleMargin'].forEach(function (k) { if (c[k] != null) c[k] = Math.round(c[k]); });
   c.qs = c.qs !== false;
   return c;
 }
 /* Stockfish for the Masters and Legends: it analyses several moves at full skill, and the character chooses among
    the ones within `margin` centipawns of the best. `err` is how often it allows itself a wider margin (`errMargin`),
-   the slips a strong human still makes; stronger characters slip less and see further. */
+   the slips a strong human still makes; stronger characters slip less and see further. The Masters search to a set
+   depth (with a time cap for slow devices), one ply more every 100 points: against Celeste, the original 2000,
+   Batman scored about a third at depth 8 and nearly every game with a quarter of a second, so he starts at depth 9.
+   The Legends search deeper still, so on a slow device, where the time cap cuts every search short, each tier still
+   sees at least as far as the one below it. */
 var SF = [
-  [2000, { movetime: 230, multipv: 4, margin: 80, err: 0.17, errMargin: 210, blunder: 0.02 }],
-  [2250, { movetime: 320, multipv: 4, margin: 58, err: 0.11, errMargin: 170, blunder: 0.01 }],
-  [2450, { movetime: 400, multipv: 4, margin: 42, err: 0.065, errMargin: 130, blunder: 0.004 }],
-  [2500, { movetime: 460, multipv: 3, margin: 34, err: 0.05, errMargin: 115, blunder: 0.002 }],
-  [2800, { movetime: 700, multipv: 3, margin: 18, err: 0.02, errMargin: 80, blunder: 0 }],
-  [3100, { movetime: 1200, multipv: 2, margin: 6, err: 0, errMargin: 0, blunder: 0 }]
+  [2000, { depth: 9, movetime: 1100, multipv: 4, margin: 80, err: 0.17, errMargin: 210, blunder: 0.02 }],
+  [2100, { depth: 10, movetime: 1200, multipv: 4, margin: 71, err: 0.146, errMargin: 194, blunder: 0.016 }],
+  [2200, { depth: 11, movetime: 1300, multipv: 4, margin: 62, err: 0.122, errMargin: 178, blunder: 0.012 }],
+  [2300, { depth: 12, movetime: 1400, multipv: 4, margin: 54, err: 0.099, errMargin: 160, blunder: 0.0085 }],
+  [2400, { depth: 13, movetime: 1500, multipv: 4, margin: 46, err: 0.076, errMargin: 140, blunder: 0.0055 }],
+  [2450, { depth: 13, movetime: 1500, multipv: 4, margin: 42, err: 0.065, errMargin: 130, blunder: 0.004 }],
+  [2500, { depth: 14, movetime: 1700, multipv: 3, margin: 34, err: 0.05, errMargin: 115, blunder: 0.002 }],
+  [2800, { depth: 16, movetime: 2000, multipv: 3, margin: 18, err: 0.02, errMargin: 80, blunder: 0 }],
+  [3100, { depth: 18, movetime: 2200, multipv: 2, margin: 6, err: 0, errMargin: 0, blunder: 0 }]
 ];
 function sfFor(r) {
   var c = lerpTable(SF, r);
   ['movetime', 'margin', 'errMargin'].forEach(function (k) { c[k] = Math.round(c[k]); });
+  if (c.depth == null) c.depth = 0;
   c.multipv = Math.round(c.multipv);
   return c;
 }
@@ -2493,8 +2508,8 @@ function styleScaleFor(r) { return r < 600 ? 1.1 : r < 1000 ? 1 : r < 1500 ? 0.8
    more), so each one's engine settings come from its rating plus this nudge, found by playing it against the original
    ladder bots (tests/calibrate.js). The rating shown is unchanged. */
 var NUDGE = {
-  'patrick-star': -95, 'psyduck': -100, 'among-us-crewmate': -20, 'scooby-doo': -150, 'luigi': -50, 'hermione-granger': -80, 'velma-dinkley': -40,
-  'sheldon-cooper': -45, 'tony-stark': -60, 'derpy-tiger': 35, 'olaf': 55, 'donkey-shrek': 50, 'stitch': 155, 'pikachu': 65, 'bowser': 105, 'ron-weasley': 30, 'gru': 60, 'miles-morales': 85, 'princess-peach': 75
+  'patrick-star': -95, 'psyduck': -100, 'among-us-crewmate': -20, 'scooby-doo': -150, 'luigi': -50, 'velma-dinkley': -40,
+  'derpy-tiger': 35, 'olaf': 55, 'donkey-shrek': 50, 'stitch': 155, 'pikachu': 65, 'bowser': 105, 'ron-weasley': 30, 'gru': 60
 };
 /* random moves and oversights shift a little with the archetype, inside the strength they were tuned for */
 var EXTRA = { chaos: { random: 0.06, jitter: 20 }, surprise: { random: 0.03 }, reckless: { blunder: 0.04 }, retreater: { random: -0.02 } };
@@ -2520,7 +2535,7 @@ var TONE = { F: 'cream', D: 'cream', C: 'gold', B: 'gold', A: 'navy', S: 'navy' 
 var BOTS = [], BY = {};
 PROFILES.profiles.forEach(function (p) {
   var ti = TIERS.map(function (t) { return t.id; }).indexOf(p.tier); if (ti < 0) return;
-  var r = p.tempo_elo, st = strength(r + (NUDGE[p.id] || 0)), ex = EXTRA[p.archetype] || {}, style = styleFor(p);
+  var r = p.tempo_elo, st = strength(r + (NUDGE[p.id] || 0), r), ex = EXTRA[p.archetype] || {}, style = styleFor(p);
   Object.keys(ex).forEach(function (k) { if (st[k] != null) st[k] = Math.max(0, st[k] + ex[k]); });
   var cfg = Object.assign({ persona: true, style: style, styleScale: styleScaleFor(r), styleCap: r < 1000 ? 140 : 100 }, st);
   var theory = (p.behavior_traits_0_to_100 || {}).opening_preparation || 50, cap = BOOK_CAP[p.tier];
@@ -3409,7 +3424,7 @@ function personaMove(p, cfg, rng, legal, ctx) {
     var pick = softPickItem(scored, temp, rng);
     return { move: pick.move, kind: oversight ? 'oversight' : 'soft', score: pick.score, best: best, top: top };
   }
-  var res = think(p, { depth: depth, movetime: cfg.movetime || 0 });
+  var t0 = Date.now(), res = think(p, { depth: depth, movetime: cfg.movetime || 0 });
   var slip = cfg.slip && rng() < cfg.slip, styled = !slip && cfg.styleRate && rng() < cfg.styleRate;
   if ((slip || styled) && res.depth >= 2) {
     var alt = scoreRoot(p, Math.max(1, Math.min(res.depth - 1, 4)), true);
@@ -3423,10 +3438,28 @@ function personaMove(p, cfg, rng, legal, ctx) {
       near.forEach(function (x) { var bn = Math.max(-margin, Math.min(margin, x.bonus)); x.adj = x.score + bn + (rng() - 0.5) * margin * 0.5; });
       near.sort(function (a, b) { return b.adj - a.adj; });
       var sp = near[0];
+      // the shortlist comes from a shallow search, so a deep searcher checks its choice nearly as deep as it thinks:
+      // taste never costs it more than the margin, and strength keeps growing with depth
+      if (sp.move !== res.best && res.depth >= 6) {
+        // inside the move's own time: half of it at most, and only what the search has left
+        var mt = cfg.movetime || 1000, left = Math.min(mt * 0.5, mt - (Date.now() - t0));
+        var vs = left < 40 ? null : verifyScore(p, sp.move, res.depth - 1, Math.round(left));
+        if (vs == null || vs < res.score - margin) return { move: res.best, kind: 'search', score: res.score, best: res.score, top: res.best, depth: res.depth };
+        return { move: sp.move, kind: 'style', score: vs, best: res.score, top: res.best, depth: res.depth };
+      }
       return { move: sp.move, kind: sp.move === res.best ? 'search' : 'style', score: sp.move === res.best ? res.score : res.score - (alt[0].score - sp.score), best: res.score, top: res.best, depth: res.depth };
     }
   }
   return { move: res.best, kind: 'search', score: res.score, best: res.score, top: res.best, depth: res.depth };
+}
+/* one move's score searched `depth` plies in all, from the mover's side (null if time ran out before one ply) */
+function verifyScore(p, m, depth, ms) {
+  p.make(m);
+  var st = p.status(), sc = null;
+  if (st.over) sc = st.reason === 'checkmate' ? MATE - 1 : 0;
+  else { var r = think(p, { depth: Math.max(1, depth - 1), movetime: ms }); if (r.depth >= 1) sc = -r.score; }
+  p.unmake();
+  return sc;
 }
 function softPickItem(list, temp, rng) {
   var max = list[0].adj, total = 0, ws = [];
@@ -5013,7 +5046,7 @@ var Engines = (function () {
   /* Stockfish analyses several moves at full skill; TempoBots.sfPick chooses among them for the character */
   function sfChoose(bot, game, st, ctx) {
     var t0 = Date.now();
-    return sfRun({ fen: game.fen, moves: game.moves, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {
+    return sfRun({ fen: game.fen, moves: game.moves, depth: st.depth || 0, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {
       if (!r || !r.lines || !r.lines.length) return null;
       var pick = TempoBots.sfPick(bot, TempoEngine.posFrom(game.fen, game.moves), r.lines, Math.random, ctx.last);
       if (!pick) return null;

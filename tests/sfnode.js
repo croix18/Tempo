@@ -23,7 +23,7 @@ function create() {
     const mpv = opts.multipv || 1, skill = opts.skill == null ? 20 : opts.skill, cmds = [];
     if (mpv !== curMpv) { cmds.push('setoption name MultiPV value ' + mpv); curMpv = mpv; }
     if (skill !== curSkill) { cmds.push('setoption name Skill Level value ' + skill); curSkill = skill; }
-    cmds.push('position fen ' + fen, opts.movetime ? 'go movetime ' + opts.movetime : 'go depth ' + (opts.depth || 16));
+    cmds.push('position fen ' + fen, 'go' + (opts.depth ? ' depth ' + opts.depth : '') + (opts.movetime ? ' movetime ' + opts.movetime : '') + (!opts.depth && !opts.movetime ? ' depth 16' : ''));
     const lines = await run(cmds, l => l.startsWith('bestmove'));
     const byPv = {};
     for (const l of lines) {

@@ -35,7 +35,7 @@ node tests/prep_data.js
 
 ## Content
 
-The characters live in `content/characters.json`: each profile's identity, openings, tactics, plan, weakness, signature event, traits and dialogue, as written in the personality pack, with Tempo's additions (short name, monogram, win line, signature triggers, opening families and the promotion-match flag). Their opening families are in `src/book.js`. The ratings are difficulty targets on the scale of the original ladder, not official ratings; `tests/calibrate.js` measures each character below 2000 and the small corrections it found are in `NUDGE` in `src/bots.js`.
+The characters live in `content/characters.json`: each profile's identity, openings, tactics, plan, weakness, signature event, traits and dialogue, as written in the personality pack, with Tempo's additions (short name, monogram, win line, signature triggers, opening families and the promotion-match flag). Their opening families are in `src/book.js`. The ratings are difficulty targets on the scale of the original ladder, not official ratings; `tests/calibrate.js` measures each character below 2000 and the small corrections it found are in `NUDGE` in `src/bots.js`. Above 2000 there are fewer yardsticks: the Masters search Stockfish to a set depth, chosen so that Batman scores a little better than Celeste, the original 2000, and than Princess Peach, the top Contender, and the Legends search deeper again (`node tests/chars.js match <a> <b>`).
 
 Lessons live in `content/lessons/u1-basics.js` to `u8-thinking.js`, and openings in `content/openings.js`. The format and style rules are in `docs/CONTENT_SPEC.md`. Check content with Stockfish before building:
 
@@ -55,6 +55,7 @@ node tests/book_test.js      # every opening book line is legal, side-aware, and
 node tests/verify_book.js 12 # every book move checked with Stockfish (about 15 minutes)
 node tests/calibrate.js 12   # each character below 2000 against the yardsticks around its rating
 node tests/chars.js style 4  # how often each character does what its profile says it likes
+node tests/chars.js match batman celeste 8   # one pairing, for the Stockfish tiers
 ```
 
 The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.py`) use Playwright for Python. `build/run_all.sh` runs them all against one build. They run Chrome from `$CHROME` or `/usr/bin/google-chrome`, or Playwright's own Chromium if neither exists. For example, `python3 build/lessons_qa.py tactics` plays through every lesson in a unit.
