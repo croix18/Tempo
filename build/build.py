@@ -26,7 +26,10 @@ def safe_json(s): return s.replace('</', '<\\/')
 
 b64 = {k: rd('build/%s.b64' % k).strip() for k in ['sfjs', 'sfwasm', 'puzzles', 'openings', 'dmsans', 'dmserif']}
 
-core = rd('src/core.js'); bots = rd('src/bots.js'); engine = rd('src/engine.js')
+# the characters: content/characters.json goes into the roster script, which the page and the engine worker both load
+profiles = json.dumps(json.load(open(os.path.join(ROOT, 'content/characters.json'), encoding='utf-8')), ensure_ascii=True, separators=(',', ':'))
+core = rd('src/core.js'); book = rd('src/book.js'); engine = rd('src/engine.js')
+bots = 'var TEMPO_PROFILES = ' + safe_json(profiles) + ';\n' + rd('src/bots.js')
 ui_order = ['inflate.js', 'ui/pieces.js', 'ui/avatars.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/play.js',
             'ui/clock.js', 'ui/puzzles.js', 'ui/learn.js', 'ui/openings.js', 'ui/train.js', 'ui/progress.js']
 ui = '\n;\n'.join(rd('src/' + f) for f in ui_order)
@@ -45,7 +48,7 @@ boot = """
   if (hot && hot.ready) hot.ready(start); else start();
 })();
 """
-for name, src in [('core', core), ('bots', bots), ('engine', engine), ('ui', ui)]:
+for name, src in [('core', core), ('book', book), ('bots', bots), ('engine', engine), ('ui', ui)]:
     if '</script' in src.lower():
         sys.exit('script %s contains </script' % name)
 
@@ -68,12 +71,13 @@ body = """<div id="app"></div>
 <script type="application/json" id="d-lessons">%(lessons)s</script>
 <script type="application/json" id="d-reps">%(reps)s</script>
 <script id="src-core">%(core)s</script>
+<script id="src-book">%(book)s</script>
 <script id="src-bots">%(bots)s</script>
 <script id="src-engine">%(engine)s</script>
 <script>%(ui)s
 %(boot)s</script>
 """ % dict(sfjs=b64['sfjs'], sfwasm=b64['sfwasm'], puzzles=b64['puzzles'], openings=b64['openings'],
-           lessons=safe_json(lessons_json), reps=safe_json(reps_json), core=core, bots=bots, engine=engine, ui=ui, boot=boot)
+           lessons=safe_json(lessons_json), reps=safe_json(reps_json), core=core, book=book, bots=bots, engine=engine, ui=ui, boot=boot)
 
 OUT = os.environ.get('TEMPO_OUT') or os.path.join(ROOT, 'dist')  # a separate output folder lets parallel work build without clashing
 os.makedirs(OUT, exist_ok=True)

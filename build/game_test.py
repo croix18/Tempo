@@ -34,7 +34,7 @@ async def main():
         for r in res: print('coach', r)
         # game flow vs Pip: moves, hint, undo, resign
         await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-        await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('.char', has_text='Patrick Star').first.click(); await pg.wait_for_timeout(300)
         await pg.locator('.seg button', has_text='White').first.click()
         await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(600)
         for mv in ['d2d4', 'g1f3', 'c1f4']:
@@ -58,7 +58,7 @@ async def main():
         await pg.screenshot(path=ROOT + '/build/shots/end-sheet.png')
         g = await pg.evaluate("Store.state.games.list[0]")
         print('saved game:', g['result'], g['reason'], 'rated', g['rated'], 'plies', g['plies'])
-        print('pip record', await pg.evaluate("Store.state.play.bots.pip"), 'rating', await pg.evaluate("Store.state.play.rating"))
+        print('patrick record', await pg.evaluate("Store.state.play.bots['patrick-star']"), 'rating', await pg.evaluate("Store.state.play.rating"))
         print('errors:', errs)
         await b.close()
 asyncio.run(main())

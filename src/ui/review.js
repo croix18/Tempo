@@ -571,10 +571,10 @@ var Review = (function () {
     if (!S.games.list.length) games.appendChild(h('div', { class: 'empty' }, 'Finished games show up here.', h('div', { style: { marginTop: '10px' } }, h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('play'); } }, 'Play a game'))));
     var list = h('div', { class: 'list' });
     S.games.list.slice(0, 30).forEach(function (g) {
-      var bot = TempoBots.byId(g.bot);
+      var bot = TempoBots.find(g.bot);
       list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
         bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm tone-you' }, '?'),
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultPhrase(g, bot ? bot.name : (g.opp || 'opponent'))),
+        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultPhrase(g, bot ? bot.short || bot.name : (g.opp || 'opponent'))),
           h('div', { class: 'muted small' }, U.dateShort(g.ts) + ', ' + U.plural(Math.ceil((g.plies || 0) / 2), 'move') + (g.reviewed && g.acc != null ? ', ' + Math.round(g.acc) + '% accuracy' : ''))),
         g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next')));
     });
@@ -1219,9 +1219,9 @@ var Review = (function () {
         if (!g) { renderList(root); return; }
         var parsed = C.parsePgn(g.pgn), fen = parsed.headers.FEN || C.START_FEN;
         if (C.validFen(fen)) { renderList(root); return; }
-        var r = C.replay(fen, parsed.sans), bot = TempoBots.byId(g.bot);
+        var r = C.replay(fen, parsed.sans), bot = TempoBots.find(g.bot), bn = bot ? bot.short || bot.name : null;
         renderReview(root, { gameId: g.id, pgn: g.pgn, startFen: fen, moves: r.moves.map(C.uci), sans: sansOf(fen, r.moves), color: g.color,
-          label: resultPhrase(g, bot ? bot.name : 'opponent') + ', ' + U.dateShort(g.ts), oppName: bot ? bot.name : (g.opp || 'Opponent'), saved: g.rv, savedExtra: g.rvx });
+          label: resultPhrase(g, bn || 'opponent') + ', ' + U.dateShort(g.ts), oppName: bn || (g.opp || 'Opponent'), saved: g.rv, savedExtra: g.rvx });
       } else if (params && params.pgn) {
         var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN;
         if (C.validFen(fen2)) { renderList(root); return; }

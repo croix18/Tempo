@@ -1,4 +1,4 @@
-// Usage: node tests/match.js botA botB games [seed]
+// Usage: node tests/match.js botA botB games [seed]   (two of the original ladder bots)
 const C = require('../src/core.js'); global.TempoCore = C;
 const E = require('../src/engine.js');
 const B = require('../src/bots.js');
@@ -6,7 +6,10 @@ const [, , aId, bId, gamesArg, seedArg] = process.argv;
 const games = +gamesArg || 20;
 let seed = +seedArg || 7;
 const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-const A = B.byId(aId), Bb = B.byId(bId);
+// the original ladder bots; for the characters use tests/chars.js match
+const legacy = id => B.LEGACY.find(b => b.id === id);
+const A = legacy(aId), Bb = legacy(bId);
+if (!A || !Bb) { console.error('match.js plays the original ladder bots (' + B.LEGACY.map(b => b.id).join(', ') + '); for characters use tests/chars.js match'); process.exit(2); }
 if (process.env.OVR) { const o = JSON.parse(require('fs').readFileSync(process.env.OVR, 'utf8')); for (const bt of [A, Bb]) if (o[bt.id]) bt.cfg = Object.assign({}, bt.cfg, o[bt.id]); }
 
 function botPlay(bot, pos, sans) {

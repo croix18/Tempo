@@ -33,7 +33,7 @@ async def run(width, height, tag, full):
         # start a game vs Pip as White
         await pg.evaluate("App.go('play')")
         await pg.wait_for_timeout(200)
-        await pg.locator('.rung', has_text='Pip').first.click()
+        await pg.locator('.char', has_text='Patrick Star').first.click()
         await pg.wait_for_timeout(300)
         await pg.screenshot(path=OUT + tag + '-setup.png')
         await pg.locator('.seg button', has_text='White').first.click()

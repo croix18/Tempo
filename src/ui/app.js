@@ -370,47 +370,92 @@ var UI = (function () {
     return h('div', { class: 'mini-board' }, b.el);
   }
 
-  /* The opponent ladder, strongest at the top, with your rating marked where it falls.
-     o: { lo, hi: bot indexes to show; full: show each bio; playing: id of the bot in an unfinished game } */
-  function ladder(o) {
-    var S = Store.state, BOTS = TempoBots.BOTS;
-    var nextIdx = Math.min(S.play.unlocked || 0, BOTS.length - 1), unlockedTo = S.settings.unlockAll ? BOTS.length - 1 : nextIdx;
-    var list = h('ol', { class: 'rungs' + (o.full ? ' full' : '') }), placed = !S.play.hist.length;
-    function you() {
-      placed = true;
-      list.appendChild(h('li', { class: 'you-mark', 'aria-label': 'Your rating, ' + S.play.rating }, h('span', null, 'You'), h('span', { class: 'num' }, String(S.play.rating))));
-    }
-    // strongest at the top, unless asked for the other way round (the locked list on Play: nearest to unlocking first)
-    var idx = []; for (var q = o.hi; q >= o.lo; q--) idx.push(q);
-    if (o.asc) idx.reverse();
-    idx.forEach(function (i) { (function (bot, i) {
-      if (!placed && !o.asc && S.play.rating >= bot.rating) you();
-      var rec = S.play.bots[bot.id] || {}, locked = i > unlockedTo, isNext = i === nextIdx && !rec.beaten && !o.playing;
-      var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : h('span');
-      var li = h('li', null, h('button', {
-        class: 'rung' + (locked ? ' locked' : '') + (isNext ? ' next' : '') + (o.playing === bot.id ? ' playing' : ''), type: 'button',
-        'aria-label': bot.name + ', ' + (bot.id === 'stockfish' ? 'full strength' : 'about ' + bot.rating) + (rec.beaten ? ', beaten' : locked ? ', locked' : isNext ? ', your next opponent' : ''),
-        onclick: function () { if (locked) lockedSheet(bot, BOTS[i - 1]); else Play.setup(bot); }
-      }, h('span', { class: 'n num' }, String(i + 1)),
-        o.full ? avatar(bot, 'sm') : null,
-        o.full ? h('span', { class: 'nm' }, h('span', { class: 'who' }, bot.name), h('span', { class: 'bio' }, bot.bio)) : h('span', { class: 'nm' }, bot.name),
-        h('span', { class: 'r num' }, bot.id === 'stockfish' ? 'Full strength' : String(bot.rating)), status));
-      if (isNext) list._next = li;
-      list.appendChild(li);
-    })(BOTS[i], i); });
-    if (!placed && !o.asc) you();
-    return list;
+  /* ---------- the characters ---------- */
+  function tierLabel(ti) { var t = TempoBots.TIERS[ti]; return 'Tier ' + t.id + ' · ' + t.name; }
+  function tierBadge(ti, cls) { var t = TempoBots.TIERS[ti]; return h('span', { class: 'tier-badge t-' + t.id + (cls ? ' ' + cls : ''), 'aria-hidden': 'true' }, t.id); }
+  function ratingText(bot) { return 'about ' + bot.rating; }
+  /* one character as a tile: badge, name, rating, and whether it's beaten, locked or the promotion match */
+  function charTile(bot, o) {
+    o = o || {};
+    var S = Store.state, all = S.settings.unlockAll, acc = TempoBots.access(S.play, bot.id, all), rec = S.play.bots[bot.id] || {};
+    var locked = acc !== 'open', isNext = o.next === bot.id, playing = o.playing === bot.id;
+    var t = TempoBots.TIERS[bot.tierIdx];
+    var note = bot.bonus ? 'Bonus challenger' : bot.id === t.boss ? (bot.tierIdx === TempoBots.TIERS.length - 1 ? 'Final match' : 'Promotion match') : null;
+    var status = rec.beaten ? U.icon('check', 'won') : locked ? U.icon('lock') : null;
+    var label = bot.name + ', ' + ratingText(bot) + (note ? ', ' + note.toLowerCase() : '') + (rec.beaten ? ', beaten' : locked ? ', locked' : isNext ? ', your next opponent' : '');
+    return h('button', { class: 'char' + (locked ? ' locked' : '') + (isNext ? ' next' : '') + (playing ? ' playing' : '') + (rec.beaten ? ' beaten' : ''), type: 'button', 'aria-label': label,
+      onclick: function () { if (acc === 'open') Play.setup(bot); else lockedSheet(bot, acc); } },
+      avatar(bot, 'sm'),
+      h('span', { class: 'who' }, h('span', { class: 'nm', lang: 'en' }, bot.name), h('span', { class: 'r num' }, String(bot.rating)), note ? h('span', { class: 'note' }, note) : null),
+      status ? h('span', { class: 'st' }, status) : null);
   }
-
-  /* a locked opponent explains how to unlock it, and can be played anyway */
-  function lockedSheet(bot, prev) {
+  /* the hidden bonus challenger, before it appears */
+  function mysteryTile(id) {
+    var key = TempoBots.byId(TempoBots.UNLOCKS[id]);
+    return h('div', { class: 'char mystery', role: 'note' }, h('span', { class: 'avatar sm mystery-badge', 'aria-hidden': 'true' }, '?'),
+      h('span', { class: 'who' }, h('span', { class: 'nm' }, 'A bonus challenger'), h('span', { class: 'r' }, 'Beat ' + (key ? key.name : 'the Masters') + ' to meet them')));
+  }
+  /* a character you can't play yet explains why, and can be played anyway */
+  function lockedSheet(bot, acc) {
+    var S = Store.state, t = TempoBots.TIERS[bot.tierIdx], title, text;
+    if (acc === 'boss-locked') {
+      var need = TempoBots.WINS_FOR_BOSS - TempoBots.winsIn(S.play, bot.tierIdx);
+      title = 'Promotion match: ' + bot.name;
+      text = bot.name + ' guards the way out of ' + t.name + '. Win ' + (need === TempoBots.WINS_FOR_BOSS ? U.plural(need, 'game') : U.plural(need, 'more game')) + ' against other ' + t.id + '-tier characters to open the match.';
+    } else if (acc === 'hidden') {
+      title = 'Not yet'; text = 'This challenger appears when you beat ' + TempoBots.byId(TempoBots.UNLOCKS[bot.id]).name + '.';
+    } else {
+      var prev = TempoBots.byId(TempoBots.TIERS[bot.tierIdx - 1].boss), top = TempoBots.topTier(S.play);
+      title = 'Tier ' + t.id + ' is locked';
+      text = bot.tierIdx === top + 1 ? 'Win the promotion match against ' + prev.name + ' to reach ' + t.name + '.' : 'Climb the tiers below first: ' + tierLabel(top) + ' is as far as you’ve reached.';
+    }
     App.sheet(function (box, api) {
-      box.appendChild(h('h2', null, bot.name + ' is locked'));
-      box.appendChild(h('p', { class: 'muted' }, 'Beat ' + prev.name + ' to unlock ' + bot.name + '. You can also play ' + bot.name + ' now. A win still counts and unlocks the next opponent.'));
-      box.appendChild(h('div', { class: 'row end', style: { marginTop: '18px' } },
-        h('button', { class: 'btn', type: 'button', onclick: function () { api.close(); } }, 'Not now'),
-        h('button', { class: 'btn primary', type: 'button', onclick: function () { api.close(); Play.setup(bot); } }, 'Play ' + bot.name + ' anyway')));
+      box.appendChild(h('div', { class: 'row', style: { marginBottom: '10px' } }, avatar(bot, 'lg'), h('h2', null, title)));
+      box.appendChild(h('p', { class: 'muted' }, text + (acc === 'hidden' ? '' : ' You can also play ' + bot.short + ' now: a win still counts.')));
+      var row = h('div', { class: 'row end', style: { marginTop: '18px' } }, h('button', { class: 'btn', type: 'button', onclick: function () { api.close(); } }, 'Not now'));
+      if (acc !== 'hidden') row.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { api.close(); Play.setup(bot); } }, 'Play ' + bot.short + ' anyway'));
+      box.appendChild(row);
     });
+  }
+  /* where you stand in your tier: how many wins toward the promotion match, as a sentence and as dots */
+  function tierProgress(ti) {
+    var S = Store.state, t = TempoBots.TIERS[ti], boss = TempoBots.byId(t.boss), wins = Math.min(TempoBots.WINS_FOR_BOSS, TempoBots.winsIn(S.play, ti));
+    var beatBoss = S.play.bots[boss.id] && S.play.bots[boss.id].beaten, last = ti === TempoBots.TIERS.length - 1, text;
+    if (beatBoss) text = last ? 'You beat ' + boss.name + '. You’re the Tempo Champion.' : 'Done: you beat ' + boss.name + ' and moved up.';
+    else if (wins >= TempoBots.WINS_FOR_BOSS) text = 'Promotion match open: beat ' + boss.name + (last ? ' to become the Tempo Champion.' : ' to reach ' + tierLabel(ti + 1) + '.');
+    else if (!wins) text = 'Win ' + TempoBots.WINS_FOR_BOSS + ' games here to open the promotion match against ' + boss.name + '.';
+    else text = U.plural(wins, 'win') + ' so far. ' + (TempoBots.WINS_FOR_BOSS - wins) + ' more ' + (TempoBots.WINS_FOR_BOSS - wins === 1 ? 'opens' : 'open') + ' the promotion match against ' + boss.name + '.';
+    var dots = h('span', { class: 'pips', role: 'img', 'aria-label': wins + ' of ' + TempoBots.WINS_FOR_BOSS + ' wins' });
+    for (var i = 0; i < TempoBots.WINS_FOR_BOSS; i++) dots.appendChild(h('i', { class: i < wins || beatBoss ? 'on' : '' }));
+    return { text: text, dots: dots, wins: wins, done: !!beatBoss };
+  }
+  /* a character's seven traits as a heptagon, each 0 to 100 */
+  var TRAITS = [['aggression', 'Attack'], ['risk', 'Risk'], ['opening_preparation', 'Theory'], ['defense', 'Defense'], ['trickery', 'Tricks'], ['trade_preference', 'Trades'], ['endgame', 'Endgames']];
+  function radar(traits) {
+    var NS = 'http://www.w3.org/2000/svg', W = 240, H = 214, cx = 120, cy = 110, R = 70, n = TRAITS.length;
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H); svg.setAttribute('class', 'radar'); svg.setAttribute('role', 'img');
+    svg.setAttribute('aria-label', 'Traits: ' + TRAITS.map(function (t) { return t[1] + ' ' + (traits[t[0]] || 0); }).join(', '));
+    function pt(i, r) { var a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + r * Math.cos(a), cy + r * Math.sin(a)]; }
+    function poly(r, cls) {
+      var e = document.createElementNS(NS, 'polygon');
+      e.setAttribute('points', TRAITS.map(function (t, i) { var q = pt(i, typeof r === 'function' ? r(t, i) : r); return q[0].toFixed(1) + ',' + q[1].toFixed(1); }).join(' '));
+      e.setAttribute('class', cls); svg.appendChild(e);
+    }
+    [1, 0.66, 0.33].forEach(function (k) { poly(R * k, 'grid'); });
+    TRAITS.forEach(function (t, i) {
+      var q = pt(i, R), ln = document.createElementNS(NS, 'line');
+      ln.setAttribute('x1', cx); ln.setAttribute('y1', cy); ln.setAttribute('x2', q[0].toFixed(1)); ln.setAttribute('y2', q[1].toFixed(1)); ln.setAttribute('class', 'spoke');
+      svg.appendChild(ln);
+    });
+    poly(function (t) { return R * Math.max(0.04, Math.min(100, traits[t[0]] || 0) / 100); }, 'shape');
+    TRAITS.forEach(function (t, i) {
+      var q = pt(i, R + 16), tx = document.createElementNS(NS, 'text');
+      tx.setAttribute('x', q[0].toFixed(1)); tx.setAttribute('y', (q[1] + 4).toFixed(1));
+      tx.setAttribute('text-anchor', Math.abs(q[0] - cx) < 8 ? 'middle' : q[0] < cx ? 'end' : 'start');
+      tx.setAttribute('class', 'lbl'); tx.textContent = t[1]; svg.appendChild(tx);
+    });
+    return svg;
   }
 
   /* one row of a grouped list: icon, a title, an optional line under it, and a chevron */
@@ -427,16 +472,17 @@ var UI = (function () {
       typeof icon === 'string' ? U.icon(icon) : icon, h('span', { class: 'txt' }, h('span', { class: 't' }, title), sub ? h('span', { class: 's' }, sub) : null), U.icon('next', 'chev'));
   }
 
-  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, ladder: ladder, menuRow: menuRow, patternCard: patternCard };
+  return { avatar: avatar, stars: stars, turnPill: turnPill, meter: meter, material: material, capturedRow: capturedRow, lineChart: lineChart, miniBoard: miniBoard, pieceIcon: pieceIcon, menuRow: menuRow, patternCard: patternCard,
+    tierLabel: tierLabel, tierBadge: tierBadge, charTile: charTile, mysteryTile: mysteryTile, lockedSheet: lockedSheet, tierProgress: tierProgress, radar: radar };
 })();
 
 /* ---------- Home ----------
-   The opponent you're climbing toward, a real board (today's puzzle, or your unfinished game),
-   the few things that are due, and your place on the ladder. */
+   The character you play next, a real board (today's puzzle, or your unfinished game),
+   the few things that are due, and where you stand in your tier. */
 App.register('home', {
   render: function (root) {
     var h = U.h, S = Store.state, C = TempoCore, BOTS = TempoBots.BOTS;
-    var nextIdx = Math.min(S.play.unlocked || 0, BOTS.length - 1), next = BOTS[nextIdx];
+    var next = TempoBots.nextFor(S.play, S.settings.unlockAll), top = TempoBots.topTier(S.play);
     var cur = S.current, curBot = cur && !cur.result && cur.moves && cur.moves.length ? TempoBots.byId(cur.bot) : null;
     var solved = S.puzzles.daily === U.dayKey();
 
@@ -459,34 +505,34 @@ App.register('home', {
       function set() {
         var r = Math.round(+input.value);
         if (!(r >= 100 && r <= 2500)) { msg.textContent = 'Enter a rating between 100 and 2500.'; input.focus(); return; }
-        var BOTS = TempoBots.BOTS, idx = 0;
-        for (var i = 0; i < BOTS.length - 2; i++) if (BOTS[i].rating <= r) idx = i;
-        S.play.rating = r; S.play.hist = [[Date.now(), r]]; S.play.unlocked = Math.max(S.play.unlocked || 0, idx);
+        // the tier holding your rating opens, up to the Masters; the Legends are earned
+        S.play.rating = r; S.play.hist = [[Date.now(), r]]; S.play.tier = Math.max(S.play.tier || 0, Math.min(4, TempoBots.tierOfRating(r)));
         S.puzzles.rating = r;
         Store.touch('play'); Store.touch('puzzles');
-        App.toast('Done. Your next opponent is ' + BOTS[S.play.unlocked].name + ', and puzzles start near ' + r + '.');
+        App.toast('Done. ' + UI.tierLabel(TempoBots.topTier(S.play)) + ' is open, and puzzles start near ' + r + '.');
         done();
       }
       input.addEventListener('keydown', function (e) { if (e.key === 'Enter') set(); });
       return h('section', { class: 'placement', 'aria-label': 'Starting level' },
         h('h2', null, 'Already have a rating?'),
-        h('p', { class: 'muted' }, 'Enter your Chess.com rating to unlock opponents up to your level and start puzzles there. Or skip this and start from the beginning.'),
+        h('p', { class: 'muted' }, 'Enter your Chess.com rating to open the tiers up to your level and start puzzles there. Or skip this and start with the Chaos Crew.'),
         h('div', { class: 'row' }, input,
           h('button', { class: 'btn primary', type: 'button', onclick: set }, 'Start there'),
           h('button', { class: 'btn quiet', type: 'button', onclick: done }, 'Skip')),
         msg);
     }
 
-    /* hero: your unfinished game, or the next opponent on the ladder */
+    /* hero: your unfinished game, or the next character to play */
     if (curBot) {
       var moveNo = Math.floor(cur.moves.length / 2) + 1;
       hero.appendChild(h('h2', null, curBot.name));
       hero.appendChild(h('p', null, 'Your game is still going. You’re on move ' + moveNo + '.'));
       hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.resume(); } }, 'Resume game'));
     } else {
+      var isBoss = next.id === TempoBots.TIERS[next.tierIdx].boss;
       hero.appendChild(h('h2', null, next.name));
-      hero.appendChild(h('p', null, (next.id === 'stockfish' ? 'Your next opponent, at full strength. ' : 'Your next opponent, rated about ' + next.rating + '. ') + next.bio));
-      hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.setup(next); } }, 'Play ' + next.name));
+      hero.appendChild(h('p', null, (isBoss ? 'Your promotion match, rated about ' + next.rating + '. ' : 'Your next opponent, rated about ' + next.rating + '. ') + next.bio + '.'));
+      hero.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { Play.setup(next); } }, 'Play ' + next.short));
     }
 
     /* the board: the unfinished game if there is one, otherwise today's puzzle */
@@ -538,9 +584,9 @@ App.register('home', {
     if (pattern) todo.parentNode.insertBefore(pattern, todo);
     var mistakes = Mistakes.due().length;
     if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); }, Math.min(10, Math.ceil(mistakes * 0.75)));
-    var last = S.games.list[0], lastBot = last && TempoBots.byId(last.bot);
+    var last = S.games.list[0], lastBot = last && TempoBots.find(last.bot);
     if (last && !last.reviewed && lastBot) {
-      item('review', 'Review your ' + resultPhrase(last, lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); }, 3);
+      item('review', 'Review your ' + resultPhrase(last, lastBot.short || lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); }, 3);
     }
     var now = Date.now(), dueReps = {}, dueLines = 0;
     Object.keys(S.openings.lines).forEach(function (k) {
@@ -565,12 +611,15 @@ App.register('home', {
     if (Store.backupDue()) item('download', 'Back up your progress', function () { S.settings.backupAsked = Date.now(); Store.touch('settings'); App.go('prefs'); }, 1);
     if (!todo.childNodes.length) todo.remove();
 
-    /* the ladder around you: two rungs either side of the next opponent, strongest at the top */
-    var lo = Math.max(0, nextIdx - 2), hi = Math.min(BOTS.length - 1, nextIdx + 2);
-    while (hi - lo < 4 && (lo > 0 || hi < BOTS.length - 1)) { if (hi < BOTS.length - 1) hi++; else lo--; }
-    var list = UI.ladder({ lo: lo, hi: hi, playing: curBot && curBot.id });
-    ladder.appendChild(list);
-    ladder.appendChild(h('button', { class: 'all-link', type: 'button', onclick: function () { App.go('play'); } }, 'All ' + BOTS.length + ' opponents'));
+    /* your tier: how far to the promotion match, and a few of the characters in it, the next one first */
+    var tp = UI.tierProgress(top), t = TempoBots.TIERS[top];
+    ladder.appendChild(h('div', { class: 'tier-head' }, UI.tierBadge(top), h('div', { class: 'grow' }, h('div', { class: 't' }, UI.tierLabel(top)), h('div', { class: 's' }, tp.text), tp.dots)));
+    var pick = [next.id].concat(t.members.filter(function (id) { var r = S.play.bots[id]; return id !== next.id && id !== t.boss && !(r && r.beaten); })).slice(0, 3);
+    if (pick.indexOf(t.boss) < 0) pick.push(t.boss);
+    var grid = h('div', { class: 'chars compact' });
+    pick.forEach(function (id) { grid.appendChild(UI.charTile(TempoBots.byId(id), { next: curBot ? null : next.id, playing: curBot && curBot.id })); });
+    ladder.appendChild(grid);
+    ladder.appendChild(h('button', { class: 'all-link', type: 'button', onclick: function () { App.go('play'); } }, 'All ' + BOTS.length + ' characters'));
   }
 });
 function resultWord(g) { return g.result === '1/2-1/2' ? 'Draw' : ((g.result === '1-0') === (g.color === 'w') ? 'Win' : 'Loss'); }

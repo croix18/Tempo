@@ -4,7 +4,8 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 
 ## What's in it
 
-- **Play** 14 bots, from Pip (about 250) to full-strength Stockfish. Your next opponent sits at the top; each win unlocks the next bot, or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board (or, with Ask me first, a question that has you find the problem on the board before the coach explains), threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
+- **Play** 61 characters in six tiers of ten (the Chaos Crew, the Beginners, the Club Players, the Contenders, the Masters and the Legends) plus a bonus challenger. Three wins in your tier open its promotion match against the tier's top character; win it to move up. Beating Batman brings out the Joker, and beating or drawing Homer Simpson makes you the Tempo Champion. Or start at your Chess.com rating. Optional coach warnings with the punishing reply drawn on the board (or, with Ask me first, a question that has you find the problem on the board before the coach explains), threat warnings (pieces you could lose and checkmate threats), hints that say why a move is good, takebacks and clocks.
+- **The characters** each play their own way. Strength comes from the rating (the built-in engine below 2000, Stockfish for the Masters and Legends), and personality chooses among the moves that strength allows: style weights from the character's archetype and seven traits (attack, risk, theory, defense, tricks, trades, endgames) for forks, pins, discovered attacks, sacrifices, retreats, pawn chains, king attacks and more; position-aware opening books for White and for Black against 1.e4 and 1.d4, which end as soon as you leave them; and a signature line said at a moment that really happened on the board. Each character's sheet shows its traits as a radar, how it plays, its favorite tricks, its weak spot and its openings. Opponent chat can be Off, Some or Lots.
 - **Review** any game with Stockfish: a summary up top with both sides' accuracy and a count of every kind of move from brilliant to blunder (tap one to step through those moves), your mistakes first, move-by-move labels (best, inaccuracy, mistake, blunder and so on) double-checked before a move is called bad, plain-language explanations, a retry of each mistake graded against the best move, and where the game left an opening line you've learned (that line goes first in your drills).
 - **Chess clock** for a game on a real board: the screen becomes a two-sided clock (on a phone or tablet held upright, the far half faces the other player). Tap your half after you move. Common times or your own, extra seconds per move, more time for one player, pause, and the clock keeps the screen on where the browser allows it.
 - **Puzzles**: about 9,000 rated Lichess puzzles, a daily puzzle, and practice by theme.
@@ -14,7 +15,7 @@ A chess trainer in one HTML file. Open `dist/Tempo.html` in any browser on a com
 - **Your pattern**: saved mistakes carry their kind (a piece left en prise, a fork, a missed mate, and so on), and the kind that shows up in the most of your recent games is named on Home, at the end of a game and after each review, with the lesson, puzzles and positions that fix it. Home lists what to do next in that order, with a rough time for each.
 - **Trainers**: coordinates, board vision, a review queue of your own mistakes, mating and endgame play-outs, and an analysis board.
 - **Progress**: rating history, a practice calendar and stats. Data stays in the browser and is checked and repaired every time it loads, with backup and restore to a file. When it runs as a Claude artifact, progress syncs across devices.
-- **Pieces and portraits**: an original Staunton-style set drawn for Tempo, in ivory and navy, and a small drawn portrait for each opponent (src/ui/avatars.js).
+- **Pieces and badges**: an original Staunton-style set drawn for Tempo, in ivory and navy, and an original badge for each character: its initials on its tier's colour with a mark for how it plays (src/ui/avatars.js). The characters themselves are never drawn.
 
 ## Build
 
@@ -34,6 +35,8 @@ node tests/prep_data.js
 
 ## Content
 
+The characters live in `content/characters.json`: each profile's identity, openings, tactics, plan, weakness, signature event, traits and dialogue, as written in the personality pack, with Tempo's additions (short name, monogram, win line, signature triggers, opening families and the promotion-match flag). Their opening families are in `src/book.js`. The ratings are difficulty targets on the scale of the original ladder, not official ratings; `tests/calibrate.js` measures each character below 2000 and the small corrections it found are in `NUDGE` in `src/bots.js`.
+
 Lessons live in `content/lessons/u1-basics.js` to `u8-thinking.js`, and openings in `content/openings.js`. The format and style rules are in `docs/CONTENT_SPEC.md`. Check content with Stockfish before building:
 
 ```sh
@@ -47,7 +50,11 @@ node tests/annotate_traps.js                                  # writes build/tra
 ```sh
 node tests/perft.js          # move generator
 node tests/engine_test.js    # built-in engine
-node tests/ladder.js 20      # every built-in bot beats the one below it (about 10 minutes)
+node tests/ladder.js 20      # every original ladder bot beats the one below it (about 10 minutes); they are the yardsticks
+node tests/book_test.js      # every opening book line is legal, side-aware, and leaves the book on a deviation
+node tests/verify_book.js 12 # every book move checked with Stockfish (about 15 minutes)
+node tests/calibrate.js 12   # each character below 2000 against the yardsticks around its rating
+node tests/chars.js style 4  # how often each character does what its profile says it likes
 ```
 
 The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.py`) use Playwright for Python. `build/run_all.sh` runs them all against one build. They run Chrome from `$CHROME` or `/usr/bin/google-chrome`, or Playwright's own Chromium if neither exists. For example, `python3 build/lessons_qa.py tactics` plays through every lesson in a unit.
@@ -57,9 +64,12 @@ The browser tests (`build/*_test.py`, `build/lessons_qa.py`, `build/openings_qa.
 ```
 src/core.js         rules: move generation, SAN, PGN, FEN
 src/engine.js       built-in engine and bot move selection
-src/bots.js         the bot ladder and opening books
+src/bots.js         the characters: tiers, strength from the rating, style from the profile, unlocking
+src/book.js         the characters' opening books, indexed by position
+content/characters.json  the 61 character profiles (the personality pack, plus Tempo's additions)
 src/ui/             the app: board, play, review, puzzles, learn, openings, trainers, progress
-content/            lessons and opening repertoires
+content/            lessons, opening repertoires and the character profiles
+docs/characters/    the character bible and personality engine spec from the personality pack
 assets/, data/      Stockfish, fonts, puzzle and opening data
 build/build.py      packs everything into one file
 tests/              rules, engine and content checks

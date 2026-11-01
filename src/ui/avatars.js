@@ -1,6 +1,7 @@
-/* Tempo bot portraits: one small original drawing per opponent, in the house colours.
-   Each is a 64×64 picture: a round background in the bot's tone, a head and shoulders in the figure colour,
-   and one accent colour for the detail that makes the character (a cap, glasses, a bun, a moustache). */
+/* Tempo portraits.
+   The characters each get an original badge, never a drawing of the character: their initials on their tier's colour,
+   with a small mark for how they play (a flame for a gambiteer, a shield for a defender, a crown for the champion).
+   The original ladder bots keep their small drawn portraits, so old games still show who they were against. */
 var TempoAvatars = (function () {
   'use strict';
   // what each tone paints with: the figure and the accent on that background
@@ -86,13 +87,61 @@ var TempoAvatars = (function () {
       '<circle cx="20" cy="30" r="2.4" fill="E"/>'
   };
 
-  /* an <svg> string for a bot; tone picks the colours */
+  /* ---------- character badges ---------- */
+  var TIER = {
+    F: { bg: '#F3E9CF', ring: '#C9A227', ink: '#1B2A4A', mark: '#A8841B' },
+    D: { bg: '#E4CF98', ring: '#1B2A4A', ink: '#1B2A4A', mark: '#6E5410' },
+    C: { bg: '#D4AF37', ring: '#1B2A4A', ink: '#1B2A4A', mark: '#FBF5E4' },
+    B: { bg: '#3D4E73', ring: '#D4AF37', ink: '#F3E9CF', mark: '#D4AF37' },
+    A: { bg: '#1B2A4A', ring: '#D4AF37', ink: '#F3E9CF', mark: '#D4AF37' },
+    S: { bg: '#0D1529', ring: '#D4AF37', ink: '#E7C65A', mark: '#F3E9CF' },
+    bonus: { bg: '#24113A', ring: '#D4AF37', ink: '#F3E9CF', mark: '#D4AF37' }
+  };
+  // marks are drawn in a 16-unit box around 0,0; "s:" paths are strokes, the rest are filled
+  var MARK = {
+    chaos: 's:M-6 1 C-6 -5 3 -6 4.5 -1.5 C6 3 0 5.5 -2.2 2.2 C-3.6 0 -0.8 -2.4 1 -0.6',
+    surprise: 'M-1.4 -7 H1.4 L0.9 2 H-0.9 Z M0 3.6 A1.7 1.7 0 1 1 -0.01 3.6 Z',
+    hunter: 's:M0 -6.5 V-2.5 M0 2.5 V6.5 M-6.5 0 H-2.5 M2.5 0 H6.5 M4.6 0 A4.6 4.6 0 1 1 -4.6 0 A4.6 4.6 0 1 1 4.6 0',
+    retreater: 's:M6 0 H-5 M-1 -4.5 L-5.5 0 L-1 4.5',
+    reckless: 'M1.6 -7.5 L-5 1 H-0.6 L-1.8 7.5 L5 -1.2 H0.6 Z',
+    attacker: 'M0 -7.5 L5.5 1.5 H1.6 V7 H-1.6 V1.5 H-5.5 Z',
+    defender: 'M0 -7 L6 -4.6 V0.2 C6 4 3.2 6.4 0 7.6 C-3.2 6.4 -6 4 -6 0.2 V-4.6 Z',
+    investigator: 's:M2 2 L6.2 6.2 M3.2 -1.6 A4.4 4.4 0 1 1 -5.6 -1.6 A4.4 4.4 0 1 1 3.2 -1.6',
+    inventor: 'M-1.3 -7 H1.3 L1.8 -4.7 L3.9 -5.9 L5.8 -4 L4.6 -1.9 L7 -1.3 V1.3 L4.6 1.9 L5.8 4 L3.9 5.9 L1.8 4.7 L1.3 7 H-1.3 L-1.8 4.7 L-3.9 5.9 L-5.8 4 L-4.6 1.9 L-7 1.3 V-1.3 L-4.6 -1.9 L-5.8 -4 L-3.9 -5.9 L-1.8 -4.7 Z M0 -2.3 A2.3 2.3 0 1 0 0.01 -2.3 Z',
+    theorist: 'M-0.6 -3.8 C-2.6 -5.6 -5.2 -5.8 -7 -5 V5.2 C-5.2 4.4 -2.6 4.6 -0.6 6.2 Z M0.6 -3.8 C2.6 -5.6 5.2 -5.8 7 -5 V5.2 C5.2 4.4 2.6 4.6 0.6 6.2 Z',
+    allrounder: 'M0 -7.5 L1.9 -1.9 L7.5 0 L1.9 1.9 L0 7.5 L-1.9 1.9 L-7.5 0 L-1.9 -1.9 Z',
+    builder: 'M-7 -6 H-0.6 V-1.2 H-7 Z M0.6 -6 H7 V-1.2 H0.6 Z M-4 0.6 H4 V5.6 H-4 Z',
+    adaptive: 's:M-7 -1.5 C-5 -5.5 -2 -5.5 0 -1.5 C2 2.5 5 2.5 7 -1.5 M-7 3.5 C-5 -0.5 -2 -0.5 0 3.5 C2 7.5 5 7.5 7 3.5',
+    trapper: 's:M0 -6.5 L6.5 0 L0 6.5 L-6.5 0 Z M-3.25 -3.25 L3.25 3.25 M3.25 -3.25 L-3.25 3.25',
+    gambiteer: 'M0 -7.5 C3.4 -3.4 5.4 -1 5.4 2.2 C5.4 5.4 2.8 7.5 0 7.5 C-2.8 7.5 -5.4 5.4 -5.4 2.2 C-5.4 -0.6 -3 -0.2 -1.4 -2.8 C-0.4 -1 1.2 -1.8 0 -7.5 Z',
+    calculator: 's:M-6.5 -4.5 H6.5 M-6.5 0 H6.5 M-6.5 4.5 H6.5 M-3 -6 V-3 M2 -1.5 V1.5 M-1 3 V6',
+    technician: 'M-3.6 -6.5 H3.6 L7 -1.6 L0 7.5 L-7 -1.6 Z',
+    positional: 's:M0 -4.6 V6.4 M-5.6 2 C-5.6 5.2 -2.6 6.4 0 6.4 C2.6 6.4 5.6 5.2 5.6 2 M-3.4 -1.6 H3.4 M1.7 -6.3 A1.7 1.7 0 1 1 -1.7 -6.3 A1.7 1.7 0 1 1 1.7 -6.3',
+    champion: 'M-7.5 5 L-6.4 -4.4 L-3 -0.4 L0 -6.6 L3 -0.4 L6.4 -4.4 L7.5 5 Z'
+  };
+  function mark(kind, color) {
+    var d = MARK[kind] || MARK.allrounder, stroke = d.indexOf('s:') === 0;
+    if (stroke) return '<path d="' + d.slice(2) + '" fill="none" stroke="' + color + '" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>';
+    return '<path d="' + d + '" fill="' + color + '" fill-rule="evenodd"/>';
+  }
+  function badge(bot) {
+    var c = bot.bonus ? TIER.bonus : TIER[bot.tier] || TIER.F, mono = String(bot.mono || bot.name.charAt(0)).slice(0, 2);
+    var size = mono.length > 1 ? 20 : 25, y = mono.length > 1 ? 30 : 32;
+    return '<svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="32" fill="' + c.bg + '"/>' +
+      '<circle cx="32" cy="32" r="28.6" fill="none" stroke="' + c.ring + '" stroke-width="1.4" opacity="0.85"/>' +
+      (bot.boss || bot.bonus ? '<circle cx="32" cy="32" r="25.8" fill="none" stroke="' + c.ring + '" stroke-width="0.9" opacity="0.6"/>' : '') +
+      '<text x="32" y="' + y + '" text-anchor="middle" font-family="Tempo Serif, DM Serif Display, Georgia, serif" font-size="' + size + '" fill="' + c.ink + '" letter-spacing="0.5">' + mono.replace(/[<&]/g, '') + '</text>' +
+      '<g transform="translate(32 46) scale(0.78)">' + mark(bot.arche, c.mark) + '</g></svg>';
+  }
+
+  /* an <svg> string for an opponent: a character's badge, or an original ladder bot's portrait */
   function svg(bot) {
+    if (bot.tier) return badge(bot);
     var c = INK[bot.tone] || INK.cream, art = ART[bot.id];
     if (!art) return '';
     art = art.replace(/"F"/g, '"' + c.f + '"').replace(/"A"/g, '"' + c.a + '"').replace(/"E"/g, '"' + c.eye + '"');
     return '<svg viewBox="0 0 64 64" aria-hidden="true"><clipPath id="av-' + bot.id + '"><circle cx="32" cy="32" r="32"/></clipPath>' +
       '<circle cx="32" cy="32" r="32" fill="' + c.bg + '"/><g clip-path="url(#av-' + bot.id + ')">' + art + '</g></svg>';
   }
-  return { svg: svg, has: function (id) { return !!ART[id]; } };
+  return { svg: svg, MARK: MARK, has: function (id) { return !!ART[id] || !!(window.TempoBots && TempoBots.byId(id)); } };
 })();

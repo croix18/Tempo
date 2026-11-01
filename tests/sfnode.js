@@ -17,11 +17,12 @@ function create() {
     return p;
   }
   const ready = run(['uci'], l => l === 'uciok').then(() => run(['setoption name Hash value 64', 'isready'], l => l === 'readyok'));
-  let curMpv = 1;
+  let curMpv = 1, curSkill = 20;
   async function analyse(fen, opts = {}) {
     await ready;
-    const mpv = opts.multipv || 1, cmds = [];
+    const mpv = opts.multipv || 1, skill = opts.skill == null ? 20 : opts.skill, cmds = [];
     if (mpv !== curMpv) { cmds.push('setoption name MultiPV value ' + mpv); curMpv = mpv; }
+    if (skill !== curSkill) { cmds.push('setoption name Skill Level value ' + skill); curSkill = skill; }
     cmds.push('position fen ' + fen, opts.movetime ? 'go movetime ' + opts.movetime : 'go depth ' + (opts.depth || 16));
     const lines = await run(cmds, l => l.startsWith('bestmove'));
     const byPv = {};

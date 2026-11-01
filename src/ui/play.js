@@ -1,51 +1,64 @@
-/* Tempo play: bot ladder, game setup, live games with the coach. */
+/* Tempo play: the characters in their tiers, game setup, live games with the coach. */
 var Play = (function () {
   'use strict';
-  var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS;
-  var G = null, view = null, showLocked = false; // the folded list of locked opponents stays the way you left it
+  var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS, TIERS = TempoBots.TIERS;
+  var G = null, view = null, openTiers = {}; // tiers you opened or folded stay the way you left them
 
-  function botIndex(id) { for (var i = 0; i < BOTS.length; i++) if (BOTS[i].id === id) return i; return -1; }
-  function unlockedIdx() { var S = Store.state; return S.settings.unlockAll ? BOTS.length - 1 : Math.min(S.play.unlocked || 0, BOTS.length - 1); }
-
-  /* ---------- ladder ---------- */
-  function renderLadder(root) {
-    var S = Store.state;
+  /* ---------- the tiers ---------- */
+  function renderTiers(root) {
+    var S = Store.state, all = S.settings.unlockAll, top = TempoBots.topTier(S.play), next = TempoBots.nextFor(S.play, all);
     root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Play'),
       h('div', { class: 'head-note' }, 'Your rating ', h('b', { class: 'num' }, String(S.play.rating)))));
     var cb = S.current && S.current.moves && S.current.moves.length && !S.current.result ? TempoBots.byId(S.current.bot) : null;
     if (cb) root.appendChild(h('div', { class: 'resume' },
-      h('p', { class: 'grow' }, 'Your game against ' + cb.name + ' is still going. You\u2019re on move ' + (Math.floor(S.current.moves.length / 2) + 1) + '.'),
+      h('p', { class: 'grow' }, 'Your game against ' + cb.name + ' is still going. You’re on move ' + (Math.floor(S.current.moves.length / 2) + 1) + '.'),
       h('div', { class: 'row tight' },
         h('button', { class: 'btn quiet small', type: 'button', onclick: function () { abandon().then(function (ok) { if (ok) App.refresh(); }); } }, 'Abandon'),
         h('button', { class: 'btn primary small', type: 'button', onclick: function () { resume(); } }, 'Resume'))));
-    // your next opponent at the top, the ones you've beaten below; the rest wait in a folded list, nearest first
-    var nextIdx = unlockedIdx();
-    var list = UI.ladder({ lo: 0, hi: nextIdx, full: true, playing: cb && cb.id });
-    root.appendChild(list);
-    if (nextIdx < BOTS.length - 1) {
-      var n = BOTS.length - 1 - nextIdx, open = showLocked;
-      var body = h('div', { class: 'unit-body' + (open ? ' open' : ''), id: 'locked-bots' }, h('div', { class: 'unit-inner' }, UI.ladder({ lo: nextIdx + 1, hi: BOTS.length - 1, full: true, asc: true })));
-      var head = h('button', { class: 'unit-head locked-head', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'locked-bots',
-        onclick: function () { var on = !body.classList.contains('open'); body.classList.toggle('open', on); head.setAttribute('aria-expanded', on ? 'true' : 'false'); showLocked = on; } },
-        U.icon('lock'), h('span', { class: 'txt' }, h('span', { class: 't' }, U.plural(n, 'more opponent') + ' to unlock'), h('span', { class: 's' }, 'Beat ' + BOTS[nextIdx].name + ' to unlock ' + BOTS[nextIdx + 1].name + '.')), U.icon('next', 'chev'));
-      root.appendChild(h('div', { class: 'card unit-card locked-card' }, head, body));
-    }
+    // where you are: your tier, how far to its promotion match, and who's next
+    var tp = UI.tierProgress(top), champ = S.play.champ;
+    root.appendChild(h('section', { class: 'card tier-now', 'aria-label': 'Your tier' },
+      h('div', { class: 'tier-head' }, UI.tierBadge(top, 'lg'), h('div', { class: 'grow' }, h('div', { class: 'label' }, champ ? 'Tempo Champion' : 'Your tier'), h('h2', null, UI.tierLabel(top)), h('p', { class: 'muted' }, tp.text), tp.dots)),
+      cb ? null : h('div', { class: 'row', style: { marginTop: '12px' } }, UI.avatar(next, 'sm'), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, next.name), h('div', { class: 'muted small' }, next.bio)),
+        h('button', { class: 'btn primary small', type: 'button', onclick: function () { setup(next); } }, 'Play ' + next.short))));
+    TIERS.forEach(function (t, i) { root.appendChild(tierSection(i, top, next, cb, all)); });
+    // the bonus challenger: a mystery until it appears
+    var bonus = h('div', { class: 'chars' });
+    TempoBots.BONUS.forEach(function (id) {
+      var b = TempoBots.byId(id);
+      bonus.appendChild(TempoBots.access(S.play, id, all) === 'hidden' ? UI.mysteryTile(id) : UI.charTile(b, { next: next.id, playing: cb && cb.id }));
+    });
+    root.appendChild(h('section', { class: 'tier-section bonus', 'aria-label': 'Bonus challenger' }, h('h2', { class: 'tier-title' }, 'Bonus'), bonus));
     // playing someone across a real board: the screen becomes the clock
-    root.appendChild(h('nav', { class: 'menu-list', 'aria-label': 'Over the board', style: { maxWidth: '720px', marginTop: '20px' } },
+    root.appendChild(h('nav', { class: 'menu-list', 'aria-label': 'Over the board', style: { maxWidth: '720px', marginTop: '24px' } },
       UI.menuRow('clock', 'Chess clock', 'For a game on a real board', function () { App.go('clock'); })));
     var recent = S.games.list.slice(0, 3);
     if (recent.length) {
       root.appendChild(h('h2', { style: { margin: '32px 0 12px' } }, 'Recent games'));
       var rl = h('nav', { class: 'menu-list', 'aria-label': 'Recent games', style: { maxWidth: '720px' } });
       recent.forEach(function (g) {
-        var b = TempoBots.byId(g.bot), name = b ? b.name : (g.opp || 'opponent');
+        var b = TempoBots.find(g.bot), name = b ? b.short || b.name : (g.opp || 'opponent');
         rl.appendChild(UI.menuRow('review', resultPhrase(g, name) + ', ' + U.dateShort(g.ts), g.reviewed && g.acc != null ? Math.round(g.acc) + '% accuracy' : 'Not reviewed yet', function () { Review.openGame(g.id); }));
       });
       rl.appendChild(UI.menuRow('list', 'All games', null, function () { App.go('review'); }));
       root.appendChild(rl);
     }
     root.appendChild(h('p', { class: 'faint small', style: { marginTop: '16px', maxWidth: '62ch' } },
-      'Ratings are rough guides on the Chess.com scale. ' + (Engines.status === 'failed' ? 'Stockfish isn\u2019t available in this browser, so the top two opponents use the built-in engine.' : 'The Admiral and Stockfish use the Stockfish engine.')));
+      'Ratings are rough difficulty targets, not official ratings. ' + (Engines.status === 'failed' ? 'Stockfish isn’t available in this browser, so the Masters and Legends use the built-in engine.' : 'The Masters and Legends play with Stockfish.')));
+  }
+  /* one tier: a header that folds, then its ten characters */
+  function tierSection(i, top, next, cb, all) {
+    var S = Store.state, t = TIERS[i], beaten = t.members.filter(function (id) { var r = S.play.bots[id]; return r && r.beaten; }).length;
+    var locked = !all && i > top, open = openTiers[i] != null ? openTiers[i] : i === top;
+    var grid = h('div', { class: 'chars' });
+    t.members.forEach(function (id) { grid.appendChild(UI.charTile(TempoBots.byId(id), { next: cb ? null : next.id, playing: cb && cb.id })); });
+    var body = h('div', { class: 'unit-body' + (open ? ' open' : ''), id: 'tier-' + t.id }, h('div', { class: 'unit-inner' }, grid));
+    var head = h('button', { class: 'unit-head tier-fold', type: 'button', 'aria-expanded': open ? 'true' : 'false', 'aria-controls': 'tier-' + t.id,
+      onclick: function () { var on = !body.classList.contains('open'); body.classList.toggle('open', on); head.setAttribute('aria-expanded', on ? 'true' : 'false'); openTiers[i] = on; } },
+      UI.tierBadge(i), h('span', { class: 'txt' }, h('span', { class: 't' }, t.name),
+        h('span', { class: 's' }, h('span', { class: 'num' }, t.lo + '–' + t.hi), ' · ', locked ? 'Locked' : beaten + ' of ' + t.members.length + ' beaten')),
+      locked ? h('span', { class: 'tier-status' }, U.icon('lock')) : null, U.icon('next', 'chev'));
+    return h('section', { class: 'card unit-card tier-section' + (locked ? ' locked' : '') + (i === top ? ' current' : ''), 'aria-label': UI.tierLabel(i) }, head, body);
   }
   /* asks before throwing away an unfinished game; resolves true when there is nothing left to lose */
   function abandon() {
@@ -63,11 +76,10 @@ var Play = (function () {
     var S = Store.state.settings;
     var choice = { color: S.color || 'w', coach: S.coach !== false, ask: S.coachAsk === true, takebacks: S.takebacks !== false, hanging: S.hanging !== false, clock: S.clock || 'none' };
     App.sheet(function (box, api) {
-      box.appendChild(h('div', { class: 'row', style: { marginBottom: '12px' } }, UI.avatar(bot, 'lg'),
-        h('div', null, h('h2', null, bot.name), h('div', { class: 'muted' }, bot.id === 'stockfish' ? 'Full strength' : 'About ' + bot.rating))));
-      box.appendChild(h('p', { class: 'muted' }, bot.bio));
+      box.classList.add('wide');
+      box.appendChild(profile(bot));
       var rec = Store.state.play.bots[bot.id];
-      if (rec && rec.w + rec.d + rec.l) box.appendChild(h('p', { class: 'small' }, 'Your record against ' + bot.name + ': ' + recordWords(rec) + '.'));
+      if (rec && rec.w + rec.d + rec.l) box.appendChild(h('p', { class: 'small', style: { marginTop: '12px' } }, 'Your record against ' + bot.short + ': ' + recordWords(rec) + '.' + (rival(rec) ? ' A real rivalry.' : '')));
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'You play'));
       box.appendChild(seg([['w', 'White'], ['r', 'Random'], ['b', 'Black']], choice.color, function (v) { choice.color = v; }));
       box.appendChild(h('div', { class: 'label', style: { margin: '16px 0 8px' } }, 'Clock'));
@@ -90,6 +102,23 @@ var Play = (function () {
         } }, 'Start game')));
     });
   }
+  /* who a character is and how it plays: tier, rating, the radar of its traits, its plan, tricks, weak spot and openings */
+  function profile(bot) {
+    var t = TIERS[bot.tierIdx], isBoss = bot.id === t.boss, o = bot.openings || {};
+    var head = h('div', { class: 'row profile-head' }, UI.avatar(bot, 'lg'),
+      h('div', { class: 'grow' }, h('h2', null, bot.name),
+        h('div', { class: 'muted' }, (bot.bonus ? 'Bonus challenger' : UI.tierLabel(bot.tierIdx)) + ' \u00b7 about ' + bot.rating),
+        isBoss ? h('span', { class: 'chip gold', style: { marginTop: '6px' } }, TempoBots.TIERS.length - 1 === bot.tierIdx ? 'Final match' : 'Promotion match') : null));
+    var tricks = (bot.tactics || []).join(', ');
+    var facts = h('dl', { class: 'facts' },
+      h('dt', null, 'How ' + bot.short + ' plays'), h('dd', null, bot.plan),
+      h('dt', null, 'Favorite tricks'), h('dd', null, tricks.charAt(0).toUpperCase() + tricks.slice(1) + '.'),
+      h('dt', null, 'Weak spot'), h('dd', null, bot.weakness),
+      h('dt', null, 'Openings'), h('dd', null, h('span', { class: 'op' }, 'As White: ' + o.white + '.'), h('span', { class: 'op' }, 'Against 1.e4: ' + o.black_vs_e4 + '.'), h('span', { class: 'op' }, 'Against 1.d4: ' + o.black_vs_d4 + '.')));
+    return h('div', { class: 'profile-wrap' }, head, h('p', { class: 'profile-bio' }, bot.bio + '.'), h('div', { class: 'profile' }, h('div', { class: 'radar-box' }, UI.radar(bot.traits || {})), facts));
+  }
+  /* a close record over a few games */
+  function rival(r) { return r && r.w >= 1 && r.l >= 1 && r.w + r.d + r.l >= 3 && Math.abs(r.w - r.l) <= 1; }
   function seg(options, value, onChange) {
     var el = h('div', { class: 'seg', role: 'radiogroup' });
     options.forEach(function (o) {
@@ -136,11 +165,13 @@ var Play = (function () {
     var pos = new C.Pos(G.startFen);
     G.moves.forEach(function (u) { pos.make(pos.parseMove(u)); });
     var you = G.color === 'w' ? 1 : -1;
-    var st = { pos: pos, viewPly: null, thinking: false, token: 0, hintStage: 0, hintMove: null, pre: null, ended: !!G.result, clockT: null, lastTick: 0, bubbleT: null, epds: [] };
+    var st = { pos: pos, viewPly: null, thinking: false, token: 0, hintStage: 0, hintMove: null, pre: null, ended: !!G.result, clockT: null, lastTick: 0, bubbleT: null, epds: [],
+      // the character's side of the game: its last move and score, and what it has said so far
+      ps: { last: lastBotMove(), prevScore: null, forcing: 0, lastEv: {}, said: 0, lastSaid: -99, genericAt: -99, surge: 0, surgeStart: false, endgameSaid: false, mateSaid: false } };
     view = st;
 
     var head = h('div', { class: 'row between game-head' },
-      h('button', { class: 'back', type: 'button', onclick: function () { leaveGame(); } }, U.icon('back'), 'Opponents'),
+      h('button', { class: 'back', type: 'button', onclick: function () { leaveGame(); } }, U.icon('back'), 'Characters'),
       h('div', { class: 'opening-name', id: 'opening' }));
     root.appendChild(head);
 
@@ -180,7 +211,7 @@ var Play = (function () {
       var oppCaps = G.color === 'w' ? mat.byBlack : mat.byWhite, myCaps = G.color === 'w' ? mat.byWhite : mat.byBlack;
       var bal = mat.balance * you;
       opp(UI.avatar(bot, 'sm'));
-      opp(h('div', { class: 'who' }, h('div', { class: 'name' }, bot.name, h('span', { class: 'rating' }, bot.id === 'stockfish' ? '' : String(bot.rating)),
+      opp(h('div', { class: 'who' }, h('div', { class: 'name' }, bot.short, h('span', { class: 'rating' }, String(bot.rating)),
         st.thinking ? h('span', { class: 'thinking', 'aria-label': 'thinking' }, h('i'), h('i'), h('i')) : null), UI.capturedRow(oppCaps, bal < 0 ? -bal : 0)));
       youBar.appendChild(h('span', { class: 'avatar sm tone-you', 'aria-hidden': 'true' }, 'Y'));
       youBar.appendChild(h('div', { class: 'who' }, h('div', { class: 'name' }, 'You', h('span', { class: 'rating' }, String(Store.state.play.rating))), UI.capturedRow(myCaps, bal > 0 ? bal : 0)));
@@ -266,8 +297,8 @@ var Play = (function () {
       });
     }
     function botSays(text) {
-      if (!text || Store.state.settings.botChat === false) return;
-      U.clear(bubble); bubble.appendChild(h('span', { class: 'sr-only' }, bot.name + ' says: ')); bubble.appendChild(document.createTextNode(text));
+      if (!text || Store.state.settings.chat === 'off' || Store.state.settings.botChat === false) return;
+      U.clear(bubble); bubble.appendChild(h('span', { class: 'sr-only' }, bot.short + ' says: ')); bubble.appendChild(document.createTextNode(text));
       bubble.classList.remove('out'); bubble.hidden = false;
       oppBar.classList.add('talking'); // the name steps aside while the bot talks
       clearTimeout(st.bubbleT);
@@ -296,7 +327,7 @@ var Play = (function () {
       var threat = speak && !st.deciding && coach.hidden ? mateThreat() : null;
       if (threat) {
         board.setArrows([{ from: threat.uci.slice(0, 2), to: threat.uci.slice(2, 4), color: 'red' }]);
-        say('Watch out: ' + bot.name + ' threatens checkmate with ' + threat.san + '. Stop it with this move.', 'alert');
+        say('Watch out: ' + bot.short + ' threatens checkmate with ' + threat.san + '. Stop it with this move.', 'alert');
         return;
       }
       if (speak && worst && !st.deciding && coach.hidden) {
@@ -362,7 +393,6 @@ var Play = (function () {
       Store.touch();
       playSound(m, st.pos);
       sync(m, true);
-      if (by !== G.color && Math.abs(captured) === 5) botSays(bot.lines.capture);
       var status = st.pos.status();
       if (status.over) finish(status.result, status.reason);
       return true;
@@ -456,22 +486,46 @@ var Play = (function () {
     function botTurn() {
       if (G.result) return;
       st.thinking = true; bars(); renderControls();
-      var tok = ++st.token, t0 = performance.now();
-      var idx = botIndex(bot.id);
-      var minDelay = idx < 8 ? 450 + Math.random() * 700 : 250;
-      Engines.botMove(bot, { fen: G.startFen, moves: G.moves.slice(), sans: G.sans.slice() }).then(function (uci) {
-        var wait = Math.max(0, minDelay - (performance.now() - t0));
+      var tok = ++st.token, t0 = performance.now(), ps = st.ps;
+      // the weaker characters take a moment, like a person would
+      var minDelay = bot.rating < 1000 ? 450 + Math.random() * 700 : 250;
+      if (bot.surge) { if (ps.surge > 0) ps.surge--; else if (Math.random() < bot.surge.chance) { ps.surge = bot.surge.len; ps.surgeStart = true; } }
+      var before = st.pos.clone(), lastSan = G.sans[G.sans.length - 1] || '', lastUci = G.moves[G.moves.length - 1] || '';
+      Engines.botDecide(bot, { fen: G.startFen, moves: G.moves.slice(), sans: G.sans.slice() }, { last: ps.last, surge: ps.surge }).then(function (res) {
+        var wait = Math.max(0, minDelay - (performance.now() - t0)), uci = res && res.uci;
         setTimeout(function () {
           if (tok !== st.token || G.result || st.ended) return;
           st.thinking = false;
-          if (!uci || !commit(uci, G.color === 'w' ? 'b' : 'w')) {
+          var by = G.color === 'w' ? 'b' : 'w';
+          if (!uci || !commit(uci, by)) {
             // engine failed: play any legal move rather than freezing
             var legal = st.pos.legalMoves();
-            if (legal.length) commit(C.uci(legal[Math.floor(Math.random() * legal.length)]), G.color === 'w' ? 'b' : 'w');
-          }
+            if (legal.length) commit(C.uci(legal[Math.floor(Math.random() * legal.length)]), by);
+          } else react(before, uci, res, lastSan.indexOf('x') >= 0 ? lastUci.slice(2, 4) : null);
           if (!G.result) startMyTurn();
         }, wait);
       });
+    }
+
+    /* ---------- what the character says ----------
+       Each character has a line for its signature moment. The moment is something that really happened on the board:
+       a fork it played, a trap you walked into, a piece it trapped. With chat on Some it speaks once a game; on Lots,
+       up to three times, plus a word when it gives check or takes a big piece. */
+    function react(before, uci, res, userTook) {
+      var m = before.parseMove(uci); if (!m) return;
+      var ev = moments(before, m, res, st.ps, userTook), ps = st.ps, ply = G.moves.length;
+      Play._lastMoments = ev;
+      var chat = Store.state.settings.chat || 'some';
+      if (chat === 'off' || G.result || ply < 3) return;
+      var hit = bot.sig.filter(function (k) { return ev[k]; })[0];
+      // a character whose own moment never came still reacts to a real tactic late in the game
+      if (!hit && !ps.said && ply > 30 && (ev.fork || ev.win || ev.mateSeen)) hit = 'late';
+      var max = chat === 'lots' ? 3 : 1, gap = chat === 'lots' ? 10 : 0;
+      if (hit && hit !== 'mate' && ps.said < max && ply - ps.lastSaid >= gap) { botSays(bot.lines.tactic); ps.said++; ps.lastSaid = ply; Play._said = hit; return; }
+      if (chat === 'lots' && ply - ps.genericAt >= 8) {
+        var g = GENERIC[bot.arche] || GENERIC.allrounder;
+        if (ev.check) { botSays(g.check); ps.genericAt = ply; } else if (ev.bigCapture) { botSays(g.capture); ps.genericAt = ply; }
+      }
     }
     function startMyTurn() {
       st.pre = null;
@@ -535,8 +589,8 @@ var Play = (function () {
       App.toast('You used ' + what + ', so this game won\u2019t count toward your rating.');
     }
     function offerDraw() {
-      if (G.moves.length < 20) { say(bot.name + ' won\u2019t agree to a draw before move 10. Play on.'); botSays('It\u2019s a bit early for a draw. Let\u2019s play on.'); return; }
-      say(bot.name + ' is thinking about your draw offer\u2026');
+      if (G.moves.length < 20) { say(bot.short + ' won\u2019t agree to a draw before move 10. Play on.'); botSays('It\u2019s a bit early for a draw. Let\u2019s play on.'); return; }
+      say(bot.short + ' is thinking about your draw offer\u2026');
       var dtok = st.token;
       Engines.analyse({ fen: st.pos.fen(), depth: 12, movetime: 800 }).then(function (r) {
         if (dtok !== st.token || view !== st || !G || G.result) return;
@@ -545,7 +599,7 @@ var Play = (function () {
         var botSide = G.color === 'w' ? -1 : 1;
         var forBot = (st.pos.side === botSide) ? forSideToMove : -forSideToMove;
         if (forBot <= 30) { finish('1/2-1/2', 'agreement'); }
-        else { say(bot.name + ' declined the draw. Play on.'); botSays('No thanks. I like my position.'); }
+        else { say(bot.short + ' declined the draw. Play on.'); botSays('No thanks. I like my position.'); }
       });
     }
 
@@ -604,20 +658,21 @@ var Play = (function () {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),
           h('div', { class: 'muted' }, why)));
-        var line = won ? bot.lines.lose : drew ? '' : bot.lines.win;
-        if (line && Store.state.settings.botChat !== false) box.appendChild(h('div', { class: 'row', style: { justifyContent: 'center', marginBottom: '10px' } }, UI.avatar(bot, 'sm'), h('div', { class: 'bubble' }, line)));
+        // a character whose moment is the checkmate itself says its line then
+        var line = won ? bot.lines.lose : drew ? '' : (rec.reason === 'checkmate' && bot.sig.indexOf('mate') >= 0 ? bot.lines.tactic : bot.lines.win);
+        if (line && Store.state.settings.chat !== 'off' && Store.state.settings.botChat !== false) box.appendChild(h('div', { class: 'row', style: { justifyContent: 'center', marginBottom: '10px' } }, UI.avatar(bot, 'sm'), h('div', { class: 'bubble' }, line)));
         if (rec.rated) {
           var d = rec.after - rec.before;
           box.appendChild(h('p', { style: { textAlign: 'center' } }, 'Rating ', h('b', null, String(rec.after)), ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)));
         } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: ' + (G.undos ? 'you took back a move.' : G.hints ? 'you used a hint.' : 'games shorter than three moves each don\u2019t count.')));
-        if (rec.unlocked) box.appendChild(h('div', { class: 'feedback ok', style: { textAlign: 'center', marginBottom: '8px' } }, rec.unlocked.name + ' is now unlocked.'));
+        (rec.news || []).forEach(function (n) { box.appendChild(h('div', { class: 'feedback ok news', style: { textAlign: 'center', marginBottom: '8px' } }, n.text)); });
         var pt = Mistakes.patterns();
         if (pt) box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Your pattern so far: ' + Mistakes.patternText(pt).replace(/^You /, 'you ').replace(/\.$/, '') + '. The review shows whether this game fits it.'));
         var row = h('div', { class: 'stack', style: { marginTop: '14px' } },
           h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); Review.openGame(G.id); } }, U.icon('review'), 'Review this game'));
         var row2 = h('div', { class: 'row' }, h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(bot); } }, 'Rematch'));
-        if (rec.unlocked) row2.appendChild(h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(rec.unlocked); } }, 'Play ' + rec.unlocked.name));
-        else row2.appendChild(h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); leaveGame(); } }, 'Opponents'));
+        if (rec.unlocked) row2.appendChild(h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(rec.unlocked); } }, 'Play ' + rec.unlocked.short));
+        else row2.appendChild(h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); leaveGame(); } }, 'Characters'));
         row.appendChild(row2);
         box.appendChild(row);
       });
@@ -648,6 +703,70 @@ var Play = (function () {
     else botTurn();
     function finishView() { board.setMovable(null); renderControls(); }
   }
+
+  /* the character's previous move in the game in progress, so it can tell when it repeats itself */
+  function lastBotMove() {
+    if (!G || !G.moves.length) return null;
+    var startSide = new C.Pos(G.startFen).side, botSide = G.color === 'w' ? -1 : 1;
+    for (var i = G.moves.length - 1; i >= 0; i--) if ((i % 2 === 0 ? startSide : -startSide) === botSide) return G.moves[i];
+    return null;
+  }
+  /* What a character's move did, as signature moments. Only what can be checked: features of the move on the board,
+     the engine's scores (a sacrifice counts only if the engine thinks it holds), and the game so far.
+     before: the position the move was played from; userTook: the square you just captured on, if you did. */
+  function lastInt(u) { return u && u.length >= 4 ? C.mk(C.sqIndex(u.slice(0, 2)), C.sqIndex(u.slice(2, 4)), 0, 0) : 0; }
+  function moments(before, m, res, ps, userTook) {
+    var f = TempoEngine.features(before, m, { last: lastInt(ps.last) }, true), pre = TempoEngine.prepare(before), ev = {};
+    var score = res && res.score != null ? res.score : null, best = res && res.best != null ? res.best : null;
+    var sound = res && res.via === 'book' ? true : score == null || best == null || score >= best - 60;
+    ['fork', 'checkFork', 'check', 'discovered', 'defend', 'repeat', 'outpost', 'win', 'grab', 'punishQueen', 'mateThreat', 'mate', 'removeDefender'].forEach(function (k) { if (f[k]) ev[k] = 1; });
+    if (f.pin || f.skewer) ev.pin = 1;
+    if (f.traps) ev.trap = 1;
+    if (f.brk) ev['break'] = 1;
+    if (f.retreat && !f.flee && !f.check) ev.retreat = 1; // nothing was attacking that piece
+    if (f.flee === 1) ev.flee = 1;                       // something was, but it wasn't really in danger
+    if ((f.zone >= 2 || f.storm || (f.near && f.threat)) && (score == null || score > -80)) ev.kingAttack = 1;
+    if (sound && f.sac) ev.sac = 1;
+    if (sound && f.exchangeSac) ev.exchangeSac = 1;
+    if (sound && f.pawnSac) { ev.pawnSac = 1; ev.bait = 1; }
+    if (pre.theirs.total >= 100 && !f.tookFree) ev.declineFree = 1;
+    if (f.trade && pre.ahead >= 200) ev.convert = 1;
+    if (f.queenTrade && (pre.ahead >= 100 || (score != null && score >= 100))) ev.queenTrade = 1;
+    if (f.cap >= 4) ev.bigCapture = 1;
+    var after = before.clone(); after.make(m);
+    // a Scholar's Mate try: an early queen move that hits f7 (or f2)
+    if (f.earlyQueen) { var tgt = C.sqIndex(before.side === 1 ? 'f7' : 'f2'); if (after.attackersOf(tgt, before.side).indexOf((m >> 7) & 127) >= 0) ev.scholar = 1; }
+    // from the game so far
+    ps.forcing = f.check || f.cap || f.threat ? ps.forcing + 1 : 0;
+    if (ps.forcing >= 3) { ev.forcing3 = 1; ps.forcing = 0; }
+    if ((ps.lastEv.defend || ps.lastEv.flee) && (f.threat || f.fork || f.check)) ev.counter = 1;
+    if (ps.prevScore != null && best != null) {
+      if (best - ps.prevScore >= 120 && (G ? G.moves.length : 0) < 40) ev.punish = 1;
+      if (best - ps.prevScore >= 120 && userTook) ev.trapSprung = 1;
+      if (ps.prevScore <= -250 && best >= -60) ev.escape = 1;
+    }
+    if (userTook && C.sqName((m >> 7) & 127) !== userTook && (f.check || f.queenHit) && sound) ev.zwischenzug = 1;
+    var mateSeen = res && ((res.mate != null && res.mate > 0 && res.mate <= 6) || (score != null && score > TempoEngine.MATE_BOUND));
+    if (mateSeen && !ps.mateSaid) { ev.mateSeen = 1; ps.mateSaid = true; }
+    if (!ps.endgameSaid && score != null && score >= 150 && TempoEngine.isEndgame(after)) { ev.endgame = 1; ps.endgameSaid = true; }
+    if (ps.surgeStart) { ev.surge = 1; ps.surgeStart = false; }
+    // a book move has no score: the next comparison starts fresh rather than from an old one
+    ps.lastEv = ev; ps.last = C.uci(m); ps.prevScore = score != null ? score : res && res.via === 'book' ? null : ps.prevScore;
+    return ev;
+  }
+  /* a word for each kind of player, for chat on Lots */
+  var GENERIC = {
+    chaos: { check: 'Check! I think?', capture: 'Ooh, I got one!' }, surprise: { check: 'Boo! Check!', capture: 'Surprise snack!' },
+    hunter: { check: 'Check! Can I have your king?', capture: 'Got it! Mine!' }, retreater: { check: 'Oh, check. Sorry about that.', capture: 'I hope that was allowed.' },
+    reckless: { check: 'Check! Wheee!', capture: 'Smash!' }, attacker: { check: 'Check! Keep running.', capture: 'Another one down.' },
+    defender: { check: 'Check. Careful now.', capture: 'I\u2019ll keep that safe.' }, investigator: { check: 'Check. Interesting.', capture: 'That piece was unguarded.' },
+    inventor: { check: 'Check! The gadget works.', capture: 'Spare parts!' }, theorist: { check: 'Check, as the books suggest.', capture: 'A textbook capture.' },
+    allrounder: { check: 'Check!', capture: 'I\u2019ll take that, thanks.' }, builder: { check: 'Check. Brick by brick.', capture: 'More building material.' },
+    adaptive: { check: 'Check. The tide is turning.', capture: 'I\u2019ll make use of that.' }, trapper: { check: 'Check. Did you see it coming?', capture: 'Right into the trap.' },
+    gambiteer: { check: 'Check! Now it\u2019s exciting.', capture: 'All part of the plan.' }, calculator: { check: 'Check. As calculated.', capture: 'The numbers liked that one.' },
+    technician: { check: 'Check.', capture: 'Clean.' }, positional: { check: 'Check. Your space is shrinking.', capture: 'That piece had nowhere to go.' },
+    champion: { check: 'Check! Ooh, shiny.', capture: 'Mmm\u2026 captured pieces.' }
+  };
 
   /* A mate in one for the side to move in p, or null. */
   function mateInOne(p) {
@@ -703,9 +822,10 @@ var Play = (function () {
     return '';
   }
 
-  /* Save a finished game: ratings, ladder, history. Returns a summary for the end screen. */
+  /* Save a finished game: rating, records, tiers, history. Returns a summary for the end screen, with what the game
+     opened: a promotion match, the next tier, the bonus challenger, the championship. */
   function record(g, bot) {
-    var S = Store.state, idx = botIndex(bot.id);
+    var S = Store.state, B = TempoBots, all = S.settings.unlockAll;
     var score = g.result === '1/2-1/2' ? 0.5 : ((g.result === '1-0') === (g.color === 'w') ? 1 : 0);
     var rated = !g.undos && !g.hints && g.moves.length >= 6;
     var before = S.play.rating, after = before;
@@ -717,12 +837,28 @@ var Play = (function () {
       S.play.hist.push([Date.now(), after]);
       if (S.play.hist.length > 400) S.play.hist.shift();
     }
+    // what was open before this result
+    var topBefore = B.topTier(S.play), ti = bot.tierIdx, bossId = B.TIERS[ti].boss;
+    var bossWas = B.access(S.play, bossId, false), hidden = B.BONUS.filter(function (id) { return B.access(S.play, id, false) === 'hidden'; });
     var rec = S.play.bots[bot.id] || (S.play.bots[bot.id] = { w: 0, d: 0, l: 0 });
     if (score === 1) rec.w++; else if (score === 0.5) rec.d++; else rec.l++;
-    var unlocked = null;
-    var beat = score === 1 || (bot.id === 'stockfish' && score === 0.5);
-    if (beat && !rec.beaten) rec.beaten = true;
-    if (beat && idx >= (S.play.unlocked || 0) && idx + 1 < BOTS.length) { S.play.unlocked = idx + 1; unlocked = BOTS[idx + 1]; }
+    // against the last of the Legends a draw counts as a win
+    var beat = score === 1 || (bot.id === B.CHAMPION && score === 0.5);
+    if (beat) rec.beaten = true;
+    var news = [], unlocked = null, topAfter = B.topTier(S.play);
+    if (topAfter > (S.play.tier || 0)) S.play.tier = topAfter;
+    if (beat && bot.id === B.CHAMPION && !S.play.champ) { S.play.champ = true; news.push({ kind: 'champ', text: 'You beat ' + bot.name + '. You’re the Tempo Champion.' }); }
+    if (topAfter > topBefore) {
+      var nt = B.TIERS[topAfter], first = B.nextFor(S.play, all);
+      news.push({ kind: 'tier', text: 'Promoted to ' + UI.tierLabel(topAfter) + '.' });
+      unlocked = first;
+    } else if (bossWas === 'boss-locked' && B.access(S.play, bossId, false) === 'open') {
+      unlocked = B.byId(bossId);
+      news.push({ kind: 'boss', text: 'Promotion match open: beat ' + unlocked.name + ' to ' + (ti + 1 < B.TIERS.length ? 'reach ' + UI.tierLabel(ti + 1) : 'become the Tempo Champion') + '.' });
+    }
+    hidden.forEach(function (id) {
+      if (B.access(S.play, id, false) !== 'hidden') { var x = B.byId(id); news.push({ kind: 'bonus', text: 'A bonus challenger has appeared: ' + x.name + '.' }); if (!unlocked) unlocked = x; }
+    });
     Store.touch('play');
     var pgn = C.pgnFromMoves({
       Event: 'Tempo game', Site: 'Tempo', Date: new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
@@ -735,7 +871,7 @@ var Play = (function () {
     if (S.games.list.length > 100) S.games.list.length = 100;
     Store.touch('games');
     Store.activity('g');
-    return { score: score, rated: rated, before: before, after: after, reason: g.reason, unlocked: unlocked };
+    return { score: score, rated: rated, before: before, after: after, reason: g.reason, unlocked: unlocked, news: news };
   }
   function movesInts(g) {
     var p = new C.Pos(g.startFen), out = [];
@@ -747,7 +883,7 @@ var Play = (function () {
     render: function (root, params) {
       if (params && params.game && !G) { var c = Store.state.current; if (c && !c.result && c.moves) G = c; }
       if (params && params.game && G) renderGame(root);
-      else { G = null; renderLadder(root); }
+      else { G = null; renderTiers(root); }
     },
     leave: function () {
       if (view) { clearInterval(view.clockT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
@@ -756,6 +892,6 @@ var Play = (function () {
     busy: function () { return !!view; }
   });
 
-  return { setup: setup, resume: resume, record: record, toggle: toggle, seg: seg,
+  return { setup: setup, resume: resume, record: record, toggle: toggle, seg: seg, profile: profile, _moments: moments,
     _reason: function (fen, uci) { var p = new C.Pos(fen), m = p.parseMove(uci); return m ? moveReason(p, m) : null; } };
 })();

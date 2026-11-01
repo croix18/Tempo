@@ -328,6 +328,269 @@ function scoreRoot(p, depth, useQ) {
   return out;
 }
 
+/* ---------- what a move does, for the characters ----------
+   features(p, m, ctx, deep) looks at one move on the board: what it captures and risks, what it attacks, whether it
+   forks, pins, uncovers an attack, retreats, builds a pawn chain, storms the king and so on. Everything here is
+   measured from the position, not guessed from the move's shape: a check is only a check, and a "sacrifice" is
+   material really left to be taken. deep adds the slower ones (the opponent's mobility, mate threats, trapped pieces). */
+var VAL = [0, 100, 320, 330, 500, 900, 0];
+var ND = [33, 31, 18, 14, -33, -31, -18, -14], KD = [1, -1, 16, -16, 17, 15, -17, -15], BD = [17, 15, -17, -15], RD = [1, -1, 16, -16];
+function gamePly(p) { return (p.full - 1) * 2 + (p.side === 1 ? 0 : 1); }
+function nonPawn(p, side) {
+  var b = p.b, n = 0;
+  for (var s = 0; s < 120; s++) { if (s & 8) { s += 7; continue; } var x = b[s] * side; if (x > 1 && x < 6) n += VAL[x]; }
+  return n;
+}
+function pawnsOn(p, side) {
+  var b = p.b, n = 0;
+  for (var s = 0; s < 120; s++) { if (s & 8) { s += 7; continue; } if (b[s] === side) n++; }
+  return n;
+}
+function isEndgame(p) {
+  var w = nonPawn(p, 1), bl = nonPawn(p, -1), q = 0, b = p.b;
+  for (var s = 0; s < 120; s++) { if (s & 8) { s += 7; continue; } if (Math.abs(b[s]) === QUEEN) q++; }
+  return (q === 0 && w <= 1400 && bl <= 1400) || (w + bl <= 1700);
+}
+/* squares the piece on sq attacks */
+function attacksFrom(p, sq) {
+  var b = p.b, pc = b[sq], t = Math.abs(pc), side = pc > 0 ? 1 : -1, out = [], s, i, d;
+  if (t === PAWN) { [15, 17].forEach(function (o) { s = sq + o * side; if (!(s & 0x88)) out.push(s); }); return out; }
+  if (t === KNIGHT || t === KING) { var dirs = t === KNIGHT ? ND : KD; for (i = 0; i < 8; i++) { s = sq + dirs[i]; if (!(s & 0x88)) out.push(s); } return out; }
+  var rays = t === BISHOP ? BD : t === ROOK ? RD : KD;
+  for (i = 0; i < rays.length; i++) { d = rays[i]; s = sq + d; while (!(s & 0x88)) { out.push(s); if (b[s]) break; s += d; } }
+  return out;
+}
+function slides(t, d) { var diag = d === 17 || d === 15 || d === -17 || d === -15; return t === QUEEN || (diag ? t === BISHOP : t === ROOK); }
+function kingZone(p, side) { var k = side === 1 ? p.wk : p.bk, out = [k]; for (var i = 0; i < 8; i++) { var s = k + KD[i]; if (!(s & 0x88)) out.push(s); } return out; }
+function zoneHits(p, side, by) { var z = kingZone(p, side), n = 0; for (var i = 0; i < z.length; i++) if (p.isAttacked(z[i], by)) n++; return n; }
+function hangingTotal(p, side, skip) {
+  var b = p.b, tot = 0, list = [];
+  for (var s = 0; s < 120; s++) {
+    if (s & 8) { s += 7; continue; }
+    if (s === skip || !b[s] || (b[s] > 0) !== (side === 1) || Math.abs(b[s]) === KING) continue;
+    var l = p.hangingLoss(s); if (l > 0) { tot += l; list.push(s); }
+  }
+  return { total: tot, list: list };
+}
+function mateInOne(p) {
+  var legal = p.legalMoves();
+  for (var i = 0; i < legal.length; i++) {
+    p.make(legal[i]);
+    var mate = p.inCheck() && p.legalMoves().length === 0;
+    p.unmake();
+    if (mate) return legal[i];
+  }
+  return 0;
+}
+/* is the enemy piece on sq trapped: attacked, losing material where it stands, and no square it can go to is safe? */
+function trapped(p, sq) {
+  if (p.hangingLoss(sq) < 100) return false;
+  var legal = p.legalMoves();
+  for (var i = 0; i < legal.length; i++) {
+    var m = legal[i]; if ((m & 127) !== sq) continue;
+    var cap = Math.abs(p.moveCaptured(m));
+    p.make(m); var loss = p.hangingLoss((m >> 7) & 127); p.unmake();
+    if (loss - VAL[cap] < 100) return false;
+  }
+  return true;
+}
+
+/* what is the same for every move in a position, worked out once */
+function prepare(p) {
+  var me = p.side;
+  return { side: me, mine: hangingTotal(p, me, -1), theirs: hangingTotal(p, -me, -1), zone: zoneHits(p, -me, me), endgame: isEndgame(p), ply: gamePly(p),
+    ahead: (nonPawn(p, me) + 100 * pawnsOn(p, me)) - (nonPawn(p, -me) + 100 * pawnsOn(p, -me)) };
+}
+function features(p, m, ctx, deep, pre) {
+  ctx = ctx || {};
+  pre = pre || prepare(p);
+  var me = p.side, them = -me, b = p.b;
+  var from = m & 127, to = (m >> 7) & 127, fl = m >>> 17, promo = (m >> 14) & 7;
+  var piece = Math.abs(b[from]), victim = Math.abs(p.moveCaptured(m)), ply = pre.ply, endgame = pre.endgame;
+  var rel = function (s) { return me === 1 ? (s >> 4) : 7 - (s >> 4); }; // rank from the mover's side, 0 = home
+  var f = { piece: piece, cap: victim, capVal: VAL[victim], see: (fl & 1) ? p.see(m) : 0, castle: (fl & 4) !== 0, promo: promo, ply: ply, endgame: endgame };
+  // before the move
+  var wasAttacked = piece !== KING && p.attackersOf(from, them).length > 0, wasLoss = pre.mine.list.indexOf(from) >= 0 ? p.hangingLoss(from) : 0;
+  // sliders of ours whose line runs through `from`, for discovered attacks
+  var disc = [];
+  for (var i = 0; i < 8; i++) {
+    var d = KD[i], s = from - d;
+    while (!(s & 0x88) && !b[s]) s -= d;
+    if ((s & 0x88) || !b[s] || (b[s] > 0) !== (me === 1) || !slides(Math.abs(b[s]), d)) continue;
+    disc.push({ src: s, d: d });
+  }
+  p.make(m);
+  f.check = p.inCheck();
+  var replies = p.legalMoves();
+  f.mate = f.check && !replies.length;
+  f.stalemate = !f.check && !replies.length;
+  f.hang = piece === KING ? 0 : p.hangingLoss(to);
+  var mineAfter = hangingTotal(p, me, to);
+  f.undefend = Math.max(0, mineAfter.total - (pre.mine.total - wasLoss));
+  f.flee = wasAttacked && f.hang === 0 ? (wasLoss > 0 ? 2 : 1) : 0;
+  f.defend = pre.mine.list.filter(function (q) { return q !== from && mineAfter.list.indexOf(q) < 0 && p.b[q] && (p.b[q] > 0) === (me === 1); }).length;
+  // what the moved piece attacks now: the king, a piece that hangs, or one worth more than it
+  var targets = [], kingSq = them === 1 ? p.wk : p.bk, mover = Math.abs(p.b[to]);
+  attacksFrom(p, to).forEach(function (t) {
+    var x = p.b[t]; if (!x || (x > 0) === (me === 1)) return;
+    var tt = Math.abs(x);
+    if (tt === KING) { targets.push({ sq: t, type: KING }); return; }
+    if (VAL[tt] > VAL[mover] + 50 || p.hangingLoss(t) > 0) targets.push({ sq: t, type: tt });
+  });
+  f.targets = targets;
+  var real = targets.filter(function (t) { return t.type !== KING; });
+  f.threat = real.length;
+  f.fork = targets.length >= 2 && f.hang < 200 && (real.length >= 2 || f.check);
+  f.checkFork = f.check && real.length >= 1;
+  f.queenHit = real.some(function (t) { return t.type === QUEEN; });
+  // pins and skewers along the moved piece's lines
+  f.pin = 0; f.skewer = 0;
+  if (mover === BISHOP || mover === ROOK || mover === QUEEN) {
+    var rays = mover === BISHOP ? BD : mover === ROOK ? RD : KD;
+    for (i = 0; i < rays.length; i++) {
+      var dd = rays[i], s1 = to + dd, s2;
+      while (!(s1 & 0x88) && !p.b[s1]) s1 += dd;
+      if ((s1 & 0x88) || (p.b[s1] > 0) === (me === 1)) continue;
+      var first = Math.abs(p.b[s1]); s2 = s1 + dd;
+      while (!(s2 & 0x88) && !p.b[s2]) s2 += dd;
+      if ((s2 & 0x88) || (p.b[s2] > 0) === (me === 1)) continue;
+      var second = Math.abs(p.b[s2]);
+      if (first !== KING && (second === KING || (VAL[second] > VAL[first] && second >= ROOK))) f.pin++;
+      else if ((first === KING || first === QUEEN) && second !== KING && VAL[second] >= 300 && p.hangingLoss(s2) > 0) f.skewer++;
+    }
+  }
+  // discovered attacks: a line of ours opened through `from` onto the king or a big piece
+  f.discovered = 0; f.discCheck = false;
+  disc.forEach(function (x) {
+    var q = from;
+    while (!(q & 0x88) && !p.b[q]) q += x.d;
+    if ((q & 0x88) || q === to || (p.b[q] > 0) === (me === 1)) return;
+    var t = Math.abs(p.b[q]);
+    if (t === KING) { f.discovered++; f.discCheck = true; }
+    else if (t >= ROOK || p.hangingLoss(q) > 0) f.discovered++;
+  });
+  // king attack: more squares around their king under fire, or a piece arriving close to it
+  f.zone = zoneHits(p, them, me) - pre.zone;
+  f.near = piece !== KING && piece !== PAWN && Math.max(Math.abs((to & 7) - (kingSq & 7)), Math.abs((to >> 4) - (kingSq >> 4))) <= 2 ? 1 : 0;
+  // pawn structure
+  if (piece === PAWN) {
+    var file = to & 7, fwd = 16 * me, hasPawn = function (sq) { return !(sq & 0x88) && p.b[sq] === PAWN * me; };
+    f.chain = (hasPawn(to - fwd - 1) || hasPawn(to - fwd + 1) || hasPawn(to + fwd - 1) || hasPawn(to + fwd + 1)) ? 1 : 0;
+    f.brk = (file >= 2 && file <= 5 && [fwd - 1, fwd + 1].some(function (o) { var q = to + o; return !(q & 0x88) && p.b[q] === -PAWN * me; })) ? 1 : 0;
+    f.flank = (file <= 1 || file >= 6) && ply < 20 && !victim ? 1 : 0;
+    var kf = kingSq & 7, krel = me === 1 ? 7 - (kingSq >> 4) : (kingSq >> 4);
+    f.storm = Math.abs(file - kf) <= 1 && krel <= 1 && rel(to) >= 3 && !endgame ? 1 : 0;
+    var passed = true;
+    for (var r = (to >> 4) + me; r >= 0 && r <= 7 && passed; r += me) for (var df = -1; df <= 1; df++) {
+      var ff = file + df; if (ff < 0 || ff > 7) continue;
+      if (p.b[(r << 4) | ff] === -PAWN * me) passed = false;
+    }
+    f.passed = passed ? 1 + (rel(to) >= 5 ? 1 : 0) : 0;
+  }
+  // pieces
+  f.develop = (piece === KNIGHT || piece === BISHOP) && rel(from) === 0 && ply < 24;
+  f.center = 0;
+  var tf = to & 7, tr = to >> 4;
+  if (tf >= 2 && tf <= 5 && tr >= 2 && tr <= 5) f.center = (tf === 3 || tf === 4) && (tr === 3 || tr === 4) ? 2 : 1;
+  f.kingWalk = piece === KING && !f.castle && !endgame;
+  f.earlyQueen = piece === QUEEN && ply < 12;
+  f.queenOut = piece === QUEEN && ply < 16 && rel(to) >= 4;
+  f.retreat = piece !== PAWN && piece !== KING && !victim && rel(to) < rel(from) ? 1 : 0;
+  f.advance = piece !== PAWN && piece !== KING && rel(to) >= 4 && rel(to) > rel(from) ? 1 : 0;
+  if ((piece === KNIGHT || piece === BISHOP) && rel(to) >= 3 && rel(to) <= 5) {
+    var guard = [to - 16 * me - 1, to - 16 * me + 1].some(function (q) { return !(q & 0x88) && p.b[q] === PAWN * me; }), safe = true;
+    for (var r2 = (to >> 4) + me; r2 >= 0 && r2 <= 7 && safe; r2 += me) for (var df2 = -1; df2 <= 1; df2 += 2) {
+      var f2 = (to & 7) + df2; if (f2 >= 0 && f2 <= 7 && p.b[(r2 << 4) | f2] === -PAWN * me) safe = false;
+    }
+    f.outpost = guard && safe ? 1 : 0;
+  }
+  if (endgame && piece === KING) {
+    var cd = function (q) { return Math.max(3 - (q & 7), (q & 7) - 4) + Math.max(3 - (q >> 4), (q >> 4) - 4); };
+    f.kingActive = cd(to) < cd(from) ? 1 : 0;
+  }
+  // exchanges: like for like, where they can take back
+  f.trade = victim && victim !== PAWN && Math.abs(VAL[victim] - VAL[piece]) <= 40 && p.attackersOf(to, them).length > 0 ? 1 : 0;
+  f.queenTrade = victim === QUEEN && piece === QUEEN ? 1 : 0;
+  // material left to be taken, or lost in the exchange
+  var give = Math.max(0, f.hang - VAL[victim]);
+  if (f.see < 0) give = Math.max(give, -f.see);
+  if (f.mate) give = 0;
+  f.give = give;
+  f.exchangeSac = piece === ROOK && give >= 120 && give <= 260 ? 1 : 0;
+  f.sac = !f.exchangeSac && give >= 200 ? 1 : 0;
+  f.pawnSac = !f.exchangeSac && give >= 80 && give < 200 ? 1 : 0;
+  f.grab = victim && f.see < 0 ? 1 : 0;
+  f.win = victim && victim !== PAWN && f.see >= 200 ? 1 : 0;
+  f.punishQueen = f.queenHit && ply < 24 && (f.develop || piece === PAWN) ? 1 : 0;
+  f.tookFree = victim && pre.theirs.list.indexOf(to) >= 0 ? 1 : 0;
+  // repeating ourselves
+  if (ctx.last) {
+    var lf = ctx.last & 127, lt = (ctx.last >> 7) & 127;
+    f.repeat = from === lt && to === lf ? 1 : 0;
+    f.samePiece = from === lt ? 1 : 0;
+  }
+  if (deep) {
+    // removing a defender: a capture after which another of their pieces can be taken
+    if (victim) { var theirsAfter = hangingTotal(p, them, -1); f.removeDefender = theirsAfter.list.some(function (q) { return pre.theirs.list.indexOf(q) < 0; }) ? 1 : 0; }
+    f.mobility = replies.length;
+    f.mateThreat = 0;
+    if (!f.check && !f.mate) { p.makeNull(); f.mateThreat = mateInOne(p) ? 1 : 0; p.unmakeNull(); }
+    f.traps = 0;
+    real.forEach(function (t) { if (t.type >= KNIGHT && t.type <= QUEEN && trapped(p, t.sq)) f.traps++; });
+  }
+  p.unmake();
+  return f;
+}
+
+/* A character's bonus for a move, in centipawns, from its style weights. Weights are bounded per feature, so no single
+   preference outweighs a piece; the engine's own score still decides what is safe. */
+var STYLE_KEYS = ['check', 'capture', 'threat', 'fork', 'pin', 'discovered', 'zone', 'storm', 'sac', 'pawnSac', 'exchangeSac', 'develop', 'castle', 'center',
+  'kingWalk', 'earlyQueen', 'queenOut', 'retreat', 'advance', 'flee', 'defend', 'trade', 'simplify', 'queenTrade', 'chain', 'outpost', 'brk', 'flank',
+  'restrict', 'passed', 'kingActive', 'repeat', 'samePiece', 'undefend', 'mateThreat', 'traps', 'grab', 'punishQueen', 'swap', 'removeDefender'];
+function styleScore(f, s, ahead) {
+  if (!s) return 0;
+  var v = 0, c = function (k, x) { var w = s[k]; if (w && x) v += w * x; };
+  c('check', f.check ? 1 : 0);
+  c('capture', f.cap ? 1 : 0);
+  c('threat', Math.min(2, f.threat));
+  c('fork', f.fork ? 1 : 0);
+  c('pin', Math.min(1, f.pin + f.skewer));
+  c('discovered', Math.min(1, f.discovered));
+  c('zone', Math.max(0, Math.min(3, f.zone)) + f.near * 0.5);
+  c('storm', f.storm || 0);
+  c('sac', f.sac);
+  c('pawnSac', f.pawnSac);
+  c('exchangeSac', f.exchangeSac);
+  if (f.ply < 24) { c('develop', f.develop ? 1 : 0); c('earlyQueen', f.earlyQueen ? 1 : 0); c('queenOut', f.queenOut ? 1 : 0); }
+  c('castle', f.castle ? 1 : 0);
+  c('center', f.ply < 30 ? f.center : 0);
+  c('kingWalk', f.kingWalk ? 1 : 0);
+  c('retreat', f.retreat);
+  c('advance', f.advance);
+  c('flee', f.flee ? 1 : 0);
+  c('defend', Math.min(2, f.defend));
+  c('trade', f.trade);
+  if (ahead >= 200) c('simplify', f.trade || f.queenTrade ? 1 : 0);
+  if (ahead <= -200) c('swap', f.trade || f.queenTrade ? 1 : 0);
+  c('queenTrade', f.queenTrade);
+  c('chain', f.chain || 0);
+  c('outpost', f.outpost || 0);
+  c('brk', f.brk || 0);
+  c('flank', f.flank || 0);
+  if (f.endgame) { c('passed', f.passed || 0); c('kingActive', f.kingActive || 0); }
+  c('repeat', f.repeat || 0);
+  c('samePiece', f.samePiece || 0);
+  c('undefend', f.undefend >= 100 ? 1 : 0);
+  c('mateThreat', f.mateThreat || 0);
+  c('traps', f.traps || 0);
+  c('grab', f.grab);
+  c('punishQueen', f.punishQueen);
+  c('removeDefender', f.removeDefender || 0);
+  if (s.restrict && f.mobility != null && f.avgMobility) c('restrict', Math.max(-1, Math.min(1, (f.avgMobility - f.mobility) / 8)));
+  return v;
+}
+function needsDeep(s) { return !!s && !!(s.restrict || s.mateThreat || s.traps || s.removeDefender); }
+
 /* ---------- bots ---------- */
 function makeRng(seed) {
   var s = (seed >>> 0) || 123456789;
@@ -381,11 +644,9 @@ function softPick(list, temp, rng) {
   return list[0].move;
 }
 
-/* cfg: {depth, movetime, qs, temp, random, blunder, mateCap, style, inaccuracy, margin} */
-function botMove(p, cfg, seed) {
-  var rng = makeRng(seed || (Date.now() & 0x7fffffff));
-  var legal = p.legalMoves();
-  if (legal.length <= 1) return { move: legal[0] || 0, kind: 'forced' };
+/* Legacy picker for the original ladder bots (still the yardsticks the characters are measured against).
+   cfg: {depth, movetime, qs, temp, random, blunder, mateCap, style, inaccuracy, margin} */
+function legacyMove(p, cfg, rng, legal) {
   var style = cfg.style || {};
   if (cfg.random && rng() < cfg.random) return { move: weightedNatural(p, legal, rng, style), kind: 'random' };
   var depth = cfg.depth || 1, useQ = cfg.qs !== false, temp = cfg.temp || 0;
@@ -412,6 +673,91 @@ function botMove(p, cfg, seed) {
   return { move: res.best, kind: 'search', score: res.score, depth: res.depth };
 }
 
+/* ---------- the characters ----------
+   cfg.persona marks a character. Strength comes first: depth, quiescence, temperature, random moves and oversights
+   decide how well it sees. Style only chooses among what that strength allows: in the soft picker it shifts the odds
+   between moves the engine has scored, and in the search picker it chooses only among moves within cfg.styleMargin
+   of the best. cfg.styleScale and cfg.styleCap keep a preference from ever outweighing real material. */
+function lastMove(u) {
+  if (!u || u.length < 4) return 0;
+  var f = C.sqIndex(u.slice(0, 2)), t = C.sqIndex(u.slice(2, 4));
+  return f >= 0 && t >= 0 ? C.mk(f, t, 0, 0) : 0;
+}
+function bonusOf(f, cfg, ahead) {
+  var v = styleScore(f, cfg.style, ahead) * (cfg.styleScale == null ? 1 : cfg.styleScale), cap = cfg.styleCap || 120;
+  return v > cap ? cap : v < -cap ? -cap : v;
+}
+function scoreAll(p, list, cfg, ctx, deep) {
+  var pre = prepare(p), sum = 0, n = 0;
+  list.forEach(function (x) { x.f = features(p, x.move, ctx, deep, pre); if (x.f.mobility != null) { sum += x.f.mobility; n++; } });
+  list.forEach(function (x) { if (n) x.f.avgMobility = sum / n; x.bonus = bonusOf(x.f, cfg, pre.ahead); });
+  return pre;
+}
+function personaMove(p, cfg, rng, legal, ctx) {
+  var c = { last: lastMove(ctx.last) }, deep = needsDeep(cfg.style);
+  // a random move, but one the character would find natural
+  if (cfg.random && rng() < cfg.random) {
+    var opts = legal.map(function (m) { return { move: m }; });
+    scoreAll(p, opts, cfg, c, false);
+    var ws = opts.map(function (x) {
+      var f = x.f, w = 1 + (f.cap ? 3 : 0) + (f.check ? 2 : 0) + f.center + (f.develop ? 1.5 : 0) + (f.castle ? 2 : 0) - (f.kingWalk ? 0.7 : 0);
+      return Math.max(0.2, w) * Math.exp(Math.max(-60, Math.min(60, x.bonus)) / 40);
+    });
+    var total = ws.reduce(function (a, b) { return a + b; }, 0), r = rng() * total;
+    for (var i = 0; i < opts.length; i++) { r -= ws[i]; if (r <= 0) return { move: opts[i].move, kind: 'random' }; }
+    return { move: opts[opts.length - 1].move, kind: 'random' };
+  }
+  var depth = cfg.depth || 1, useQ = cfg.qs !== false, temp = cfg.temp || 0;
+  var oversight = cfg.blunder && rng() < cfg.blunder;
+  if (oversight) { depth = 1; useQ = false; temp = Math.max(temp, 60); }
+  if (temp > 0 && depth <= 4) {
+    if (depth >= 3) think(p, { depth: depth - 1 });
+    var scored = scoreRoot(p, depth, useQ), cap = cfg.mateCap || 5000;
+    scoreAll(p, scored, cfg, c, deep && depth >= 2);
+    scored.forEach(function (x) {
+      var s = x.score > cap ? cap : x.score < -cap ? -cap : x.score;
+      x.adj = s + x.bonus + (rng() - 0.5) * (cfg.jitter || 0);
+    });
+    var best = scored[0].score, top = scored[0].move;
+    scored.sort(function (a, b) { return b.adj - a.adj; });
+    var pick = softPickItem(scored, temp, rng);
+    return { move: pick.move, kind: oversight ? 'oversight' : 'soft', score: pick.score, best: best, top: top };
+  }
+  var res = think(p, { depth: depth, movetime: cfg.movetime || 0 });
+  var slip = cfg.slip && rng() < cfg.slip, styled = !slip && cfg.styleRate && rng() < cfg.styleRate;
+  if ((slip || styled) && res.depth >= 2) {
+    var alt = scoreRoot(p, Math.max(1, Math.min(res.depth - 1, 4)), true);
+    var margin = slip ? (cfg.margin || 50) : (cfg.styleMargin || 30);
+    var near = alt.filter(function (x) { return x.score >= alt[0].score - margin; });
+    if (slip && near.length > 1) { var nm = near[1 + Math.floor(rng() * (near.length - 1))]; return { move: nm.move, kind: 'inaccuracy', score: nm.score, best: res.score, top: res.best }; }
+    if (styled && near.length > 1) {
+      // the engine's own first choice is always in the running, scored as it saw it
+      if (!near.some(function (x) { return x.move === res.best; })) near.push({ move: res.best, score: alt[0].score });
+      scoreAll(p, near, cfg, c, deep);
+      near.forEach(function (x) { var bn = Math.max(-margin, Math.min(margin, x.bonus)); x.adj = x.score + bn + (rng() - 0.5) * margin * 0.5; });
+      near.sort(function (a, b) { return b.adj - a.adj; });
+      var sp = near[0];
+      return { move: sp.move, kind: sp.move === res.best ? 'search' : 'style', score: sp.move === res.best ? res.score : res.score - (alt[0].score - sp.score), best: res.score, top: res.best, depth: res.depth };
+    }
+  }
+  return { move: res.best, kind: 'search', score: res.score, best: res.score, top: res.best, depth: res.depth };
+}
+function softPickItem(list, temp, rng) {
+  var max = list[0].adj, total = 0, ws = [];
+  for (var i = 0; i < list.length; i++) { var w = Math.exp((list[i].adj - max) / temp); ws.push(w); total += w; }
+  var r = rng() * total;
+  for (i = 0; i < list.length; i++) { r -= ws[i]; if (r <= 0) return list[i]; }
+  return list[0];
+}
+
+function botMove(p, cfg, seed, ctx) {
+  var rng = makeRng(seed || (Date.now() & 0x7fffffff));
+  var legal = p.legalMoves();
+  if (legal.length <= 1) return { move: legal[0] || 0, kind: 'forced' };
+  cfg = cfg || {};
+  return cfg.persona ? personaMove(p, cfg, rng, legal, ctx || {}) : legacyMove(p, cfg, rng, legal);
+}
+
 /* Position from a start FEN plus a list of UCI moves. */
 function posFrom(fen, moves) {
   var p = new C.Pos(fen || C.START_FEN);
@@ -426,8 +772,8 @@ function posFrom(fen, moves) {
 function handle(msg) {
   var p = posFrom(msg.fen, msg.moves);
   if (msg.cmd === 'bot') {
-    var r = botMove(p, msg.cfg || {}, msg.seed);
-    return { move: r.move ? C.uci(r.move) : null, kind: r.kind };
+    var r = botMove(p, msg.cfg || {}, msg.seed, msg.ctx);
+    return { move: r.move ? C.uci(r.move) : null, kind: r.kind, score: r.score, best: r.best, top: r.top ? C.uci(r.top) : null };
   }
   if (msg.cmd === 'analyse') {
     var a = think(p, { depth: msg.depth, movetime: msg.movetime, nodes: msg.nodes });
@@ -443,7 +789,8 @@ function handle(msg) {
   return { error: 'unknown command' };
 }
 
-var Engine = { evaluate: evaluate, think: think, scoreRoot: scoreRoot, botMove: botMove, handle: handle, posFrom: posFrom, clearTT: clearTT, MATE: MATE, MATE_BOUND: MATE_BOUND };
+var Engine = { evaluate: evaluate, think: think, scoreRoot: scoreRoot, botMove: botMove, handle: handle, posFrom: posFrom, clearTT: clearTT, MATE: MATE, MATE_BOUND: MATE_BOUND,
+  features: features, prepare: prepare, styleScore: styleScore, STYLE_KEYS: STYLE_KEYS, isEndgame: isEndgame, gamePly: gamePly, mateInOne: mateInOne };
 G.TempoEngine = Engine;
 if (typeof module !== 'undefined' && module.exports) module.exports = Engine;
 

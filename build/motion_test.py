@@ -185,7 +185,7 @@ async def test_coach_glide(browser):
         errors = []; pg.on('pageerror', lambda e: errors.append(str(e)))
         await pg.goto(TEMPO_URL); await pg.wait_for_timeout(1000)
         await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(400)
-        await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('.char', has_text='Patrick Star').first.click(); await pg.wait_for_timeout(300)
         await pg.locator('.seg button', has_text='White').first.click()
         await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(800)
         # 1.d4 c6 2.Nf3 Qc7: now Bf4 drops the bishop to the queen, so the coach steps in
@@ -260,7 +260,7 @@ async def test_arrow_keys(browser):
     ctx = await browser.new_context(**DESK); pg = await ctx.new_page()
     await pg.goto(TEMPO_URL); await pg.wait_for_timeout(800)
     await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(400)
-    await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
+    await pg.locator('.char', has_text='Patrick Star').first.click(); await pg.wait_for_timeout(300)
     await pg.locator('.seg button', has_text='White').first.click()
     await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(1000)
     for _ in range(40):

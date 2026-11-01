@@ -54,18 +54,18 @@ BASE = {
 # what holds for each section when it came through intact, and when it fell back to its defaults
 INTACT = {
     'settings': "S.settings.theme === 'dark' && S.settings.board === 'walnut' && S.settings.placed === true && S.settings.sound === false",
-    'play': "S.play.rating === 950 && S.play.bots.pip.beaten === true && S.play.unlocked === 2 && S.play.hist.length === 2",
+    'play': "S.play.rating === 950 && S.play.bots.pip.beaten === true && S.play.tier === 0 && S.play.unlocked === 2 && S.play.hist.length === 2",
     'puzzles': "S.puzzles.rating === 1100 && S.puzzles.themes.fork[0] === 6 && S.puzzles.rushBest === 9",
     'learn': "!!S.learn.done['board-notation'] && S.learn.done['board-notation'].stars === 3",
     'openings': "S.openings.lines['italian/main'].learned === true && S.openings.lines['italian/main'].box === 2",
     'mistakes': "S.mistakes.items.length === 1 && S.mistakes.items[0].id === 'gx-1'",
     'games': "S.games.list.length === 1 && S.games.list[0].id === 'g1' && !!S.games.list[0].rv",
     'days': "S.days.map['2026-10-30'].p === 2",
-    'current': "!!S.current && S.current.bot === 'rosie' && S.current.moves.length === 2",
+    'current': "!!S.current && S.current.bot === TempoBots.successor('rosie') && !!TempoBots.byId(S.current.bot) && S.current.moves.length === 2",
 }
 DEFAULTED = {
     'settings': "S.settings.theme === 'system' && S.settings.board === 'tempo' && S.settings.placed === false && S.settings.sound === true",
-    'play': "S.play.rating === 600 && S.play.hist.length === 0 && S.play.unlocked === 0 && Object.keys(S.play.bots).length === 0",
+    'play': "S.play.rating === 600 && S.play.hist.length === 0 && S.play.tier === 0 && Object.keys(S.play.bots).length === 0",
     'puzzles': "S.puzzles.rating === 600 && S.puzzles.hist.length === 0 && Object.keys(S.puzzles.themes).length === 0",
     'learn': "Object.keys(S.learn.done).length === 0",
     'openings': "Object.keys(S.openings.lines).length === 0",
@@ -299,11 +299,21 @@ FIELDS = [
       want(!('futureObj' in s) && !('futureList' in s), 'unknown object settings were kept');
       want(s.board === 'walnut' && s.dots === true, 'good settings changed');"""),
     ('settings.placed true is kept', "d.settings.placed = true", "want(S.settings.placed === true, 'placed lost');"),
-    ('play.unlocked -5 (broke Home before)', "d.play.unlocked = -5", """
-      want(S.play.unlocked === 0, 'unlocked ' + S.play.unlocked);
-      App.go('home'); want(document.querySelector('.home-ladder .rung'), 'Home has no ladder');"""),
-    ('play.unlocked 99 is clamped to the last opponent', "d.play.unlocked = 99", "want(S.play.unlocked === TempoBots.BOTS.length - 1, 'unlocked ' + S.play.unlocked);"),
-    ('play.unlocked "abc" falls back to what was beaten', "d.play.unlocked = 'abc'", "want(S.play.unlocked === 1, 'unlocked ' + S.play.unlocked);"),
+    ('an old ladder level of -5 (broke Home before) opens the first tier', "d.play.unlocked = -5", """
+      want(S.play.tier === 0, 'tier ' + S.play.tier);
+      App.go('home'); want(document.querySelector('.home-ladder .char'), 'Home has no tier card');"""),
+    ('an old ladder level of 99 is clamped to the top of the old ladder', "d.play.unlocked = 99", "want(S.play.tier === TempoBots.TIERS.length - 1, 'tier ' + S.play.tier);"),
+    ('an old ladder level of 5 (Wren, 1000) opens the Club Players', "d.play.unlocked = 5", "want(S.play.tier === 2 && S.play.unlocked === 5, 'tier ' + S.play.tier);"),
+    ('an old ladder level that is not a number falls back to what was beaten', "d.play.unlocked = 'abc'; d.play.bots.otto = { w: 1, d: 0, l: 0, beaten: true }", "want(S.play.tier === 3, 'tier ' + S.play.tier);"),
+    ('a tier out of range is clamped; one that is not a number uses the old level', "d.play.tier = 99", """
+      want(S.play.tier === TempoBots.TIERS.length - 1, 'tier ' + S.play.tier);"""),
+    ('a won promotion match always opens the tier above', "d.play.tier = 0; d.play.unlocked = 0; d.play.bots['among-us-crewmate'] = { w: 1, d: 0, l: 0, beaten: true }", """
+      want(S.play.tier === 1, 'tier ' + S.play.tier); want(TempoBots.access(S.play, 'goofy', false) === 'open', 'Goofy not open');"""),
+    ('beating Homer makes you the champion, even in an old save', "d.play.bots['homer-simpson'] = { w: 0, d: 1, l: 0, beaten: true }", "want(S.play.champ === true && S.play.tier === TempoBots.TIERS.length - 1, JSON.stringify(S.play));"),
+    ('an unfinished game against an old ladder bot carries on against the nearest character', "d.current.bot = 'theo'", "want(S.current && S.current.bot === TempoBots.successor('theo') && TempoBots.byId(S.current.bot).rating < 600, 'current ' + JSON.stringify(S.current && S.current.bot));"),
+    ('an unfinished game against an unknown opponent is dropped', "d.current.bot = 'nobody'", "want(S.current === null, 'kept');"),
+    ('the chat level: the old switch off means off; a made-up level means the default', "d.settings.botChat = false; d.settings.chat = 'lots'", "want(S.settings.chat === 'off' && S.settings.botChat === false, S.settings.chat);"),
+    ('the chat level: a made-up level means the default', "d.settings.chat = 'shouting'", "want(S.settings.chat === 'some' && S.settings.botChat === true, S.settings.chat);"),
     ('play.rating not a number, then out of range', "d.play.rating = 'abc'; d.puzzles.rating = 1e9", """
       want(S.play.rating === 600, 'play rating ' + S.play.rating); want(S.puzzles.rating === 4000, 'puzzle rating ' + S.puzzles.rating);"""),
     ('play.bots, hist pairs and lastBot repaired', """d.play.bots = { pip: null, rosie: { w: 'x', d: 2, l: -1, beaten: 'yes' }, theo: { w: 1, d: 0, l: 0, beaten: true } };
@@ -483,7 +493,7 @@ async def remote(browser):
     await simple(browser, 'account data with wrong types is repaired on merge', seed_obj(), """
       want(Store.synced(), 'not synced');
       want(S.settings.theme === 'dark', 'a broken remote settings section replaced good local settings');
-      want(S.play.rating === 600 && S.play.hist.length === 0 && S.play.unlocked === 0 && S.play.lastBot === null, 'play ' + JSON.stringify(S.play));
+      want(S.play.rating === 600 && S.play.hist.length === 0 && S.play.tier === 0 && S.play.lastBot === null, 'play ' + JSON.stringify(S.play));
       want(S.puzzles.rating === 1234 && Array.isArray(S.puzzles.hist) && typeof S.puzzles.themes === 'object', 'puzzles ' + JSON.stringify(S.puzzles));
       want(S.learn.done.y && S.learn.done['board-notation'] && !('x' in S.learn.done), 'learn ' + JSON.stringify(S.learn.done));
       want(S.days.map['2026-10-01'].p === 2 && S.days.map['2026-10-30'].p === 2 && !S.days.map.bad, 'days ' + JSON.stringify(S.days.map));
@@ -623,8 +633,9 @@ async def engine(browser):
           setTimeout(tick, 10);
           const C = TempoCore, t0 = performance.now(), times = {};
           let t = performance.now();
-          const sf = await Engines.botMove(TempoBots.byId('stockfish'), { fen: C.START_FEN, moves: ['e2e4'], sans: ['e4'] }); times.stockfish = performance.now() - t; t = performance.now();
-          const adm = await Engines.botMove(TempoBots.byId('admiral'), { fen: C.START_FEN, moves: ['d2d4', 'g8f6', 'c2c4'], sans: ['d4', 'Nf6', 'c4'] }); times.admiral = performance.now() - t; t = performance.now();
+          // the Legends and Masters fall back to the built-in engine; out of their books, so the engine really searches
+          const sf = await Engines.botMove(TempoBots.byId('homer-simpson'), { fen: C.START_FEN, moves: ['e2e4', 'a7a6', 'd2d4', 'h7h6'], sans: ['e4', 'a6', 'd4', 'h6'] }); times.homer = performance.now() - t; t = performance.now();
+          const adm = await Engines.botMove(TempoBots.byId('darth-vader'), { fen: C.START_FEN, moves: ['d2d4', 'g8f6', 'c2c4', 'h7h6'], sans: ['d4', 'Nf6', 'c4', 'h6'] }); times.vader = performance.now() - t; t = performance.now();
           const an = await Engines.analyse({ fen: C.START_FEN, depth: 18, movetime: 1500 }); times.analyse = performance.now() - t; t = performance.now();
           const two = await Promise.all([Engines.analyse({ fen: C.START_FEN, depth: 12, movetime: 1200 }), Engines.analyse({ fen: C.START_FEN, moves: ['e2e4'], depth: 12, movetime: 1200 })]);
           times.two = performance.now() - t;

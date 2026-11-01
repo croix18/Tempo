@@ -213,30 +213,70 @@ var Engines = (function () {
     return { cp: score, mate: null, pv: pv, depth: depth };
   }
 
-  /* Bot move. game: { fen (start), moves (uci), sans }. Returns a UCI string. */
-  function botMove(bot, game, rng) {
+  /* ---------- the characters' moves ----------
+     A character's move comes from its opening book, from Stockfish (the Masters and Legends, where it runs), or from
+     the built-in engine. Each answer says where it came from and how the engine scored it, for the dialogue and the
+     log. game: { fen (start), moves (uci), sans }; ctx: { last (its previous move), surge }. */
+  var LOG = [], LOG_MAX = 60;
+  function logIt(x) { LOG.push(x); if (LOG.length > LOG_MAX) LOG.shift(); }
+  function tempoChoose(bot, game, cfg, ctx) {
+    var seed = Math.floor(Math.random() * 1e9), t0 = Date.now();
+    return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: seed, ctx: { last: ctx.last || null } }).then(function (r) {
+      if (!r || !r.move) return null;
+      logIt({ bot: bot.id, ply: game.moves.length, via: 'tempo', kind: r.kind, move: r.move, score: r.score, best: r.best, top: r.top, seed: seed, ms: Date.now() - t0 });
+      return { uci: r.move, via: 'tempo', kind: r.kind, score: r.score, best: r.best };
+    });
+  }
+  /* Stockfish analyses several moves at full skill; TempoBots.sfPick chooses among them for the character */
+  function sfChoose(bot, game, st, ctx) {
+    var t0 = Date.now();
+    return sfRun({ fen: game.fen, moves: game.moves, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {
+      if (!r || !r.lines || !r.lines.length) return null;
+      var pick = TempoBots.sfPick(bot, TempoEngine.posFrom(game.fen, game.moves), r.lines, Math.random, ctx.last);
+      if (!pick) return null;
+      logIt({ bot: bot.id, ply: game.moves.length, via: 'stockfish', kind: pick.kind, move: pick.uci, score: pick.score, best: pick.best, mate: pick.mate, cands: pick.cands, ms: Date.now() - t0 });
+      return { uci: pick.uci, via: 'stockfish', kind: pick.kind, score: pick.score, best: pick.best, mate: pick.mate };
+    });
+  }
+  function botDecide(bot, game, ctx) {
+    ctx = ctx || {};
+    var cfg = bot.cfg || {};
+    if (!cfg.persona) return legacyDecide(bot, game);
+    var plan = TempoBots.plan(bot, game, Math.random, { sfReady: sfReady(), surge: ctx.surge });
+    if (plan.book) {
+      var p = TempoEngine.posFrom(game.fen, game.moves), m = p.parseMove(plan.book);
+      if (m) { logIt({ bot: bot.id, ply: game.moves.length, via: 'book', move: plan.book }); return Promise.resolve({ uci: C.uci(m), via: 'book', kind: 'book' }); }
+      plan = { tempo: cfg };
+    }
+    if (plan.sf) return sfChoose(bot, game, plan.sf, ctx).then(function (r) { return r || tempoChoose(bot, game, cfg, ctx); });
+    return tempoChoose(bot, game, plan.tempo, ctx);
+  }
+  /* the original ladder bots, kept as they were */
+  function legacyDecide(bot, game) {
     var cfg = bot.cfg || {};
     if (cfg.book && (game.fen || C.START_FEN) === C.START_FEN && game.sans.length < 16) {
-      var bm = TempoBots.bookMove(game.sans.map(function (s) { return s.replace(/[+#]/g, ''); }), cfg.book, rng || Math.random);
+      var bm = TempoBots.bookMove(game.sans.map(function (s) { return s.replace(/[+#]/g, ''); }), cfg.book, Math.random);
       if (bm) {
         var p = TempoEngine.posFrom(game.fen, game.moves), m = p.parseMove(bm);
-        if (m) return Promise.resolve(C.uci(m));
+        if (m) return Promise.resolve({ uci: C.uci(m), via: 'book' });
       }
     }
-    if (bot.sf && sfReady()) {
-      return sfRun({ fen: game.fen, moves: game.moves, movetime: bot.sf.movetime, skill: bot.sf.skill, multipv: 1 }).then(function (r) {
-        if (r && r.best) return r.best;
-        return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (x) { return x.move; });
-      });
+    var viaTempo = function () { return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (x) { return x && x.move ? { uci: x.move, via: 'tempo' } : null; }); };
+    if (bot.sf && bot.sf.skill != null && sfReady()) {
+      return sfRun({ fen: game.fen, moves: game.moves, movetime: bot.sf.movetime, skill: bot.sf.skill, multipv: 1 }).then(function (r) { return r && r.best ? { uci: r.best, via: 'stockfish' } : viaTempo(); });
     }
-    return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: Math.floor(Math.random() * 1e9) }).then(function (r) { return r.move; });
+    return viaTempo();
   }
+  /* Bot move as a UCI string (or null). game: { fen (start), moves (uci), sans }. */
+  function botMove(bot, game) { return botDecide(bot, game, {}).then(function (r) { return r ? r.uci : null; }); }
 
   function stopAll() { sfStop(); inlineGen++; }
 
   return {
     init: function () { startTempo(); return sfInit(); },
-    analyse: analyse, botMove: botMove, stopAll: stopAll, resetTempo: resetTempo,
+    analyse: analyse, botMove: botMove, botDecide: botDecide, stopAll: stopAll, resetTempo: resetTempo,
+    /* the last few move decisions, newest last: where each came from, the candidates and how they scored */
+    log: function () { return LOG.slice(); },
     tempo: tempo,
     get strong() { return sfReady(); },
     get status() { return SF.status; },

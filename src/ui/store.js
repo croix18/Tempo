@@ -8,9 +8,9 @@ var Store = (function () {
   var SYNC = ['settings', 'play', 'puzzles', 'learn', 'openings', 'mistakes', 'days'];
   var SECTIONS = SYNC.concat(['games']);
   var THEMES = ['system', 'light', 'dark'], BOARDS = ['tempo', 'classic', 'walnut', 'slate'];
-  var CLOCKS = ['none', '10', '15+10', '30'], COLORS = ['w', 'r', 'b'];
+  var CLOCKS = ['none', '10', '15+10', '30'], COLORS = ['w', 'r', 'b'], CHATS = ['off', 'some', 'lots'];
   var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'coachAsk', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
-  var LIMIT = { playHist: 400, puzzleHist: 600, bots: 100, games: 100, mistakes: 200, days: 400, moves: 1200, seen: 200000 };
+  var LIMIT = { playHist: 400, puzzleHist: 600, bots: 140, games: 100, mistakes: 200, days: 400, moves: 1200, seen: 200000 };
   var RESULTS = ['1-0', '0-1', '1/2-1/2', '*'], KINDS = ['blunder', 'mistake', 'miss'], REVIEW_CODES = 'RGBEOKIMSX';
   var TOPICS = ['safety', 'fork', 'threats', 'mates', 'free', 'position'];
   var UCI = /^[a-h][1-8][a-h][1-8][qrbn]?$/, DAY_KEY = /^\d{4}-\d{2}-\d{2}$/, B64 = /^[A-Za-z0-9+\/]*={0,2}$/;
@@ -23,8 +23,8 @@ var Store = (function () {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
         autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
-        otb: '10+0', backedUp: 0, backupAsked: 0 },
-      play: { rev: 0, rating: 600, hist: [], bots: {}, unlocked: 0, lastBot: null },
+        otb: '10+0', backedUp: 0, backupAsked: 0, chat: 'some' },
+      play: { rev: 0, rating: 600, hist: [], bots: {}, tier: 0, champ: false, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
       learn: { rev: 0, done: {}, last: null },
       openings: { rev: 0, srs: {}, lines: {} },
@@ -63,8 +63,7 @@ var Store = (function () {
     return out.reverse();
   }
   function tally(o) { var out = {}; keysOf(o).forEach(function (k) { if (finite(o[k])) out[k] = count(o[k]); }); return out; }
-  function bots() { return (window.TempoBots && TempoBots.BOTS) || []; }
-  function botIndex(id) { var b = bots(); for (var i = 0; i < b.length; i++) if (b[i].id === id) return i; return -1; }
+  function roster() { return window.TempoBots || null; }
 
   /* the chess clock's time: "10+5", or "10+5/3+2" for White and Black; 1 to 180 minutes, up to 60 seconds a move */
   function otbSpec(x) {
@@ -84,10 +83,16 @@ var Store = (function () {
     out.otb = otbSpec(s.otb) ? s.otb : d.otb;
     out.backedUp = finite(s.backedUp) && s.backedUp > 0 ? s.backedUp : 0;
     out.backupAsked = finite(s.backupAsked) && s.backupAsked > 0 ? s.backupAsked : 0;
+    // how much the opponents talk; older saves only have the on/off switch
+    out.chat = s.botChat === false ? 'off' : oneOf(s.chat === 'off' ? d.chat : s.chat, CHATS, d.chat);
+    out.botChat = out.chat !== 'off';
     return out;
   }
+  /* The highest tier open. Saves from before the tiers have `unlocked` instead, the index of the next bot on the original
+     ladder: the tier holding that bot's rating stays open (the field itself is kept for other devices). Otherwise the
+     tier comes from what was beaten. A promotion match won always opens the tier above, whatever the field says. */
   function cleanPlay(p) {
-    var d = defaults().play, n = Math.max(1, bots().length), out = extras(p, Object.keys(d)), top = -1;
+    var d = defaults().play, out = extras(p, Object.keys(d)), R = roster(), last = R ? R.TIERS.length - 1 : 5;
     out.rev = count(p.rev);
     out.rating = within(p.rating, 100, 4000, d.rating);
     out.hist = pairs(p.hist, LIMIT.playHist);
@@ -96,10 +101,18 @@ var Store = (function () {
       var r = p.bots[id];
       if (!isObj(r)) return;
       out.bots[id] = { w: count(r.w), d: count(r.d), l: count(r.l), beaten: r.beaten === true };
-      if (r.beaten === true) top = Math.max(top, botIndex(id));
     });
-    // a level that isn't a number falls back to what the beaten opponents imply
-    out.unlocked = finite(p.unlocked) ? within(p.unlocked, 0, n - 1, 0) : Math.min(top + 1, n - 1);
+    var tier = 0;
+    if (finite(p.tier)) tier = within(p.tier, 0, last, 0);
+    else if (R && finite(p.unlocked)) tier = R.tierOfRating(R.LEGACY[within(p.unlocked, 0, R.LEGACY.length - 1, 0)].rating);
+    else if (R) keysOf(out.bots).forEach(function (id) {
+      if (!out.bots[id].beaten) return;
+      var b = R.byId(id), old = R.RETIRED[id];
+      if (b && !b.bonus) tier = Math.max(tier, b.tierIdx);
+      else if (old) tier = Math.max(tier, R.tierOfRating(old.rating));
+    });
+    out.tier = R ? Math.max(tier, R.topTier({ tier: 0, bots: out.bots })) : tier;
+    out.champ = p.champ === true || !!(R && out.bots[R.CHAMPION] && out.bots[R.CHAMPION].beaten);
     out.lastBot = typeof p.lastBot === 'string' ? p.lastBot : null;
     return out;
   }
@@ -244,7 +257,10 @@ var Store = (function () {
   function cleanCurrent(c) {
     if (!isObj(c) || c.result != null) return null;
     var C = TempoCore;
-    if (typeof c.bot !== 'string' || botIndex(c.bot) < 0 || (c.color !== 'w' && c.color !== 'b')) return null;
+    if (typeof c.bot !== 'string' || (c.color !== 'w' && c.color !== 'b')) return null;
+    // a game against one of the original ladder bots carries on against the character nearest its strength
+    var R = roster(), bot = R && (R.byId(c.bot) ? c.bot : R.successor(c.bot));
+    if (!bot) return null;
     var fen = c.startFen == null ? C.START_FEN : c.startFen;
     if (typeof fen !== 'string' || C.validFen(fen) || !Array.isArray(c.moves) || c.moves.length > LIMIT.moves) return null;
     var pos = new C.Pos(fen), sans = [];
@@ -257,7 +273,7 @@ var Store = (function () {
     if (pos.status().over) return null; // a finished game is recorded when it ends, so this one is damaged
     var out = extras(c, CURRENT_KEYS);
     out.id = typeof c.id === 'string' && c.id ? c.id : 'c' + Date.now().toString(36);
-    out.bot = c.bot; out.color = c.color; out.startFen = fen;
+    out.bot = bot; out.color = c.color; out.startFen = fen;
     out.moves = c.moves.slice(); out.sans = sans;
     out.coach = c.coach !== false; out.ask = c.ask === true; out.hanging = c.hanging !== false; out.takebacks = c.takebacks !== false;
     var timed = isObj(c.clock) && finite(c.clock.base) && c.clock.base > 0 && finite(c.clock.inc) && c.clock.inc >= 0 &&

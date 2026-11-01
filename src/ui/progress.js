@@ -58,21 +58,33 @@
         h('div', { class: 'row between' }, h('h3', null, 'Practice'), h('span', { class: 'head-note' }, Store.streak() ? h('b', { class: 'num' }, U.plural(Store.streak(), 'day')) : 'Practice today to start a streak', Store.streak() ? ' in a row' : null)),
         calendar(S.days.map)));
 
-      // records
-      var totals = { w: 0, d: 0, l: 0 }, rows = h('div', { class: 'list' });
+      // records: the characters in tier order, your rivals (close records over a few games), then the original ladder bots
+      var totals = { w: 0, d: 0, l: 0 }, rows = h('div', { class: 'list' }), rivals = [], old = [];
+      function row(b, r) {
+        return h('div', { class: 'list-row' }, UI.avatar(b, 'sm'), h('div', { class: 'grow row tight' }, h('b', null, b.short || b.name), r.beaten ? U.icon('check', 'won') : null),
+          h('span', { class: 'num muted' }, recordWords(r)));
+      }
       TempoBots.BOTS.forEach(function (b) {
-        var r = S.play.bots[b.id]; if (!r) return;
+        var r = S.play.bots[b.id]; if (!r || !(r.w + r.d + r.l)) return;
         totals.w += r.w; totals.d += r.d; totals.l += r.l;
-        rows.appendChild(h('div', { class: 'list-row' }, UI.avatar(b, 'sm'), h('div', { class: 'grow row tight' }, h('b', null, b.name), r.beaten ? U.icon('check', 'won') : null),
-          h('span', { class: 'num muted' }, recordWords(r))));
+        rows.appendChild(row(b, r));
+        if (r.w >= 1 && r.l >= 1 && r.w + r.d + r.l >= 3 && Math.abs(r.w - r.l) <= 1) rivals.push({ b: b, n: r.w + r.d + r.l });
       });
+      Object.keys(S.play.bots).forEach(function (id) {
+        var b = TempoBots.RETIRED[id], r = S.play.bots[id]; if (!b || !(r.w + r.d + r.l)) return;
+        totals.w += r.w; totals.d += r.d; totals.l += r.l; old.push(row(b, r));
+      });
+      rivals.sort(function (a, b) { return b.n - a.n; });
+      if (old.length) { rows.appendChild(h('div', { class: 'label', style: { margin: '12px 0 4px' } }, 'The original ladder')); old.forEach(function (x) { rows.appendChild(x); }); }
       var units = Data.lessons(), lessonsTotal = 0, lessonsDone = 0;
       units.forEach(function (u) { u.lessons.forEach(function (l) { lessonsTotal++; if (S.learn.done[l.id]) lessonsDone++; }); });
       var reps = Data.reps(), linesTotal = 0, linesDone = 0;
       reps.repertoires.forEach(function (r) { r.lines.forEach(function (ln) { linesTotal++; var x = S.openings.lines[r.id + '/' + ln.id]; if (x && x.learned) linesDone++; }); });
       var g2 = h('div', { class: 'grid two', style: { marginTop: '14px' } });
-      g2.appendChild(h('div', { class: 'card stack' }, h('h3', null, 'Against the bots'),
-        h('p', { class: 'muted' }, totals.w + totals.d + totals.l ? 'In all: ' + recordWords(totals) + '.' : 'No games yet. Beat each opponent to unlock the next.'),
+      var top = TempoBots.topTier(S.play);
+      g2.appendChild(h('div', { class: 'card stack' }, h('h3', null, 'Against the characters'),
+        h('p', { class: 'muted' }, (S.play.champ ? 'Tempo Champion. ' : 'You\u2019ve reached ' + UI.tierLabel(top) + '. ') + (totals.w + totals.d + totals.l ? 'In all: ' + recordWords(totals) + '.' : 'No games yet. Win three games in a tier to open its promotion match.')),
+        rivals.length ? h('p', null, 'Your rival' + (rivals.length > 1 ? 's' : '') + ': ' + rivals.slice(0, 2).map(function (x) { return x.b.short; }).join(' and ') + '. Close records, game after game.') : null,
         rows.children.length ? rows : null));
       var themeBox = h('div', { class: 'stack', style: { gap: '8px' } });
       var th = Object.keys(S.puzzles.themes).filter(function (t) { return Puzzles.NAMES[t] && S.puzzles.themes[t][0] >= 5 && !/^(short|long|veryLong|oneMove|middlegame|endgame|opening|advantage|crushing|master|mate)$/.test(t); })
@@ -189,8 +201,11 @@
 
       var play = h('div', { class: 'card' }, h('h3', { style: { marginBottom: '2px' } }, 'Play'));
       play.appendChild(Play.toggle('Always promote to a queen', 'Skips the promotion menu in games. Puzzles and lessons always ask, since the answer can be another piece.', !!s.autoQueen, function (v) { s.autoQueen = v; save(); }));
-      play.appendChild(Play.toggle('Opponent chat', 'Short lines from the bots during games.', s.botChat !== false, function (v) { s.botChat = v; save(); }));
-      play.appendChild(Play.toggle('Unlock all opponents', 'Play any bot without beating the ones before it.', !!s.unlockAll, function (v) { s.unlockAll = v; save(); }));
+      // how much the characters talk: off, a line at the start, at their signature moment and at the end, or more
+      play.appendChild(h('div', { class: 'toggle seg-row' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, 'Opponent chat'),
+        h('div', { class: 'muted small' }, 'Off is silent. Some is a line at the start, one at their signature moment and one at the end. Lots adds a few more.')),
+        Play.seg([['off', 'Off'], ['some', 'Some'], ['lots', 'Lots']], s.chat || (s.botChat === false ? 'off' : 'some'), function (v) { s.chat = v; s.botChat = v !== 'off'; save(); })));
+      play.appendChild(Play.toggle('Unlock all characters', 'Play any character without winning your way up the tiers.', !!s.unlockAll, function (v) { s.unlockAll = v; save(); }));
       col.appendChild(play);
 
       var data = h('div', { class: 'card stack' }, h('h3', null, 'Your progress'), paintSave(h('p', { id: 'save-status', 'aria-live': 'polite' })));

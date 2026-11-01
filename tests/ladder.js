@@ -1,4 +1,4 @@
-// Ladder sanity check: every built-in bot should beat the one below it.
+// Ladder sanity check: every original ladder bot (the yardsticks) should beat the one below it.
 // Plays each neighbouring pair (half the games with each colour) and compares the result with the rating gap.
 // Usage: node tests/ladder.js [gamesPerPair] [seed]
 const C = require('../src/core.js'); global.TempoCore = C;
@@ -34,7 +34,8 @@ function playGame(white, black) {
 }
 function expected(gap) { return 1 / (1 + Math.pow(10, -gap / 400)); }
 
-const bots = B.BOTS.filter(b => !b.sf); // the two Stockfish bots need the browser
+// the original ladder, which the characters are measured against (tests/calibrate.js); the two Stockfish bots need tests/chars.js
+const bots = B.LEGACY.filter(b => !b.sf);
 let bad = 0;
 console.log('pair                       games  upper scores  expected  implied gap  rating gap');
 for (let i = 0; i < bots.length - 1; i++) {

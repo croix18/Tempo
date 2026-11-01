@@ -26,8 +26,8 @@ async def run(name):
         await pg.wait_for_timeout(13500)
         status = await pg.evaluate('Engines.status')
         # bot move through whichever engine path is available
-        r = await pg.evaluate("""() => Engines.botMove(TempoBots.byId('nora'), {fen: TempoCore.START_FEN, moves: ['e2e4','e7e5','g1f3','b8c6','f1c4','g8f6','d2d3'], sans: ['e4','e5','Nf3','Nc6','Bc4','Nf6','d3']})""")
-        r2 = await pg.evaluate("""() => Engines.botMove(TempoBots.byId('stockfish'), {fen: TempoCore.START_FEN, moves: ['e2e4'], sans: ['e4']})""")
+        r = await pg.evaluate("""() => Engines.botMove(TempoBots.byId('velma-dinkley'), {fen: TempoCore.START_FEN, moves: ['e2e4','e7e5','g1f3','b8c6','f1c4','g8f6','d2d3'], sans: ['e4','e5','Nf3','Nc6','Bc4','Nf6','d3']})""")
+        r2 = await pg.evaluate("""() => Engines.botMove(TempoBots.byId('homer-simpson'), {fen: TempoCore.START_FEN, moves: ['e2e4'], sans: ['e4']})""")
         a = await pg.evaluate("""() => Engines.analyse({fen: TempoCore.START_FEN, moves: ['e2e4','e7e5'], depth: 12, movetime: 600})""")
         print(name, 'status', status, '| nora', r, '| stockfish-bot', r2, '| analyse best', a.get('best'), a.get('engine'), a['lines'][0] if a.get('lines') else None)
         print('   errors:', errs[:6])

@@ -1,4 +1,4 @@
-# The learning loop: the Play ladder, what keeps going wrong across games, and the coach that asks first.
+# The learning loop: the Play tiers, what keeps going wrong across games, and the coach that asks first.
 import asyncio, json, os, sys
 from playwright.async_api import async_playwright
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -33,7 +33,7 @@ async def click_sq(pg, sq):
 # a game in which 4.Bf4 drops the bishop to the queen on c7; the coach always warns here
 async def bf4_game(pg, ask):
     await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-    await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
+    await pg.locator('.char', has_text='Patrick Star').first.click(); await pg.wait_for_timeout(300)
     sw = pg.locator('#tg-ask-me-first')
     if ask != await sw.is_checked(): await sw.click(force=True)
     await pg.locator('.seg button', has_text='White').first.click()
@@ -46,28 +46,34 @@ async def bf4_game(pg, ask):
 def coach(pg): return pg.locator('.coach').inner_text()
 
 
-async def test_play_ladder(browser):
+async def test_play_tiers(browser):
     errors = []
     ctx, pg = await page(browser, PHONE, errors)
-    await pg.evaluate("Store.state.play.unlocked = 3; Store.state.play.bots = { pip: {w:1,d:0,l:0,beaten:true}, rosie: {w:1,d:0,l:1,beaten:true}, theo: {w:1,d:0,l:0,beaten:true} }; Store.touch('play'); App.go('play')")
+    await pg.evaluate("Store.state.play.tier = 1; Store.state.play.bots = { 'patrick-star': {w:1,d:0,l:0,beaten:true}, dory: {w:1,d:0,l:1,beaten:true}, 'among-us-crewmate': {w:1,d:0,l:0,beaten:true}, goofy: {w:1,d:0,l:0,beaten:true} }; Store.touch('play'); App.go('play')")
     await pg.wait_for_timeout(400)
-    names = await pg.evaluate("[...document.querySelectorAll('.v-play .rungs.full')].map(l => [...l.querySelectorAll('.rung .who')].map(w => w.textContent))")
-    check('Play: your next opponent is first, with the ones you beat below', names[0] == ['Mabel', 'Theo', 'Rosie', 'Pip'], names[0])
-    check('Play: the next opponent is marked and sits at the top of the page', await pg.evaluate("(() => { const r = document.querySelector('.rung.next'); return r && r.querySelector('.who').textContent === 'Mabel' && r.getBoundingClientRect().top < 300; })()"))
-    folded = await pg.evaluate("(() => { const b = document.querySelector('#locked-bots'); return b && !b.classList.contains('open') && b.getBoundingClientRect().height === 0; })()")
-    head = await pg.locator('.locked-head').inner_text()
-    check('Play: the locked opponents wait in a folded list that says what unlocks next', folded and '10 more opponents to unlock' in head and 'Beat Mabel to unlock Gus' in head, head)
-    await pg.locator('.locked-head').tap(); await pg.wait_for_timeout(450)
-    check('Play: opened, the locked list runs nearest-to-unlock first', names[1][:3] == ['Gus', 'Wren', 'Felix'] and names[1][-1] == 'Stockfish' and await pg.evaluate("document.querySelector('#locked-bots').classList.contains('open')"), names[1])
-    await pg.locator('#locked-bots .rung', has_text='Gus').tap(); await pg.wait_for_timeout(400)
-    check('Play: a locked opponent still explains how to unlock it', await pg.locator('.sheet h2', has_text='Gus is locked').count() == 1)
+    head = await pg.locator('.tier-now').inner_text()
+    check('Play: your tier sits at the top with the way to its promotion match', 'Tier D' in head and 'The Beginners' in head and '1 win so far. 2 more open the promotion match against Bowser' in head, head)
+    check('Play: the next opponent is offered right there', 'Olaf' in head and await pg.locator('.tier-now button', has_text='Play Olaf').count() == 1, head)
+    open_ids = await pg.evaluate("[...document.querySelectorAll('.tier-section')].filter(s => s.querySelector('.unit-body.open')).map(s => s.getAttribute('aria-label'))")
+    check('Play: only your tier is open; the others are folded', open_ids == ['Tier D \u00b7 The Beginners'], open_ids)
+    tiles = await pg.evaluate("[...document.querySelectorAll('#tier-D .char .nm')].map(n => n.textContent)")
+    check('Play: the tier shows its ten characters, weakest first', len(tiles) == 10 and tiles[0] == 'Goofy' and tiles[-1] == 'Bowser', tiles)
+    check('Play: a beaten character carries a tick, the next one a highlight', await pg.evaluate("document.querySelector('#tier-D .char.beaten .nm').textContent === 'Goofy' && document.querySelector('#tier-D .char.next .nm').textContent === 'Olaf'"))
+    await pg.locator('#tier-D .char', has_text='Bowser').tap(); await pg.wait_for_timeout(400)
+    check('Play: the promotion match explains how to open it, and can be played anyway', await pg.locator('.sheet h2', has_text='Promotion match: Bowser').count() == 1 and await pg.locator('.sheet button', has_text='Play Bowser anyway').count() == 1)
+    await pg.locator('.sheet .close-x').tap(); await pg.wait_for_timeout(300)
+    await pg.locator('.tier-fold', has_text='The Club Players').tap(); await pg.wait_for_timeout(450)
+    await pg.locator('#tier-C .char', has_text='Velma').tap(); await pg.wait_for_timeout(400)
+    check('Play: a locked tier says which match opens it', await pg.locator('.sheet h2', has_text='Tier C is locked').count() == 1 and 'Win the promotion match against Bowser' in await pg.locator('.sheet').inner_text())
     await pg.locator('.sheet .close-x').tap(); await pg.wait_for_timeout(300)
     await pg.evaluate("App.go('home')"); await pg.wait_for_timeout(200); await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-    check('Play: the folded list stays the way you left it', await pg.evaluate("document.querySelector('#locked-bots').classList.contains('open')"))
+    check('Play: a tier you opened stays open', await pg.evaluate("document.querySelector('#tier-C').classList.contains('open')"))
+    check('Play: the bonus challenger is a mystery until Batman is beaten', await pg.locator('.char.mystery').count() == 1)
     await pg.evaluate("Store.state.settings.unlockAll = true; App.go('play')"); await pg.wait_for_timeout(300)
-    n = await pg.evaluate("document.querySelectorAll('.v-play .rungs.full')[0].querySelectorAll('.rung').length")
-    check('Play: with every opponent unlocked there is one full ladder and nothing folded', n == 14 and await pg.locator('#locked-bots').count() == 0, n)
-    check('Play ladder: no page errors', not errors, errors[:3])
+    n = await pg.evaluate("document.querySelectorAll('.v-play .char:not(.mystery)').length")
+    locked = await pg.evaluate("document.querySelectorAll('.v-play .char.locked').length")
+    check('Play: with everything unlocked all 61 characters are playable', n == 61 and locked == 0, (n, locked))
+    check('Play tiers: no page errors', not errors, errors[:3])
     await ctx.close()
 
 
@@ -108,7 +114,7 @@ async def test_patterns(browser):
     check('a finished review shows the pattern across your games', await rv.count() == 1 and 'Across your games' in await rv.inner_text() and '5 of your last 6 games' in await rv.inner_text(), await rv.inner_text() if await rv.count() else 'no card')
     # the end of a game mentions the pattern so far
     await pg.evaluate("App.go('play')"); await pg.wait_for_timeout(300)
-    await pg.locator('.rung', has_text='Pip').first.click(); await pg.wait_for_timeout(300)
+    await pg.locator('.char', has_text='Patrick Star').first.click(); await pg.wait_for_timeout(300)
     await pg.locator('button', has_text='Start game').click(); await pg.wait_for_timeout(600)
     await pg.locator('button[aria-label="Resign the game"]').click(); await pg.wait_for_timeout(300)
     await pg.locator('.sheet button', has_text='Resign').click(); await pg.wait_for_timeout(600)
@@ -196,7 +202,7 @@ async def test_home_nudges(browser):
 async def main():
     async with async_playwright() as p:
         b = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for t in (test_play_ladder, test_patterns, test_ask_first, test_home_nudges):
+        for t in (test_play_tiers, test_patterns, test_ask_first, test_home_nudges):
             try:
                 await t(b)
             except Exception as e:
