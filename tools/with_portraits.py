@@ -1,15 +1,16 @@
 """Make a copy of Tempo with pictures for the characters, for your own use.
 
-    python3 tools/with_portraits.py <portraits.json> [out.html]
+    python3 tools/with_portraits.py <portraits.json> [more.json ...] [out.html]
 
-portraits.json is the Portrait Studio's export ({"format": "tempo-chess-portrait-studio-v1", "roster": [{"id", "image"}]})
-or its list of sources ([{"id", "image_url"}]). Each picture is a link (https://) or an embedded image (data:image/...).
-In the copy, a character's avatar shows its picture once it has loaded, and keeps its badge if it doesn't (a site that
-blocks it, a link that has gone). Pictures from links load from those sites each time the page opens, so the copy needs
-the internet for them; embedded ones work offline.
+Each portraits file is the Portrait Studio's export ({"format": "tempo-chess-portrait-studio-v1", "roster": [{"id",
+"image"}]}), its list of sources ([{"id", "image_url"}]), or a list of {"id", "images": [...]}. A picture is a link
+(https://) or an embedded image (data:image/...). With several files, a character's pictures are tried in the order
+given: the first one that loads is shown, the others are spares for a link that fails. In the copy, a character with no
+picture that loads keeps its badge (never a broken image). Links load from their sites each time the page opens, so the
+copy needs the internet for them; embedded pictures work offline.
 
-The copy is written to out.html (default: "Tempo Chess (pictures).html" next to dist/). dist/Tempo.html, the artifact
-and the website copy are built without pictures and are never touched by this.
+The copy is written to out.html (default: "Tempo Chess (pictures).html" in dist/, which git ignores). dist/Tempo.html,
+the artifact and the website copy are built without pictures and are never touched by this.
 """
 import json, os, re, sys
 
@@ -20,32 +21,39 @@ OK = re.compile(r'^(https://[^\s"\'<>]+|data:image/(png|jpeg|webp|gif);base64,[A
 def load(path):
     d = json.load(open(path, encoding='utf-8'))
     rows = d.get('roster') if isinstance(d, dict) else d
-    if not isinstance(rows, list): raise SystemExit('not a portraits file: expected a roster list')
+    if not isinstance(rows, list): raise SystemExit(path + ': not a portraits file (expected a roster list)')
     out = {}
     for r in rows:
         if not isinstance(r, dict) or not isinstance(r.get('id'), str): continue
-        pic = r.get('image') or r.get('image_url')
-        if isinstance(pic, str) and OK.match(pic.strip()): out[r['id']] = pic.strip()
+        pics = r.get('images') if isinstance(r.get('images'), list) else [r.get('image') or r.get('image_url') or r.get('url')]
+        for pic in pics:
+            if isinstance(pic, str) and OK.match(pic.strip()): out.setdefault(r['id'], []).append(pic.strip())
     return out
 
 def main():
-    if len(sys.argv) < 2: raise SystemExit(__doc__)
-    pics = load(sys.argv[1])
-    out = sys.argv[2] if len(sys.argv) > 2 else os.path.join(ROOT, 'dist', 'Tempo Chess (pictures).html')
-    roster = {p['id'] for p in json.load(open(os.path.join(ROOT, 'content', 'characters.json'), encoding='utf-8'))['profiles']}
-    unknown = sorted(set(pics) - roster)
-    pics = {k: v for k, v in pics.items() if k in roster}
+    args = sys.argv[1:]
+    if not args: raise SystemExit(__doc__)
+    out = args.pop() if args[-1].endswith('.html') else os.path.join(ROOT, 'dist', 'Tempo Chess (pictures).html')
+    if os.path.abspath(out) == os.path.abspath(SRC): raise SystemExit('write the copy somewhere other than dist/Tempo.html')
+    pics = {}
+    for path in args:
+        for k, v in load(path).items():
+            have = pics.setdefault(k, [])
+            have.extend(x for x in v if x not in have)
+    roster = [p['id'] for p in json.load(open(os.path.join(ROOT, 'content', 'characters.json'), encoding='utf-8'))['profiles']]
+    unknown = sorted(set(pics) - set(roster))
+    pics = {k: pics[k] for k in roster if k in pics}
     html = open(SRC, encoding='utf-8').read()
     if '<script>window.TEMPO_PORTRAITS = ' in html: raise SystemExit('dist/Tempo.html already has pictures; rebuild it first')
     at = html.find('</head>')
     if at < 0: raise SystemExit('no </head> in dist/Tempo.html')
     tag = '<script>window.TEMPO_PORTRAITS = ' + json.dumps(pics, separators=(',', ':')).replace('</', '<\\/') + ';</script>\n'
-    if os.path.abspath(out) == os.path.abspath(SRC): raise SystemExit('write the copy somewhere other than dist/Tempo.html')
     open(out, 'w', encoding='utf-8').write(html[:at] + tag + html[at:])
-    links = sum(1 for v in pics.values() if v.startswith('https://'))
-    print('%d of %d characters have a picture (%d links, %d embedded) -> %s' % (len(pics), len(roster), links, len(pics) - links, out))
+    n = sum(len(v) for v in pics.values())
+    spare = sum(1 for v in pics.values() if len(v) > 1)
+    print('%d of %d characters have a picture (%d pictures in all; %d with a spare) -> %s' % (len(pics), len(roster), n, spare, out))
     if unknown: print('not in the roster, left out:', ', '.join(unknown))
-    missing = sorted(roster - set(pics))
+    missing = [k for k in roster if k not in pics]
     if missing: print('no picture (they keep their badge):', ', '.join(missing))
 
 if __name__ == '__main__':

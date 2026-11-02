@@ -276,20 +276,35 @@ var UI = (function () {
   'use strict';
   var h = U.h, C = TempoCore;
   /* the bot's portrait; a bot without one gets its initial in its tone. A copy made with tools/with_portraits.py also
-     has pictures (window.TEMPO_PORTRAITS: id -> image link or embedded image): the picture covers the badge once it
-     has loaded, and if it doesn't load the badge simply stays, never a broken image. */
+     has pictures (window.TEMPO_PORTRAITS: id -> a list of image links or embedded images, best first): the first one
+     that loads covers the badge, and if none does the badge simply stays, never a broken image. Links that failed
+     aren't tried again, and the one that worked is used first from then on. */
+  var picOk = {}, picDead = {};
+  function pictures(id) {
+    var list = window.TEMPO_PORTRAITS && TEMPO_PORTRAITS[id];
+    list = (typeof list === 'string' ? [list] : Array.isArray(list) ? list : []).filter(function (s) {
+      return typeof s === 'string' && /^(https:\/\/|data:image\/)/.test(s) && !picDead[s];
+    });
+    if (picOk[id] && list.indexOf(picOk[id]) > 0) list = [picOk[id]].concat(list.filter(function (s) { return s !== picOk[id]; }));
+    return list;
+  }
   function avatar(bot, size) {
     var el = h('span', { class: 'avatar ' + (size || '') + ' tone-' + (bot.tone || 'cream'), 'aria-hidden': 'true' });
     if (window.TempoAvatars && TempoAvatars.has(bot.id)) { el.classList.add('drawn'); el.innerHTML = TempoAvatars.svg(bot); }
     else el.textContent = bot.name.replace(/^The /, '').charAt(0);
-    var pic = window.TEMPO_PORTRAITS && TEMPO_PORTRAITS[bot.id];
-    if (typeof pic === 'string' && /^(https:\/\/|data:image\/)/.test(pic)) {
-      var img = document.createElement('img');
+    var pics = window.TEMPO_PORTRAITS ? pictures(bot.id) : [];
+    if (pics.length) {
+      var img = document.createElement('img'), at = 0;
+      var next = function () {
+        picDead[pics[at]] = 1;
+        at++;
+        if (at < pics.length) img.src = pics[at]; else img.remove();
+      };
       img.className = 'photo'; img.alt = ''; img.draggable = false;
       img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
-      img.onload = function () { if (img.naturalWidth) el.classList.add('has-photo'); else img.remove(); };
-      img.onerror = function () { img.remove(); };
-      img.src = pic;
+      img.onload = function () { if (!img.naturalWidth) { next(); return; } picOk[bot.id] = pics[at]; el.classList.add('has-photo'); };
+      img.onerror = next;
+      img.src = pics[0];
       el.appendChild(img);
     }
     return el;

@@ -34,6 +34,7 @@ def pic(color, tall):
 
 SHOWN = {'patrick-star': pic((240, 140, 170), True), 'velma-dinkley': pic((230, 120, 40), False), 'freddy-fazbear': pic((150, 100, 60), True)}
 BLOCKED = {'goofy': 'https://127.0.0.1:9/goofy.png'}   # a link that can't load
+SPARE = {'ralph-wiggum': ['https://127.0.0.1:9/ralph.png', pic((250, 210, 60), True)]}   # a link that fails, then a spare that loads
 
 async def avatars(pg):
     return await pg.evaluate("""() => [...document.querySelectorAll('.avatar')].filter(a => a.offsetParent).map(a => {
@@ -46,8 +47,10 @@ async def main():
     tmp = tempfile.mkdtemp()
     src = os.path.join(tmp, 'pics.json')
     json.dump({'format': 'tempo-chess-portrait-studio-v1', 'roster': [{'id': k, 'image': v} for k, v in {**SHOWN, **BLOCKED}.items()]}, open(src, 'w'))
+    src2 = os.path.join(tmp, 'spares.json')
+    json.dump([{'id': k, 'images': v} for k, v in SPARE.items()], open(src2, 'w'))
     out = os.path.join(tmp, 'Tempo pictures.html')
-    subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'with_portraits.py'), src, out], check=True, capture_output=True)
+    subprocess.run([sys.executable, os.path.join(ROOT, 'tools', 'with_portraits.py'), src, src2, out], check=True, capture_output=True)
     main_html = open(os.path.join(ROOT, 'dist', 'Tempo.html'), encoding='utf-8').read()
     check('the main build carries no pictures', '<script>window.TEMPO_PORTRAITS = ' not in main_html)
     async with async_playwright() as p:
@@ -68,6 +71,9 @@ async def main():
             goofy = await pg.evaluate("""() => { const c = [...document.querySelectorAll('.char')].find(x => /Goofy/.test(x.textContent)); const a = c && c.querySelector('.avatar');
               return a ? { img: !!a.querySelector('img'), photo: a.classList.contains('has-photo'), badge: !!a.querySelector('svg') } : null; }""")
             check(name + ': a link that doesn’t load leaves the badge, no broken image', goofy and not goofy['img'] and not goofy['photo'] and goofy['badge'], goofy)
+            ralph = await pg.evaluate("""() => { const c = [...document.querySelectorAll('.char')].find(x => /Ralph/.test(x.textContent)); const a = c && c.querySelector('.avatar'), i = a && a.querySelector('img');
+              return a ? { photo: a.classList.contains('has-photo'), src: i ? i.src.slice(0, 22) : null } : null; }""")
+            check(name + ': a link that fails falls back to the spare picture', ralph and ralph['photo'] and ralph['src'] == 'data:image/png;base64,', ralph)
             check(name + ': no broken image anywhere', not await pg.evaluate("[...document.querySelectorAll('img')].some(i => i.offsetParent && i.complete && i.naturalWidth === 0)"))
             await pg.screenshot(path=ROOT + '/build/shots/portraits-list-' + name + '.png')
             # in a game and on the sheet: the same picture, at the strip's and the sheet's sizes
