@@ -235,7 +235,9 @@ var Engines = (function () {
       var pick = TempoBots.sfPick(bot, TempoEngine.posFrom(game.fen, game.moves), r.lines, Math.random, ctx.last);
       if (!pick) return null;
       logIt({ bot: bot.id, ply: game.moves.length, via: 'stockfish', kind: pick.kind, move: pick.uci, score: pick.score, best: pick.best, mate: pick.mate, cands: pick.cands, ms: Date.now() - t0 });
-      return { uci: pick.uci, via: 'stockfish', kind: pick.kind, score: pick.score, best: pick.best, mate: pick.mate, top: pick.cands && pick.cands[0] ? pick.cands[0].uci : null };
+      // gap: how much better Stockfish's best move was than its second (for a character's line about the only good move)
+      var cs = pick.cands || [], gap = cs.length > 1 ? Math.min(1000, cs[0].score - cs[1].score) : null;
+      return { uci: pick.uci, via: 'stockfish', kind: pick.kind, score: pick.score, best: pick.best, mate: pick.mate, top: cs[0] ? cs[0].uci : null, gap: gap };
     });
   }
   function botDecide(bot, game, ctx) {

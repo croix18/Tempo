@@ -102,9 +102,9 @@ var Play = (function () {
         } }, 'Start game')));
     });
   }
-  /* who a character is and how it plays. About: who they are in their own story, Tempo's take on them, why they play
-     the way they do, their running joke and how they talk. How they play: the radar of their traits, plan, tricks,
-     weak spot and openings. Only "Who they are" comes from the source; the rest is Tempo's, and the sheet says so. */
+  /* who a character is and how it plays. About: who they are in their own story, Tempo's take on them and how they
+     play. How they play: the radar of their traits, plan, tricks, weak spot and openings. Only "Who they are" comes
+     from the source; the rest is Tempo's, and the sheet says so. */
   var profileTab = 'about';
   function profile(bot) {
     var t = TIERS[bot.tierIdx], isBoss = bot.id === t.boss, o = bot.openings || {}, V = TempoTalk.voice(bot.id), card = V ? V.card : {};
@@ -122,15 +122,13 @@ var Play = (function () {
     var chess = h('div', { class: 'profile', role: 'tabpanel', 'aria-label': 'How they play' }, h('div', { class: 'radar-box' }, UI.radar(bot.traits || {})), facts);
     var about = null;
     if (V) {
-      var said = function (label, ev) { return h('div', { class: 'sample' }, h('div', { class: 'label' }, label), h('div', { class: 'bubble' }, lineNodes(V.lines[ev]))); };
+      var silent = V.mode === 'silent';
       about = h('div', { class: 'about', role: 'tabpanel', 'aria-label': 'About' },
         h('dl', { class: 'facts' },
           h('dt', null, 'Who they are'), h('dd', null, card.canon),
           h('dt', null, 'Tempo\u2019s take'), h('dd', { class: 'take' }, card.assessment),
-          h('dt', null, 'Why ' + bot.short + ' plays this way'), h('dd', null, card.why + ' ' + card.board),
-          h('dt', null, 'Running joke'), h('dd', null, card.bit)),
-        h('div', { class: 'samples' }, said('Saying hello', 'greeting'), said('After a good tactic', 'tactical_success'), said('After winning', 'victory')),
-        h('p', { class: 'profile-note' }, 'Only \u201cWho they are\u201d comes from ' + bot.short + '\u2019s own story. The chess, the rating and everything ' + bot.short + ' says are made up for Tempo.'));
+          card.style ? h('dt', null, 'On the board') : null, card.style ? h('dd', null, card.style) : null),
+        h('p', { class: 'profile-note' }, 'Only \u201cWho they are\u201d comes from ' + bot.short + '\u2019s own story. ' + (silent ? 'The chess and the rating are' : 'The chess, the rating and everything ' + bot.short + ' says are') + ' made up for Tempo.'));
     }
     var wrap = h('div', { class: 'profile-wrap' }, head, h('p', { class: 'profile-bio' }, bot.bio + '.'));
     if (!about) { wrap.appendChild(chess); return wrap; }
@@ -142,15 +140,9 @@ var Play = (function () {
     show(tab);
     return wrap;
   }
-  /* a line as it's shown: the words, with stage directions in italics */
-  function lineNodes(text) {
-    var f = document.createDocumentFragment();
-    TempoTalk.parts(text || '').forEach(function (p, i) {
-      if (i) f.appendChild(document.createTextNode(' '));
-      f.appendChild(p.act ? h('span', { class: 'act' }, p.text) : document.createTextNode(p.text));
-    });
-    return f;
-  }
+  /* how a character's lines look: spoken, typed in a game chat, announced over a speaker, or thought */
+  var MODE_CLASS = { in_game_text: 'chat', speaker_pa: 'pa', telepathic: 'mind' };
+  function bubbleClass(mode) { return 'bubble' + (MODE_CLASS[mode] ? ' ' + MODE_CLASS[mode] : ''); }
   /* a close record over a few games */
   function rival(r) { return r && r.w >= 1 && r.l >= 1 && r.w + r.d + r.l >= 3 && Math.abs(r.w - r.l) <= 1; }
   function seg(options, value, onChange) {
@@ -203,9 +195,9 @@ var Play = (function () {
     var you = G.color === 'w' ? 1 : -1;
     var st = { pos: pos, viewPly: null, thinking: false, token: 0, hintStage: 0, hintMove: null, pre: null, ended: !!G.result, clockT: null, lastTick: 0, bubbleT: null, epds: [],
       // the character's side of the game: its last move, Psyduck's surge, and the referee's scores for what it says
-      ps: { last: lastBotMove(), surge: 0, surgeStart: false }, refs: {}, saidAt: 0, sayT: null, thinkT: null };
+      ps: { last: lastBotMove(), surge: 0, surgeStart: false }, refs: {}, refv: {}, saidAt: 0, sayT: null };
     view = st;
-    st.say = function (t) { botSays(t); }; // for tests: show a line the way the game would
+    st.say = function (t) { botSays({ key: 'test', text: t, ply: G.moves.length, test: true }); }; // for tests: show a line the way the game would
 
     var head = h('div', { class: 'row between game-head' },
       h('button', { class: 'back', type: 'button', onclick: function () { leaveGame(); } }, U.icon('back'), 'Characters'),
@@ -215,8 +207,10 @@ var Play = (function () {
     var board = new Board({ orient: G.color, movable: null, coords: S.settings.coords !== false, onMove: userMove });
     st.board = board;
     var oppBar = h('div', { class: 'player' }), youBar = h('div', { class: 'player' });
-    // the bot's chat floats in its own name strip, beside its picture, so nothing else on the screen moves when it talks
-    var bubble = h('div', { class: 'bubble', role: 'status', hidden: true });
+    // the bot's chat floats in its own name strip, beside its picture, so nothing else on the screen moves when it talks;
+    // a tap (or Escape) puts it away
+    var voiceMode = TempoTalk.mode(bot.id);
+    var bubble = h('div', { class: bubbleClass(voiceMode), role: 'status', hidden: true, title: 'Tap to close', onclick: function () { hush(); } });
     oppBar.appendChild(bubble);
     var coach = h('div', { class: 'coach', hidden: true });
     var movesBox = h('div');
@@ -339,24 +333,41 @@ var Play = (function () {
     /* ---------- what the character says (src/talk.js picks the line; this shows it) ---------- */
     function talkOpts() { var c = Store.state.settings.chat; return { chat: c === 'off' || c === 'lots' ? c : 'some' }; }
     function talking() { return talkOpts().chat !== 'off'; }
-    // its line, in its name strip: up long enough to read, and a second line waits until the first has been seen
-    function botSays(text) {
-      if (!text || !talking()) return;
-      var since = performance.now() - st.saidAt, wait = st.saidAt && since < 2200 ? 2200 - since : 0, n = G.moves.length;
-      clearTimeout(st.sayT);
+    /* its line, in its name strip, one at a time: up long enough to read, and a new line waits until the one before
+       has been seen. A line about a position that's gone (the board moved on while it waited) is dropped, and only a
+       line that was really shown goes into the game's story. */
+    function botSays(c) {
+      if (!c || !c.text || !talking()) return Promise.resolve(false);
+      var since = performance.now() - st.saidAt, wait = st.saidAt && since < 2200 ? 2200 - since : 0, done;
+      var shownP = new Promise(function (ok) { done = ok; });
+      cancelSay();
+      st.sayDone = done;
       st.sayT = setTimeout(function () {
-        if (view !== st || !G || G.moves.length !== n) return;
-        U.clear(bubble); bubble.appendChild(h('span', { class: 'sr-only' }, bot.short + ': ')); bubble.appendChild(lineNodes(text));
+        st.sayDone = null;
+        if (view !== st || !G || G.result || G.moves.length !== c.ply) { done(false); return; }
+        if (!c.test) { if (!TempoTalk.said(G, c)) { done(false); return; } Store.touch(); }
+        U.clear(bubble); bubble.appendChild(h('span', { class: 'sr-only' }, bot.short + ': ')); bubble.appendChild(document.createTextNode(c.text));
         bubble.classList.remove('out'); bubble.hidden = false;
         oppBar.classList.add('talking'); // the name steps aside while the character talks
         st.saidAt = performance.now();
         clearTimeout(st.bubbleT);
-        st.bubbleT = setTimeout(function () {
-          bubble.classList.add('out'); oppBar.classList.remove('talking'); // fade away as the name comes back, then hide
-          st.bubbleT = setTimeout(function () { bubble.hidden = true; bubble.classList.remove('out'); }, 260);
-        }, TempoTalk.readMs(text));
+        st.bubbleT = setTimeout(function () { hush(); }, TempoTalk.readMs(c.text));
+        done(true);
       }, wait);
+      return shownP;
     }
+    // a line waiting to be shown isn't
+    function cancelSay() { clearTimeout(st.sayT); if (st.sayDone) { st.sayDone(false); st.sayDone = null; } }
+    // put the line away: fade it out as the name comes back, then hide it
+    function hush(now) {
+      clearTimeout(st.bubbleT);
+      if (bubble.hidden) return;
+      oppBar.classList.remove('talking');
+      if (now) { bubble.hidden = true; bubble.classList.remove('out'); return; }
+      bubble.classList.add('out');
+      st.bubbleT = setTimeout(function () { bubble.hidden = true; bubble.classList.remove('out'); }, 260);
+    }
+    st.hush = hush;
     /* the referee: a quick, separate look at the position after n moves, scored from the character's side, so what it
        says about the chess (a blunder, a tactic that works) is true. Queued behind the character's own thinking. */
     function refAt(n) {
@@ -365,36 +376,41 @@ var Play = (function () {
       var moves = G.moves.slice(0, n), botSide = G.color === 'w' ? -1 : 1, p = new C.Pos(G.startFen);
       moves.forEach(function (u) { p.make(p.parseMove(u)); });
       if (p.status().over) return (st.refs[n] = Promise.resolve(null));
+      var gid = G.id, line = moves.join(' ');
       st.refs[n] = Engines.analyse({ fen: G.startFen, moves: moves, depth: 9, movetime: 300 }).then(function (r) {
         var l = r && r.lines && r.lines[0];
         if (!l || (l.cp == null && l.mate == null)) return null;
         var sc = l.mate != null ? (l.mate > 0 ? 1500 - l.mate : -1500 - l.mate) : l.cp;
-        return { v: p.side === botSide ? sc : -sc, mat: TempoTalk.material(p, botSide, r.engine), engine: r.engine };
+        var v = { v: p.side === botSide ? sc : -sc, mat: TempoTalk.material(p, botSide, r.engine), engine: r.engine };
+        if (view === st && G && G.id === gid && G.moves.slice(0, n).join(' ') === line) st.refv[n] = v;
+        return v;
       }, function () { return null; });
       return st.refs[n];
     }
-    function remember(said) { if (said) { Store.touch(); botSays(said.text); } }
-    // after your move: a check, its queen, a beat of its story
-    function reactYou() { if (talking() && !G.result) remember(TempoTalk.human(G, bot, talkOpts())); }
+    // the referee's scores, waited for a little while at most: a remark that needs them and doesn't get them isn't made
+    function upTo(pr, ms) { return Promise.race([pr, new Promise(function (ok) { setTimeout(function () { ok(null); }, ms); })]); }
+    function past(n) { var out = []; for (var i = Math.max(0, n - 6); i < n; i++) if (st.refv[i]) out.push(st.refv[i]); return out; }
+    /* after your move, before it answers: your check, your blunder, a special of yours, a beat of its story. Its reply
+       waits for this (a few seconds at most), and when it says something, a moment longer: the remark about your move
+       comes before the board changes. */
+    function reactYou() {
+      if (!talking() || G.result) return Promise.resolve();
+      var n = G.moves.length, gid = G.id;
+      return upTo(Promise.all([upTo(refAt(n - 1), 1500), upTo(refAt(n), 1500)]).then(function (rs) {
+        if (view !== st || !G || G.id !== gid || G.result || G.moves.length !== n) return false;
+        var c = null;
+        try { c = TempoTalk.human(G, bot, { prev: rs[0], now: rs[1] }, talkOpts()); } catch (e) { console.error(e); } // a line is never worth a stuck game
+        return botSays(c);
+      }).then(function (shown) { return shown ? U.sleep(900) : null; }), 3200);
+    }
     // after its move, once the referee has looked at the positions it needs
     function reactBot(res) {
       if (!talking() || G.result) return;
       var n = G.moves.length, gid = G.id;
-      var upTo = function (pr) { return Promise.race([pr, new Promise(function (ok) { setTimeout(function () { ok(null); }, 2500); })]); };
-      Promise.all([upTo(refAt(n - 2)), upTo(refAt(n - 1)), upTo(refAt(n))]).then(function (rs) {
+      Promise.all([upTo(refAt(n - 2), 2500), upTo(refAt(n - 1), 2500), upTo(refAt(n), 2500)]).then(function (rs) {
         if (view !== st || !G || G.id !== gid || G.result || G.moves.length !== n) return;
-        remember(TempoTalk.bot(G, bot, res, { prev2: rs[0], prev: rs[1], now: rs[2] }, talkOpts()));
+        try { botSays(TempoTalk.bot(G, bot, res, { prev2: rs[0], prev: rs[1], now: rs[2], past: past(n) }, talkOpts())); } catch (e) { console.error(e); }
       });
-    }
-    // you've been thinking a while: it may say something, once a game
-    function thinkTimer() {
-      clearTimeout(st.thinkT);
-      if (!talking() || G.result) return;
-      var n = G.moves.length;
-      st.thinkT = setTimeout(function () {
-        if (view !== st || !G || G.result || G.moves.length !== n || !myTurn() || st.deciding || st.checking || document.hidden) return;
-        remember(TempoTalk.thinking(G, bot, talkOpts()));
-      }, TempoTalk.THINK_MS);
     }
 
     function myTurn() { return !G.result && (st.pos.side === 1 ? 'w' : 'b') === G.color && st.viewPly == null; }
@@ -490,7 +506,6 @@ var Play = (function () {
     /* ---------- the user's move ---------- */
     function userMove(uci, m) {
       if (!myTurn() || st.checking || st.deciding) return;
-      clearTimeout(st.thinkT);
       st.hintStage = 0; st.hintMove = null; board.setArrows([]); board.setMarks([]);
       say(null);
       var before = st.pos.clone();
@@ -513,17 +528,17 @@ var Play = (function () {
                 board.setArrows([]); board.setMovable(G.color); board.setPosition(st.pos, { animate: true, last: st.last, clearLast: !st.last }); markHanging();
                 say('Taken back. ' + res.short + ' Try another move.', 'alert');
                 renderControls();
-              } else { board.setArrows([]); commit(uci, G.color); if (!G.result) { reactYou(); botTurn(); } }
+              } else { board.setArrows([]); commit(uci, G.color); if (!G.result) botTurn(reactYou()); }
             });
           } else {
             commit(uci, G.color);
-            if (!G.result) { reactYou(); botTurn(); }
+            if (!G.result) botTurn(reactYou());
           }
         });
         return;
       }
       commit(uci, G.color);
-      if (!G.result) { reactYou(); botTurn(); }
+      if (!G.result) botTurn(reactYou());
     }
 
     /* The coach's warning sits right under the board, with the danger drawn on it in red.
@@ -572,8 +587,9 @@ var Play = (function () {
       function choose(v) { if (!st.deciding) return; st.deciding = false; board.opts.onSquare = null; board.setMarks([]); say(null); cb(v); }
     }
 
-    /* ---------- the bot's move ---------- */
-    function botTurn() {
+    /* ---------- the bot's move ----------
+       heard: the reaction to your move, which its reply waits for */
+    function botTurn(heard) {
       if (G.result) return;
       st.thinking = true; bars(); renderControls();
       var tok = ++st.token, t0 = performance.now(), ps = st.ps;
@@ -581,9 +597,9 @@ var Play = (function () {
       var minDelay = bot.rating < 1000 ? 450 + Math.random() * 700 : 250;
       if (bot.surge) { if (ps.surge > 0) ps.surge--; else if (Math.random() < bot.surge.chance) { ps.surge = bot.surge.len; ps.surgeStart = true; } }
       var decided = Engines.botDecide(bot, { fen: G.startFen, moves: G.moves.slice(), sans: G.sans.slice() }, { last: ps.last, surge: ps.surge });
-      refAt(G.moves.length); // after its search in the queue, so it never slows the move down
-      decided.then(function (res) {
-        var wait = Math.max(0, minDelay - (performance.now() - t0)), uci = res && res.uci;
+      refAt(G.moves.length); // asked for already, after your move: the referee's look comes before its search in the queue
+      Promise.all([decided, heard && heard.then(null, function () { /* its move comes regardless */ })]).then(function (rs) {
+        var res = rs[0], wait = Math.max(0, minDelay - (performance.now() - t0)), uci = res && res.uci;
         setTimeout(function () {
           if (tok !== st.token || G.result || st.ended) return;
           st.thinking = false;
@@ -603,7 +619,6 @@ var Play = (function () {
       if (G.coach) st.pre = Coach.prepare(st.pos);
       renderControls();
       markHanging(true);
-      thinkTimer();
     }
 
     /* ---------- tools ---------- */
@@ -641,8 +656,8 @@ var Play = (function () {
       G.undos++;
       // what was said after the moves taken back didn't happen; the referee's old scores go too
       TempoTalk.truncate(G);
-      Object.keys(st.refs).forEach(function (k) { if (+k > G.moves.length) delete st.refs[k]; });
-      clearTimeout(st.sayT); clearTimeout(st.thinkT);
+      Object.keys(st.refs).forEach(function (k) { if (+k > G.moves.length) { delete st.refs[k]; delete st.refv[k]; } });
+      cancelSay(); hush(true);
       st.pos = new C.Pos(G.startFen);
       var last = null;
       G.moves.forEach(function (u) { last = st.pos.parseMove(u); st.pos.make(last); });
@@ -716,7 +731,7 @@ var Play = (function () {
       st.token++; st.thinking = false; st.ended = true;
       if (st.deciding || st.checking) { st.deciding = false; st.checking = false; board.opts.onSquare = null; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
       G.result = result; G.reason = reason;
-      clearInterval(st.clockT); clearTimeout(st.thinkT); clearTimeout(st.sayT);
+      clearInterval(st.clockT); cancelSay(); hush(true);
       var record = Play.record(G, bot);
       Store.state.current = null; Store.touch();
       board.setMovable(null);
@@ -734,9 +749,10 @@ var Play = (function () {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),
           h('div', { class: 'muted' }, why)));
-        // the character's word on the result
+        // the character's word on the result (and, for Sheldon, the end of his story)
         var said = TempoTalk.end(G, bot, rec.score, rec.reason, talkOpts());
-        if (said) box.appendChild(h('div', { class: 'row end-say' }, UI.avatar(bot, 'sm'), h('div', { class: 'bubble', role: 'status' }, h('span', { class: 'sr-only' }, bot.short + ': '), lineNodes(said.text))));
+        if (said) box.appendChild(h('div', { class: 'row end-say' }, UI.avatar(bot, 'sm'), h('div', { class: bubbleClass(voiceMode), role: 'status' },
+          h('span', { class: 'sr-only' }, bot.short + ': '), said.text, said.more ? h('span', { class: 'more' }, said.more) : null)));
         if (rec.rated) {
           var d = rec.after - rec.before;
           box.appendChild(h('p', { style: { textAlign: 'center' } }, 'Rating ', h('b', null, String(rec.after)), ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)));
@@ -762,6 +778,7 @@ var Play = (function () {
     // keyboard: arrows browse moves
     st.keys = function (e) {
       if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
+      if (e.key === 'Escape' && !bubble.hidden && !document.querySelector('.sheet')) { hush(); return; }
       if (e.key === 'ArrowLeft') { var n = st.viewPly == null ? G.moves.length - 1 : st.viewPly - 1; if (n >= 0) showPly(n); }
       else if (e.key === 'ArrowRight') { if (st.viewPly != null) showPly(st.viewPly + 1); }
       else if (e.key === 'f') flip();
@@ -773,7 +790,7 @@ var Play = (function () {
     if (G.moves.length) { var tp = new C.Pos(G.startFen); G.moves.forEach(function (u) { lastMove = tp.parseMove(u); tp.make(lastMove); }); }
     sync(lastMove, false);
     // hello (or "again?" on a rematch); a game picked up again goes on where it was, so the referee looks at it now
-    if (!G.moves.length) remember(TempoTalk.start(G, bot, talkOpts()));
+    if (!G.moves.length) botSays(TempoTalk.start(G, bot, talkOpts()));
     else if (!G.result) refAt(G.moves.length);
     if (G.coach && !G.moves.length) say('Coach is on. You’ll get a warning before a move that loses material.');
     if (G.result) { finishView(); }
@@ -907,7 +924,7 @@ var Play = (function () {
       else { G = null; renderTiers(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); clearTimeout(view.thinkT); clearTimeout(view.sayT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
+      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }

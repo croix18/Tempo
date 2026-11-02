@@ -1,130 +1,116 @@
-# Tempo Chess — Deep Character Dialogue V3: Claude integration guide
+# Tempo Chess V5 — Integration and Editorial Guide
 
-## What is included
+## Purpose and status
 
-- **61 complete character personalities** with the previous tier, ratings, bio, and move-selection metadata preserved.
-- **915 individually authored chess-event remarks** (15 per character), plus **183 ordered running-joke beats** (three per character).
-- A standalone **character-card gallery** with offline search, tier filters, context-labelled dialogue previews, and running story previews.
-- Both **full JSON** (for merging into the existing chess profiles) and **compact JSON** (for loading character-copy data only).
+**V5 is original, character-first dialogue for 61 existing opponents. It is not yet wired into Tempo Chess.** Replace V4 dialogue; don't concatenate V3/V4/V5 pools. Preserve the existing game engine, opponent strengths, records, saved progress and chess rules.
 
-**All speech is original creative fan-game writing, not official character dialogue.** Canon background facts, character interpretation, and invented ratings must be displayed separately.
+The background bios, ratings and Tempo assessments have been carried over from V4. The **voice psychology, boundaries, and all active V5 event lines and arcs have been revised**. Canon-grounded traits come from fictional stories; assigning those traits to chess is an imaginative, non-canonical extrapolation.
 
-## DO NOT treat the pack as a completed integration
+## Voice requirements
 
-This update does not patch the 1.6 MB `Tempo Chess.html` chess application. It supplies production-ready content and the event contract, with a working standalone character-card preview. Implement the new renderer and engine hooks against Tempo's existing game state and engine. No chess rules, ratings, save files, or puzzle data should be changed solely to add dialogue.
+1. A character's voice is not a catchphrase. Compare lines against `voice.core_psychology` and `voice.never_do` before displaying them. This is your quality bar.
+2. Communication mode is a contract:
+   - `silent`: no speech bubble, no stage-direction text or narration. Applies to **Peely, Steve (Minecraft), Derpy Tiger**. Optional facial-expression/portrait animations are a *different UI layer*, never dialogue.
+   - `name_only`: applies to **Psyduck and Pikachu**. Only the authored vocalizations; no English translations, no brackets, no action captions. These are fixed words with distinct intonation, not free-form generation.
+   - `minionese`: **Bob**, short Minionese-like exclamations, not fluent tactical English.
+   - `in_game_text`: **Roblox Noob and Among Us Crewmate**, presented as short chat logs rather than spoken utterances. These are generic avatar archetypes; don't claim individual canonical biographies.
+   - `speaker_pa`: **Classic Freddy Fazbear** uses restrained announcement-like text. Don't replace him with Glamrock Freddy's friendly parental voice.
+   - `telepathic`: **Mewtwo** can communicate in articulate thoughts; avoid psychic assistance in a fair chess match.
+   - `spoken`: all other dialogue.
+3. Display text as written; do not add “Patrick says,” a narrator's paraphrase, sound descriptions, animations embedded as words, or unverified chess explanations.
+4. **Rivalry and personality are separate from engine skill.** Dialogue never influences a move calculation, and no character receives a magical chess advantage.
 
-## 1. Integrate data without destroying bot configurations
+## Event bindings in Tempo Chess
 
-`Tempo_Chess_Character_Voice_V3.json` retains each established character's chess fields (`id`, `tier`, `tempo_elo`, `archetype`, `openings`, `tactical_preferences`, `strategic_plan`, `exploitable_weakness`, `behavior_traits_0_to_100`) plus the new voice fields.
+The uploaded HTML uses `TempoBots.BOTS`, `Engines.botMove()`, and `botSays(text)` inside the game view. V5 `id` values follow the established 61-profile roster. The **existing `botSays()` is a renderer**, not an event validator. Introduce a separate event interpreter and scheduler between the completed chess move and that renderer.
 
-If the new character roster is not yet integrated into Tempo, import its chess profiles first. Match by immutable `id` rather than display name. For an existing roster, merge only these new fields: `character_interpretation`, `running_bit_description`, `dialogue`, `dialogue_arcs`, and `dialogue_style`. `prior_dialogue_v2` is an archive, not text to play.
+Use these source events:
 
-The standalone preview is demonstration UI; its button clicks simulate events. It is not a chessboard or an engine adapter.
-
-## 2. Card view layout
-
-Use a clickable card with portrait, name, tier, rough Tempo Elo, and one-sentence subtitle. Open a card detail panel with:
-
-1. **Who they are** (`canon_background`) — factual, stable background from source fiction.
-2. **Tempo's assessment** (`tempo_assessment`) — cheeky narrator commentary, distinct from canon.
-3. **Why they play this way** (`character_interpretation` + `on_board_personality`) — the app's fictional chess interpretation.
-4. **Voice and dialogue samples** — a few lines from the appropriate context; do not show every line on the front of the card.
-5. **Running bit** — show its premise in the profile but let the three beats unfold in order during actual play.
-6. Optional personal W/D/L record, favorite opening, tactical archetype from the pre-existing profile.
-
-## 3. Exact event contract
-
-Only emit an event **after** a legal game-state transition has committed, with the same gameId and ply still active:
-
-| Event | When it can be said |
+| Event | Require actual state |
 |---|---|
-| `greeting` | New match, once |
-| `quiet_move` | Bot's non-check, non-capture, non-terminal and non-special move |
-| `capture_pawn` | Bot captured an **opposing pawn** |
-| `capture_major` | Bot captured an **opposing rook or queen** |
-| `opponent_blunder` | Human's move was assessed as a genuine blunder; require reliable enough engine analysis |
-| `own_blunder` | Bot's move was assessed as a genuine blunder |
-| `check` | Bot has just checked the human king |
-| `in_check` | Human has just checked the bot's king |
-| `tactical_success` | Detector confirms a meaningful fork/pin/discovered attack/sound sacrifice etc. **Not** mere check or capture |
-| `queen_lost` | Human just captured **bot's queen** |
-| `player_thinking` | Human takes a long time and a once-per-game guard has not fired |
-| `victory`, `defeat`, `draw` | Actual terminal result, from the bot's perspective |
-| `rematch` | User actually starts another match against that character |
+| `greeting` | Game genuinely started |
+| `quiet_move` | Bot legally moves without capturing, checking, or triggering a higher priority event |
+| `capture` | Bot legally captures; generic line must not identify a specific captured type |
+| `check` | Bot's completed legal move leaves opponent king in check |
+| `in_check` | Player's completed legal move checks the bot king |
+| `opponent_blunder` | Stable post-move engine evaluation shows a significant avoidable error; not merely an unfamiliar move |
+| `own_blunder` | Stable post-move engine evaluation shows bot error (optional; skip if unavailable) |
+| `victory`, `defeat` | Confirmed final result from bot perspective |
+| `rematch` | Explicit new game against same opponent |
+| `special` | All predicates in `line_guards.special` satisfied; **never** present as fallback |
 
-A capture and a check can occur on the same move; show at most one line, using result > check > queen loss > confirmed tactic > major capture > pawn capture > other. For `queen_lost`, the speaker is the character whose queen is captured, even though the human moved.
+Don't let a `capture` line falsely say a rook was taken, an arc claim a queen was lost while she's on the board, or a mate line announce forced mate unless the search establishes it. A verification failure should produce **silence**, not an approximate substitute. Post-move blunder analysis may be too expensive on a mobile browser; disable such remarks rather than stalling the UI.
 
-Do not describe a **fork**, a **sacrifice**, or a **blunder** unless your chess analysis supports it. For lower-tier bots with weak analyses, skip `opponent_blunder`, `own_blunder`, and `tactical_success` rather than invent claims. Always detect terminal conditions **before** ordinary events. Never let dialogue interrupt chess clocks or engine computation.
+### Voice scheduler
 
-## 4. Implement ordered story bits
+Use a *single* weighted scheduler per completed legal move. Event priority: final game > check > verified tactic/special > verified blunder > eligible story beat > capture > quiet move.
 
-Each profile has a `dialogue_arcs[0]`:
+- `voice.baseline_line_chance` defines the probability that an eligible ordinary event is displayed; nonterminal lines are optional.
+- `voice.cooldown_full_moves` suppresses nonterminal chatter for the specified number of full moves. Do not suppress game results.
+- At most **one nonterminal remark per move**, including story beats. No repeated line in the same game; rare exceptions only if explicitly authored (Pikachu/name cries).
+- A game with a silent character should remain entirely silent. Never fill the empty bubble with instructions such as `[looks worried]`.
+- In case of multiple legitimate remarks, choose the highest-priority eligible one and defer or discard others. Don't queue stale remarks that describe a different board position.
+- Offer `Off`, `Occasional` (default), `Frequent` settings; Off means no utterance at all.
 
-```
-{
-  id, theme, ordered: true,
-  beats: [
-    {index:1, trigger_hint:"...", line:"..."},
-    {index:2, trigger_hint:"...", line:"..."},
-    {index:3, trigger_hint:"...", line:"..."}
-  ]
-}
-```
+### Running arcs
 
-Treat `trigger_hint` as a **design requirement**, not an already implemented callback. Never emit a beat without verifying its trigger in the current game; never emit beat 2 without beat 1, nor beat 3 without beat 2. If the required event never happens, that arc may remain unfinished. That is better than a nonsensical joke.
+Each `story_arc` has three ordered `beat`s and a `gate`. A `gate` is an **implementation request**, not an available built-in API. Each gate must have a tested detector before its beat can play. `requires_prior_beat` enforces order; if beat 2 cannot occur because a queen dies early, **never jump to beat 3** or fabricate beat 2.
 
-For the initial integration, build detectors for universal hints (`early_game`, `middlegame`, `late_game`, `opening_after_move_3`, `piece_captured`, `bot_pawn_captured`) and one dedicated flagship arc: Patrick's queen **moves, moves again, then is captured**. Suppress unsupported hints rather than reducing them to arbitrary move counts. A later version can implement advanced hints such as `human_pawn_sacrificed`, `verified_sound_nonbook_move`, and `rook_endgame`.
+Track:
+- `seen_line_ids` and `seen_arc_beats` (per character per game)
+- `last_utterance_full_move`, pending bubble timeout, dialogue setting
+- relevant per-game counters, piece identities, confirmed tactics, captured piece types, and opening-book deviation state
 
-A second arc beat must also be separated from the previous beat by at least four plies. Per match: store `arcBeatIndex`, `arcLastPly`, `usedEvents`, and `playerThinkingFired`, keyed to `gameId` + `botId`. Reset them on a new match. Preserve them if the same game is resumed; restore/recompute after an undo without misattributing a future remark to a prior state.
+**43 arc gate types are requested in the pack**. They are NOT 43 pre-existing features. Implement a minimal subset first (`game_reaches_move_N`, piece move counters, capture identity, `verified_knight_fork`). Keep others disabled until tested.
 
-## 5. Dialogue frequency should be personal
-
-- Default **Occasional**: regular line candidate ≈20% chance, at least four full moves apart (for F/D you may use 30% and three full moves, already encoded in `dialogue_style`).
-- **Sparse** characters (Batman, Wednesday, Spock, Darth Vader, Beth, etc.) should speak less frequently. `dialogue_style` has an individual base probability.
-- **Frequent** mode may increase ordinary probability by 1.5×, capped at 0.55, and shorten cooldown by one full move.
-- **Off** disables everything, including results if desired. Keep game stats and actions visible independently.
-- Never repeat an identical line within a game. A character has only one core line per event in this revision, so after an event fires once, suppress it or substitute an eligible previously-unused story beat; **do not** loop the same joke every capture.
-- `greeting`, result, and rare signature beats can bypass the ordinary cadence when their guards are true, but do not issue two separate bubbles on the same committed ply.
-- Screen-reader presentation: use a `role=status` / polite live region for sparing messages; never fire repeated announcements over a ticking clock.
-
-## 6. Recommended priority and safeguards
-
-Pseudo-code, not drop-in JavaScript:
+### Suggested architecture pseudocode
 
 ```js
-async function maybeReact(game, before, move, after, character, snapshot) {
-  if (settings.dialogue === 'off') return;
-  // Evaluate only safe, verified facts first.
-  const fact = classifyCommittedMove(before, move, after, game.botColor);
-  // Optional asynchronous engine analysis can refine this, but must check gameId/ply.
-  const event = chooseHighestPriorityEligibleEvent(fact, game, character);
-  if (!event) return;
-  const line = character.dialogue[event];
-  if (!line || alreadyUsed(game, character.id, event, line)) return;
-  if (!passesCadenceOrIsCritical(event, character.dialogue_style, game)) return;
-  if (snapshot.gameId !== game.id || snapshot.ply !== game.ply) return;
-  markUsed(game, character.id, event, line);
-  showCharacterBubble(character.id, line, {polite: true, dismissible: true});
-}
+const p = characterProfiles[activeBot.id];
+if (!p || p.voice.mode === 'silent' || chatSetting === 'off') return;
+
+const facts = deriveVerifiedMoveFacts(previousPosition, legalMove, currentPosition, gameResult);
+const candidates = eligibleDialogueEvents(facts, p, characterDialogueState);
+const chosen = chooseOneCandidate(candidates, p.voice, characterDialogueState);
+if (!chosen) return;
+
+// Emit only AFTER animation / move resolution, if game and position are unchanged.
+renderCharacterText({text: chosen.text, mode: p.voice.mode, character: p.name});
+recordSeen(chosen, characterDialogueState);
 ```
 
-A story beat should be added to the same one-remark selection mechanism. It is not an extra message. Remember that engine eval scores are relative to side-to-move and can use mate scores; don't mistake a sign reversal for a blunder. Don't call an unprotected pawn a 'fork'.
+Do not let ineligible `special` lines compete with generic events. Note that `in_check` reflects the player's move, while `check` reflects the character's move.
 
-## 7. QA checklist before going live
+## Regression tests (mandatory before deployment)
 
-- All **61 immutable IDs** map to exactly one bot; display names can vary.
-- Spot check Patrick's three-beat queen story with a scripted legal game sequence; verify it does not fire if the queen never moves or is never captured.
-- Spot check Freddy's stage directions, Steve's silent actions, and Pikachu/Psyduck's non-English vocalizations.
-- Verify own queen loss versus enemy queen capture, check/capture combo, mate/capture combo, sacrifices, promotions, resignations, stalemates, threefold repetition, and clock outcomes.
-- Verify Off/Occasional/Frequent, mid-game reload, undo, rematch, game switching, and stale engine responses.
-- Confirm the speech bubble is not positioned on top of the chessboard on a phone.
-- Separate fiction canon from invented abilities and ratings on every public-facing card (even in a private app).
+1. All 61 IDs match previous character roster exactly; source JSON parses; no extra duplicate event IDs.
+2. Psyduck only says variants of 'Psyduck'; Pikachu only name syllables, without action text. Peely, Derpy, Steve show zero text bubbles.
+3. A bot cannot announce a capture, check, queen loss, promoted pawn, fork, sacrifice, or blunder that was not actually verified.
+4. A promotional capture or en passant is analyzed correctly as a capture; choose terminal result over normal capture lines.
+5. Arc beat 3 never plays without beats 1 and 2. Character rematch resets in-game arc and seen-line state.
+6. Quiet-position testing: Batman/Vader/Beth speak much less often than Patrick/Donkey/SpongeBob.
+7. Enabling or disabling dialogue never changes legal moves, bot Elo parameters, analysis score, or saved game data.
+8. No repeated ordinary spoken remark within a single game, unless a cry-only species intentionally repeats their name.
+9. All bubbles remain readable at phone widths; long remarks can be dismissed, and only one is shown at a time.
+10. Mobile with Stockfish blocked: basic captures/checks/terminal dialogue still work; engine-only assessments and specials fail silently.
 
-## 8. Selected factual reference points
+## Editorial decisions needing owner review
 
-These are reference links for a few potentially surprising or niche facts (not citations for the *invented* chess dialogue):
+- **Homer** is treated as a canon chess savant (episode *The Cad and the Hat*); his references to his father and early chess memories are intentional rather than a random prodigy joke.
+- **Ron** is a genuinely capable chess player. Avoid lines in which Hermione explains chess to him or rescues his basic strategy.
+- **Dory** should be empathetic and resourceful, not mocked for disability.
+- **Mewtwo** communicates telepathically, unlike Pikachu/Psyduck.
+- **Wednesday** is based primarily on the Netflix portrayal (including teenage insecurity beneath her composure), not solely older Addams Family versions.
+- **Classic Freddy Fazbear** is intentionally distinguished from Glamrock Freddy.
+- **Roblox Noob and Among Us Crewmate** represent game archetypes; their chat is an original, game-inspired persona, not source-canon character dialogue.
 
-- [Netflix Tudum — Rumi](https://www.netflix.com/tudum/articles/kpop-demon-hunters-rumi-bio)
-- [Netflix Tudum — Derpy Tiger](https://www.netflix.com/tudum/articles/kpop-demon-hunters-derpy-tiger-bio)
-- [The Simpsons, “The Cad and the Hat”](https://tv.apple.com/us/episode/the-cad-and-the-hat/umc.cmc.cytaagjns1lrfstqkts1jcjr)
-- [Harry Potter — Ron Weasley](https://www.harrypotter.com/fact-file/characters-and-pets/ron-weasley)
+## Canon research notes
+
+Selected external confirmations used in this editorial pass (the dialogue itself is newly written):
+- Ron's chess confidence and meaningful self-sacrifice: https://www.harrypotter.com/features/how-ron-weasleys-wizard-chess-match-showed-his-true-potential
+- Dory's resourcefulness and search for her family: https://www.pixar.com/finding-dory
+- Netflix's description of Rumi and her internal conflict: https://www.netflix.com/tudum/articles/kpop-demon-hunters-rumi-bio
+- Netflix's nonverbal Derpy Tiger: https://www.netflix.com/tudum/articles/kpop-demon-hunters-derpy-tiger-bio
+- Homer as a chess savant in *The Cad and the Hat*: https://simpsonswiki.com/wiki/The_Cad_and_the_Hat
+
+This is a **writing and integration specification**, not a claim that all 61 canonicities have been exhaustively fact-checked against every show, game, film, season, or adaptation.

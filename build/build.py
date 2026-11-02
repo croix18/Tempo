@@ -27,11 +27,17 @@ def safe_json(s): return s.replace('</', '<\\/')
 b64 = {k: rd('build/%s.b64' % k).strip() for k in ['sfjs', 'sfwasm', 'puzzles', 'openings', 'dmsans', 'dmserif']}
 
 # the characters: content/characters.json goes into the roster script, which the page and the engine worker both load,
-# except what they say and the story behind them, which only the page needs (src/talk.js reads it from d-voices)
-VOICE_FIELDS = ['franchise', 'canon_background', 'tempo_assessment', 'character_interpretation', 'on_board_personality', 'voice_direction',
-                'running_bit_description', 'dialogue', 'dialogue_arcs', 'dialogue_style', 'dialogue_requires', 'arc_requires', 'editorial_note']
+# except what they say and the story behind them, which only the page needs (src/talk.js reads it from d-voices).
+# The writers' notes on each voice (core_psychology, never_do, verification) stay in the content file: the page never shows them.
+VOICE_FIELDS = ['franchise', 'canon_bio', 'tempo_assessment', 'chess_style', 'voice', 'dialogue', 'line_guards', 'story_arc', 'verification',
+                'dialogue_requires', 'arc_requires', 'special_guards']
+SHOWN_VOICE = ['mode', 'baseline_line_chance', 'cooldown_full_moves']
 chars = json.load(open(os.path.join(ROOT, 'content/characters.json'), encoding='utf-8'))
-voices = {'profiles': {p['id']: {k: p[k] for k in VOICE_FIELDS if k in p} for p in chars['profiles']}}
+def page_voice(p):
+    v = {k: p[k] for k in VOICE_FIELDS if k in p and k != 'verification'}
+    v['voice'] = {k: p['voice'][k] for k in SHOWN_VOICE}
+    return v
+voices = {'profiles': {p['id']: page_voice(p) for p in chars['profiles']}}
 for p in chars['profiles']:
     for k in VOICE_FIELDS: p.pop(k, None)
 chars.pop('voice_pack', None)

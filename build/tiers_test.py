@@ -114,7 +114,7 @@ async def test_characters(browser):
       out.n = B.BOTS.length; out.tiers = B.TIERS.map(t => t.members.length); out.bosses = B.TIERS.map(t => t.boss);
       const svgs = B.BOTS.map(b => TempoAvatars.svg(b)); out.svg = svgs.every(s => s.indexOf('<svg') === 0) && new Set(svgs).size === svgs.length;
       out.old = !!TempoAvatars.svg(B.find('pip')) && B.find('pip').name === 'Pip';
-      out.lines = B.BOTS.every(b => { const v = TempoTalk.voice(b.id); return v && TempoTalk.EVENTS.every(e => v.lines[e]) && v.beats.length === 3; });
+      out.lines = B.BOTS.every(b => { const v = TempoTalk.voice(b.id); return v && (v.mode === 'silent' ? !Object.keys(v.lines).length && !v.arc.length : TempoTalk.EVENTS.every(e => v.lines[e]) && v.arc.length === 3); });
       out.books = B.BOTS.every(b => b.book.w.length && b.book.e4.length && b.book.d4.length && b.book.w.concat(b.book.e4, b.book.d4).every(f => TempoBook.has(f)));
       out.sf = B.BOTS.filter(b => b.sf).map(b => b.id).length;
       return out; })()""")
@@ -140,14 +140,14 @@ async def test_characters(browser):
     check('a position the book doesn’t know leaves the book', b['deviated'] is None, b)
     check('the Chaos Crew drop their book after a few moves', b['patrickDeep'] is None, b)
     check('a game from another position never uses the book', b['fromFen'] is None, b)
-    # a tactic line needs the fork on the board and the referee's word that it works
+    # Ralph's special (a knight fork) needs the fork on the board and the referee's word that it works
     m = await pg.evaluate("""(() => { const C = TempoCore, T = TempoTalk, ralph = TempoBots.byId('ralph-wiggum');
       const g = () => ({ id: 'tt' + Math.random(), color: 'b', startFen: 'r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', moves: ['b5c7'] });
-      const yes = T.bot(g(), ralph, { kind: 'search' }, { prev: { v: 0, mat: 0, engine: 'stockfish' }, now: { v: 420, mat: 0, engine: 'stockfish' } }, { chat: 'some', rng: () => 0.99 });
+      const yes = T.bot(g(), ralph, { kind: 'search' }, { prev: { v: 0, mat: -240, engine: 'stockfish' }, now: { v: 420, mat: -240, engine: 'stockfish' } }, { chat: 'some', rng: () => 0.99 });
       const no = T.bot(g(), ralph, { kind: 'search' }, {}, { chat: 'some', rng: () => 0.99 });
       return { yes: yes && yes.key, no: no && no.key }; })()""")
-    check('a knight fork the referee backs gets the tactic line; without the referee, no claim', m['yes'] == 'tactical_success' and m['no'] != 'tactical_success', m)
-    # chat: Off is silent; Some says hello
+    check('a knight fork the referee backs gets Ralph\u2019s special; without the referee, no claim', m['yes'] == 'special' and m['no'] != 'special', m)
+    # chat: Off is silent; Occasional says hello
     await pg.evaluate("Store.state.settings.chat = 'off'; Store.state.settings.botChat = false; Store.touch('settings'); App.go('play')"); await pg.wait_for_timeout(300)
     await pg.locator('.char', has_text='Dory').first.click(); await pg.wait_for_timeout(300)
     await pg.locator('.sheet button', has_text='Start game').click(); await pg.wait_for_timeout(900)
@@ -157,9 +157,9 @@ async def test_characters(browser):
     await pg.locator('.sheet button', has_text='Start game').click(); await pg.wait_for_timeout(900)
     said = await pg.evaluate("document.querySelector('.player .bubble').textContent")
     hello = await pg.evaluate("TempoTalk.voice('dory').lines.greeting")
-    check('with chat off the character says nothing; with Some it says hello', silent and hello in said, (silent, said))
+    check('with chat off the character says nothing; with Occasional it says hello', silent and hello in said, (silent, said))
     await pg.evaluate("Store.state.current = null; Store.touch(); App.go('prefs')"); await pg.wait_for_timeout(300)
-    await pg.locator('.v-prefs .seg button', has_text='Lots').click(); await pg.wait_for_timeout(200)
+    await pg.locator('.v-prefs .seg button', has_text='Frequent').click(); await pg.wait_for_timeout(200)
     check('Preferences sets the chat level', await pg.evaluate("Store.state.settings.chat === 'lots' && Store.state.settings.botChat === true"))
     # the character sheet
     await pg.evaluate("Store.state.settings.unlockAll = true; App.go('play')"); await pg.wait_for_timeout(300)
