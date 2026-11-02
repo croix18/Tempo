@@ -656,8 +656,9 @@ function end(game, bot, score, reason, opts) {
   if (next && next.gate === 'non_book_win_or_loss' && said2.length === 2) out.more = next.text;
   return out;
 }
-/* how long a line stays up: long enough to read */
-function readMs(text) { return Math.max(4000, Math.min(9500, 2200 + 58 * (text || '').length)); }
+/* how long a line stays up: long enough to notice it and read it at an easy pace (6.5 to 15 seconds); a tap puts it
+   away sooner */
+function readMs(text) { return Math.max(6500, Math.min(15000, 3500 + 80 * (text || '').length)); }
 
 var Talk = { EVENTS: EVENTS, MODES: MODES, VOICE_FIELDS: VOICE_FIELDS, GATES: GATE_NAMES, SPECIALS: Object.keys(SPECIALS),
   voice: voice, voices: voices, mode: mode, state: state, truncate: truncate, said: said,

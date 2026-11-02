@@ -420,5 +420,9 @@ const REF_GATES = ['verified_knight_fork', 'verified_tactic', 'own_combination_t
   console.log('without the referee:', JSON.stringify(kinds));
 })();
 
+/* ---------- 9. long enough to read (the page keeps it up this long unless you tap it away) ---------- */
+ok(T.readMs('Pika.') >= 6500 && T.readMs('x'.repeat(60)) >= 8000 && T.readMs('x'.repeat(134)) >= 13000 && T.readMs('x'.repeat(400)) <= 15000,
+  'a line stays up long enough to read: 6.5 seconds at least, longer for longer lines, 15 at most');
+
 console.log(fails ? fails + ' of ' + checks + ' checks failed' : 'talk checks pass: ' + checks);
 process.exit(fails ? 1 : 0);

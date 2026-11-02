@@ -179,6 +179,8 @@ async def test_dismiss(browser):
     await pg.evaluate(crafted('donkey-shrek', START))
     b = await wait_bubble(pg)
     check('phone: the hello shows', b is not None, b)
+    await pg.wait_for_timeout(5800)
+    check('and is still there six seconds later, to read at an easy pace', await bubble(pg) is not None)
     await pg.locator('.player .bubble:not([hidden])').click(); await pg.wait_for_timeout(450)
     check('a tap puts it away', await bubble(pg) is None)
     await pg.evaluate("(t) => Play._say(t)", 'One line.'); await pg.wait_for_timeout(300)
