@@ -201,10 +201,10 @@
 
       var play = h('div', { class: 'card' }, h('h3', { style: { marginBottom: '2px' } }, 'Play'));
       play.appendChild(Play.toggle('Always promote to a queen', 'Skips the promotion menu in games. Puzzles and lessons always ask, since the answer can be another piece.', !!s.autoQueen, function (v) { s.autoQueen = v; save(); }));
-      // how much the characters talk: off, a line at the start, at their signature moment and at the end, or more
+      // how much the characters talk about the game: not at all, at their own pace, or half as often again
       play.appendChild(h('div', { class: 'toggle seg-row' }, h('div', { class: 'grow' }, h('div', { style: { fontWeight: 600 } }, 'Opponent chat'),
-        h('div', { class: 'muted small' }, 'Off is silent. Some is a line at the start, one at their signature moment and one at the end. Lots adds a few more.')),
-        Play.seg([['off', 'Off'], ['some', 'Some'], ['lots', 'Lots']], s.chat || (s.botChat === false ? 'off' : 'some'), function (v) { s.chat = v; s.botChat = v !== 'off'; save(); })));
+        h('div', { class: 'muted small' }, 'What the characters say as the game happens. Occasional is each character\u2019s own pace (the quiet ones say little); Frequent is more often. Off is silent.')),
+        Play.seg([['off', 'Off'], ['some', 'Occasional'], ['lots', 'Frequent']], s.chat || (s.botChat === false ? 'off' : 'some'), function (v) { s.chat = v; s.botChat = v !== 'off'; save(); })));
       play.appendChild(Play.toggle('Unlock all characters', 'Play any character without winning your way up the tiers.', !!s.unlockAll, function (v) { s.unlockAll = v; save(); }));
       col.appendChild(play);
 

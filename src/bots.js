@@ -2,9 +2,9 @@
    Shared by the page, the engine worker and the test harness.
 
    Each character has two separate contracts. Strength (tier, rating, search budget, how often it slips) comes from
-   the rating alone, on the scale the original ladder bots were tuned to. Personality (style weights, opening books,
-   signature events, dialogue) comes from the profile: its archetype, its seven traits and a few notes on how it plays.
-   Style only ever chooses among moves its strength allows. */
+   the rating alone, on the scale the original ladder bots were tuned to. Personality (style weights and opening
+   books) comes from the profile: its archetype, its seven traits and a few notes on how it plays. Style only ever
+   chooses among moves its strength allows. What a character says is src/talk.js. */
 (function (G) {
 'use strict';
 var NODE = typeof require === 'function' && typeof module !== 'undefined';
@@ -318,9 +318,8 @@ PROFILES.profiles.forEach(function (p) {
     boss: !!p.boss, bonus: !!p.bonus, mono: p.mono, arche: p.archetype, bio: p.subtitle,
     plan: (p.shown && p.shown.strategic_plan) || p.strategic_plan, weakness: (p.shown && p.shown.exploitable_weakness) || p.exploitable_weakness,
     signature: p.signature_event, tactics: p.tactical_preferences, openings: p.openings, traits: p.behavior_traits_0_to_100,
-    sig: p.signature_triggers || [], book: bookFor(p, style),
+    book: bookFor(p, style),
     bookPly: Math.round(2 + (cap - 2) * (0.35 + 0.65 * theory / 100)), bookFollow: Math.min(0.99, FOLLOW[p.tier] + 0.08 * (theory - 50) / 50),
-    lines: { hello: p.dialogue.start, win: p.dialogue.win, lose: p.dialogue.loss, tactic: p.dialogue.tactical_moment },
     cfg: cfg
   };
   // the Masters and Legends play with Stockfish where it runs; the built-in engine stands in where it doesn't

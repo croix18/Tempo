@@ -386,6 +386,12 @@ FIELDS = [
       App.go('home'); want(/Resume game/.test(document.querySelector('.home-hero').textContent), 'Home does not offer to resume');
       Play.resume(); want(document.querySelector('.v-play .arena'), 'game did not open');
       App.go('home');"""),
+    ('a game\u2019s talk is checked: junk goes, and so do lines said after the position on the board', "d.current.bot = 'goofy'; d.current.talk = { log: [[0, 'greeting'], 'junk', [9, 'check'], [1, 'nonsense'], [2, 'arc1', 'u12'], [1.5, 'check']], heard: { check: 1, bogus: 1, arc2: 1 }, think: 'yes' }; d.current.rematch = 'yes'", """
+      want(S.current && JSON.stringify(S.current.talk) === JSON.stringify({ log: [[0, 'greeting'], [2, 'arc1', 'u12']], heard: { check: 1 } }) && S.current.rematch === false, JSON.stringify(S.current && [S.current.talk, S.current.rematch]));
+      Play.resume(); want(document.querySelector('.v-play .arena'), 'game did not open'); App.go('home');"""),
+    ('a game\u2019s talk that isn\u2019t a record is dropped, and the game goes on', "d.current.bot = 'goofy'; d.current.talk = 'x'", """
+      want(S.current && S.current.talk === null, JSON.stringify(S.current && S.current.talk));
+      Play.resume(); want(document.querySelector('.v-play .arena'), 'game did not open'); App.go('home');"""),
     ('unknown top-level keys are kept', "d.future = { a: 1 }", "want(S.future && S.future.a === 1, 'unknown section dropped');"),
 ]
 

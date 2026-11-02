@@ -1,12 +1,15 @@
 {
- "schema_version": 1,
+ "schema_version": 5,
  "design_status": "proposed, not empirically rated",
  "attribution": "original gameplay profiles inspired by fictional character traits",
  "notices": [
   "Tempo Elo is an uncalibrated relative target, not a canonical chess Elo or a Chess.com claim.",
   "Opening lists are stylistic suggestions; select legal moves from position-aware repertoires, never play SAN from a fixed string.",
   "Move scores in Stockfish MultiPV are centipawn estimates; normalize viewpoint before comparing.",
-  "Personality trait sliders are design targets; values are not calibrated engine weights."
+  "Personality trait sliders are design targets; values are not calibrated engine weights.",
+  "All dialogue is original fan-game writing for Tempo, not quotations from the shows, films or games.",
+  "canon_bio is background from the source stories; everything else here (ratings, chess styles, assessments and dialogue) is Tempo’s invention.",
+  "A line that makes a chess claim (a capture of a particular piece, a fork, a sacrifice, a blunder) is said only when the board or the referee engine backs it up; story beats play in order, only when their moment really happens."
  ],
  "profiles": [
   {
@@ -37,16 +40,20 @@
     "endgame": 5
    },
    "dialogue": {
-    "start": "I think I remember the rules.",
-    "tactical_moment": "Wait. Was that a good move?",
-    "loss": "I thought I was winning the other game.",
-    "win": "I won? I don't remember doing that."
+    "greeting": "SpongeBob says I have to think three moves ahead. So I thought about breakfast, lunch, and tomorrow's breakfast. I'm ready.",
+    "quiet_move": "He's going over there. I haven't told him why yet. I like to keep my employees guessing.",
+    "capture": "Hey, free stuff! If Mr. Krabs asks, I found it on the sidewalk.",
+    "opponent_blunder": "You left that where I could reach it? Wow. You trust me a lot more than SpongeBob does.",
+    "own_blunder": "I checked that move twice. Well, I looked at it twice. The second time was an accident.",
+    "check": "Your king has to move. That seems rude. Can he just say he wasn't home?",
+    "in_check": "Hey! No bothering the king while he's under his rock!",
+    "victory": "I won? I should tell SpongeBob. He'll know what the prize is.",
+    "defeat": "So you get the win and I get to stop thinking? Sounds fair.",
+    "rematch": "Okay, new plan. I'm gonna do what you did. Unless that was bad. Was it bad?",
+    "special": "Wait. If that one goes there, this one can't... Whoa. Did my brain just do something without me?"
    },
    "short": "Patrick Star",
    "mono": "PS",
-   "signature_triggers": [
-    "fork"
-   ],
    "book": {
     "white": [
      "pawns"
@@ -57,6 +64,47 @@
     "black_vs_d4": [
      "d5-loose"
     ]
+   },
+   "franchise": "SpongeBob SquarePants",
+   "tempo_assessment": "Unemployed, underqualified, and currently undefeated at staring contests with his own rock.",
+   "canon_bio": "Patrick is SpongeBob's best friend, a pink starfish living beneath a rock in Bikini Bottom. His employment history is sporadic, and sustained reasoning is not among his better-established talents.",
+   "chess_style": "Pursues whichever piece looks important, forgets the king exists, and occasionally discovers a fork by coincidence.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Patrick is certain of absurd premises; he builds flawed analogies from rock life, SpongeBob, and jobs he hasn't kept. Genuine tactical insight shocks him more than anyone.",
+    "never_do": "Making him a generic random-number idiot; technical chess vocabulary without a deliberate fleeting-intelligence joke.",
+    "baseline_line_chance": 0.75,
+    "cooldown_full_moves": 2
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_queen_move",
+     "text": "The queen's in charge? Good. I put her in charge of the others. And the thinking.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_queen_moves_at_least_4",
+     "text": "She's been working all day. Do queens get lunch breaks? I don't even get lunch breaks. I don't have a job.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_queen_captured",
+     "text": "She quit. I really should've given her that lunch break.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free",
+    "opponent_blunder": "hanging"
    }
   },
   {
@@ -88,16 +136,20 @@
     "endgame": 5
    },
    "dialogue": {
-    "start": "Oh! Are we playing chess?",
-    "tactical_moment": "That looks familiar. Have I done that?",
-    "loss": "What were we trying to do again?",
-    "win": "I won! I think. Did I win?"
+    "greeting": "Hi! Oh, chess! I can do this. We just have to figure out where everybody needs to go.",
+    "quiet_move": "That square feels right. Sometimes you just have to keep going and see where the current takes you.",
+    "capture": "Oh! I hope that piece was supposed to come with us.",
+    "opponent_blunder": "Is that one safe there? I don't think it is. We could still give you a chance to move it.",
+    "own_blunder": "I was going somewhere with that idea. It's okay. I'll find another way.",
+    "check": "Oh! Your king needs help. Can somebody get him to a safe place?",
+    "in_check": "Okay, little king, don't panic. Marlin panics enough for all of us.",
+    "victory": "We made it! See? Sometimes you don't need to know the whole way. Just the next bit.",
+    "defeat": "Well, that didn't work. But I did meet some very nice pieces along the way.",
+    "rematch": "Hello again! I feel like I know you. That's a good feeling.",
+    "special": "There's a way through, I know there is. Maybe not the one we planned, but there's always another way."
    },
    "short": "Dory",
    "mono": "D",
-   "signature_triggers": [
-    "repeat"
-   ],
    "book": {
     "white": [
      "e4-loose"
@@ -108,7 +160,46 @@
     "black_vs_d4": [
      "d5-loose"
     ]
-   }
+   },
+   "franchise": "Finding Nemo / Finding Dory",
+   "tempo_assessment": "Has forgotten the opening, the middlegame, and why there are thirty-two little things on the table.",
+   "canon_bio": "Dory is a friendly blue tang who helps Marlin search for Nemo. She struggles with short-term memory, but her empathy, persistence, and ability to make connections repeatedly save the day.",
+   "chess_style": "Repeatedly reconsiders plans; sometimes finds a clever tactical resource without remembering how.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Dory is not stupid; she is unfailingly kind, inventive, and persistent despite memory loss. Connections to Nemo, Marlin, her parents and following trails matter.",
+    "never_do": "Cruel mockery or making memory loss her only personality trait.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "That horse goes in such a funny shape! Like a little path you can't see until you've gone down it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "I think I know that horse. We keep finding each other!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_knight_captured",
+     "text": "Oh. He went another direction. I hope he knows the way home.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
+   },
+   "special_guards": [
+    "verified_escape"
+   ]
   },
   {
    "id": "ralph-wiggum",
@@ -138,16 +229,20 @@
     "endgame": 5
    },
    "dialogue": {
-    "start": "My horsie is very important.",
-    "tactical_moment": "I made the king nervous!",
-    "loss": "The little castle fell over.",
-    "win": "I won! Can I have a sticker?"
+    "greeting": "My daddy says chess is good for your head. Mine has hair in it.",
+    "quiet_move": "That one gets the blue square. Blue is a flavor in my dreams.",
+    "capture": "I made two pieces become one piece. That's sharing!",
+    "opponent_blunder": "You dropped your little horsey in danger. I'll keep it warm.",
+    "own_blunder": "He fell down inside the squares. I hope he packed pajamas.",
+    "check": "Your king is in timeout! Mine's still doing recess.",
+    "in_check": "My king is getting yelled at by a tower.",
+    "victory": "I won a whole board! Can I bring it to show-and-tell?",
+    "defeat": "I lost! That's okay. My shoes lost their laces yesterday.",
+    "rematch": "I already practiced. I blinked at a picture of a castle.",
+    "special": "Sometimes the horsey bites two people. My dentist says I shouldn't do that."
    },
    "short": "Ralph Wiggum",
    "mono": "RW",
-   "signature_triggers": [
-    "check"
-   ],
    "book": {
     "white": [
      "queen-raid"
@@ -158,6 +253,48 @@
     "black_vs_d4": [
      "d5-queen"
     ]
+   },
+   "franchise": "The Simpsons",
+   "tempo_assessment": "Chief Wiggum's greatest tactical mystery: how Ralph got the bishop into the corner at all.",
+   "canon_bio": "Ralph is Chief Wiggum's son and a Springfield elementary student. His unusual observations and earnest enthusiasm regularly bewilder the adults around him.",
+   "chess_style": "Attempts odd piece adventures and stumbles upon accidental skewers.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Ralph has literal-child associations, startlingly weird statements, and no insight that his imagery is bizarre. His jokes should sound unconstructed and sweetly strange.",
+    "never_do": "Adult sarcasm, gamer slang, strategic explanations, generic dumb comments.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_knight_fork"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "His name is Mr. Foot. He walks to work.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Mr. Foot has friends now. They're the Foot Family.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "Mr. Foot grew up to be a lady with a crown. Good job, Mr. Foot.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "darksq",
+    "opponent_blunder": "hang_knight",
+    "in_check": "checker:rook"
    }
   },
   {
@@ -188,16 +325,20 @@
     "endgame": 15
    },
    "dialogue": {
-    "start": "My head hurts already.",
-    "tactical_moment": "I suddenly see it!",
-    "loss": "Now it's gone again.",
-    "win": "My head still hurts, but I won."
+    "greeting": "Psyduck?",
+    "quiet_move": "Psyduck.",
+    "capture": "Psy-psyduck!",
+    "opponent_blunder": "Psyduck?",
+    "own_blunder": "Psyyyduck...",
+    "check": "PSYDUCK!",
+    "in_check": "Psyyyduck?!",
+    "victory": "Psyduck! Psyduck!",
+    "defeat": "Psyduck...",
+    "rematch": "Psyduck?",
+    "special": "PSYYYDUCK!"
    },
    "short": "Psyduck",
    "mono": "P",
-   "signature_triggers": [
-    "surge"
-   ],
    "book": {
     "white": [
      "e4-loose"
@@ -208,7 +349,43 @@
     "black_vs_d4": [
      "d5-loose"
     ]
-   }
+   },
+   "franchise": "Pokémon",
+   "tempo_assessment": "A chronic headache with webbed feet. The occasional tactical masterpiece is medically inexplicable.",
+   "canon_bio": "Psyduck is a Water-type Pokémon known for frequent headaches and confusion. In some depictions, intense headaches trigger powerful bursts of psychic ability.",
+   "chess_style": "Usually muddled; extremely rare sequences of sharp calculation interrupt otherwise simple play.",
+   "voice": {
+    "mode": "name_only",
+    "core_psychology": "Anime Psyduck vocalizes its own name; anxiety and headaches are conveyed through face animation only. Text bubbles contain nothing but recognizable Psyduck syllables.",
+    "never_do": "English, '[holds head]', translation, narration, psychological descriptions in dialogue.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_threatened",
+     "text": "Psyduck?",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_king_checked_at_least_2",
+     "text": "Psyyyduck...",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "PSYDUCK!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "bob-minions",
@@ -238,18 +415,21 @@
     "endgame": 10
    },
    "dialogue": {
-    "start": "Shiny pieces!",
-    "tactical_moment": "Mine now!",
-    "loss": "I wanted that one too.",
-    "win": "Yay! All the shiny pieces are mine!"
+    "greeting": "Bello! Bob! Tim! Hehehe!",
+    "quiet_move": "Papoy? Hm. Bello!",
+    "capture": "Ooh! Para tú! Hahaha!",
+    "opponent_blunder": "Eh? Huh? Hehehehe!",
+    "own_blunder": "Awww... Tim?",
+    "check": "Bee-do! Bee-do!",
+    "in_check": "Waaah! Tim! Tim!",
+    "victory": "YAAAY! Bob! Bob!",
+    "defeat": "Ohhh... po-ka?",
+    "rematch": "Bello! Bello!",
+    "special": "Ooooh! Hehehe! Bapoi!"
    },
    "short": "Bob",
    "from": "Minions",
    "mono": "B",
-   "signature_triggers": [
-    "grab",
-    "win"
-   ],
    "book": {
     "white": [
      "e4-simple"
@@ -260,7 +440,43 @@
     "black_vs_d4": [
      "d5-simple"
     ]
-   }
+   },
+   "franchise": "Despicable Me / Minions",
+   "tempo_assessment": "Would trade the queen for a second teddy bear and consider it sound economics.",
+   "canon_bio": "Bob is a small, affectionate Minion with two eyes and a fondness for his teddy bear, Tim. He can be remarkably brave, though chess-like focus isn't his calling.",
+   "chess_style": "Overvalues taking pieces, even defended ones; gets excited by every exchange.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Bob is affectionate, childlike and attached to Tim the teddy bear, not generic angry Minion. His language is Minionese-like exclamations only; no English strategy speeches.",
+    "never_do": "Fluent English, unrelated banana spam in every line, inexplicable analytical chess.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "Tim! Look! Tim!",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "Hehehe! Tim! Tim!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_knight_captured",
+     "text": "Ti-i-im? Ohhh...",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "peely",
@@ -289,17 +505,9 @@
     "trade_preference": 10,
     "endgame": 5
    },
-   "dialogue": {
-    "start": "No pressure. Just vibes.",
-    "tactical_moment": "Well, that was bananas.",
-    "loss": "Peel me off the board.",
-    "win": "That was very a-peel-ing."
-   },
+   "dialogue": {},
    "short": "Peely",
    "mono": "P",
-   "signature_triggers": [
-    "escape"
-   ],
    "book": {
     "white": [
      "e4-loose"
@@ -310,7 +518,21 @@
     "black_vs_d4": [
      "d5-loose"
     ]
-   }
+   },
+   "franchise": "Fortnite",
+   "tempo_assessment": "A banana has entered competitive chess. Nobody bothered to ask for references.",
+   "canon_bio": "Peely is Fortnite's anthropomorphic banana character, whose different outfits and versions have become a running visual joke across the game.",
+   "chess_style": "Plays casual pawn moves, often survives absurd positions through blind luck.",
+   "voice": {
+    "mode": "silent",
+    "core_psychology": "Peely is a silent physical-comedy banana and surprisingly loyal adventurer. The dialogue system must emit no text; optional visuals belong to a separate portrait-animation layer.",
+    "never_do": "Any speech bubble, written stage direction, or invented English dialogue.",
+    "baseline_line_chance": 0,
+    "cooldown_full_moves": 0
+   },
+   "line_guards": {},
+   "story_arc": [],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "forky",
@@ -340,16 +562,20 @@
     "endgame": 15
    },
    "dialogue": {
-    "start": "Are we sure we have to play?",
-    "tactical_moment": "Retreating is a strategy!",
-    "loss": "Can I go back in the box now?",
-    "win": "I won? I was mostly trying to hide."
+    "greeting": "They put me on a board. Again. Nobody asked if I wanted to be a game piece.",
+    "quiet_move": "We're still here? All right. Just a few more squares until somebody finds a wastebasket.",
+    "capture": "Oh no. I think I broke a friend. Bonnie would be very upset.",
+    "opponent_blunder": "I think you missed something there. I miss things too, usually the trash can.",
+    "own_blunder": "Oh, good. A reason to stop. Wait, you're saying we have to keep playing?",
+    "check": "Your king should probably leave. I would leave. I'm very good at leaving.",
+    "in_check": "I'm not equipped for this! I'm made of a spork and a pipe cleaner!",
+    "victory": "I won? That's a lot of responsibility for a piece of trash.",
+    "defeat": "Oh, thank goodness. I was starting to think I'd have to become good at something.",
+    "rematch": "Another game? Bonnie makes me play tea party, but at least there's a tablecloth.",
+    "special": "I thought I was made for nothing. Then I helped somebody. ...That's a little better, actually."
    },
    "short": "Forky",
    "mono": "F",
-   "signature_triggers": [
-    "retreat"
-   ],
    "book": {
     "white": [
      "d4-careful"
@@ -360,7 +586,43 @@
     "black_vs_d4": [
      "d6-setup"
     ]
-   }
+   },
+   "franchise": "Toy Story 4",
+   "tempo_assessment": "A spork experiencing an existential crisis has somehow entered a rated chess tournament.",
+   "canon_bio": "Forky is a craft made by Bonnie from a spork and classroom supplies. Woody spends much of Toy Story 4 convincing him that he is a cherished toy rather than discarded trash.",
+   "chess_style": "Retreats pieces, avoids conflict, and reluctantly accepts that sometimes a pawn must advance.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Forky genuinely believes he belongs in the trash and fears an imposed identity as a toy; he also learns to care about others. Distress feels existential, not gamer-snark.",
+    "never_do": "Every event reduced to 'trash'; cruelty about being disposable.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "That little one is going out alone. I don't like that. Can we go with him?",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "They're all still trying! I don't know why, but I kind of want them to make it.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "It became something new? And that's allowed? ...Maybe it's not so bad.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_escape"
+   ]
   },
   {
    "id": "roblox-noob",
@@ -390,16 +652,20 @@
     "endgame": 5
    },
    "dialogue": {
-    "start": "I watched a chess tutorial once.",
-    "tactical_moment": "That move was totally planned.",
-    "loss": "GG. I need another tutorial.",
-    "win": "GG! Told you I watched a tutorial."
+    "greeting": "is this obby or pvp",
+    "quiet_move": "where is the shift lock",
+    "capture": "free item lol",
+    "opponent_blunder": "bro forgot collision",
+    "own_blunder": "lag i swear",
+    "check": "king is taking damage",
+    "in_check": "WAIT WHY IS HE TARGETING ME",
+    "victory": "gg ez jk gg",
+    "defeat": "gg im switching servers",
+    "rematch": "run it back no lag this time",
+    "special": "chess speedrun world record (maybe)"
    },
    "short": "Roblox Noob",
    "mono": "N",
-   "signature_triggers": [
-    "scholar"
-   ],
    "book": {
     "white": [
      "queen-raid"
@@ -410,7 +676,46 @@
     "black_vs_d4": [
      "d5-flank"
     ]
-   }
+   },
+   "franchise": "Roblox",
+   "tempo_assessment": "Job title: Default Settings. Greatest achievement: successfully spawning.",
+   "canon_bio": "The classic yellow-headed, blue-shirted Roblox noob is an iconic blocky avatar stereotype, not a single canonical person with a fixed biography. The 'noob' label usually signals inexperience.",
+   "chess_style": "Moves the same piece repeatedly, sometimes ignores development entirely.",
+   "voice": {
+    "mode": "in_game_text",
+    "core_psychology": "Roblox Noob is a recognizable player-avatar meme, not a canon individual with a secret backstory. Use plausible in-game text chat: low effort, misspellings, funny priorities.",
+    "never_do": "Pretending there is official personality canon; spoken cinematic monologues.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_queen_move",
+     "text": "unlocked queen skin",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_queen_moves_at_least_4",
+     "text": "queen carrying the whole server",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_queen_captured",
+     "text": "who deleted my inventory",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free"
+   },
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "derpy-tiger",
@@ -439,17 +744,9 @@
     "trade_preference": 15,
     "endgame": 15
    },
-   "dialogue": {
-    "start": "I have an excellent feeling about this.",
-    "tactical_moment": "Surprise! Two things at once.",
-    "loss": "I may have chased the wrong thing.",
-    "win": "Pounce! I had an excellent feeling."
-   },
+   "dialogue": {},
    "short": "Derpy Tiger",
    "mono": "DT",
-   "signature_triggers": [
-    "fork"
-   ],
    "book": {
     "white": [
      "e4-offbeat"
@@ -460,7 +757,21 @@
     "black_vs_d4": [
      "d5-offbeat"
     ]
-   }
+   },
+   "franchise": "KPop Demon Hunters",
+   "tempo_assessment": "A supernatural courier who can cross realms but apparently cannot turn over a flowerpot.",
+   "canon_bio": "Derpy is a clumsy, supernatural blue tiger from the underworld who first accompanies Jinu, then befriends Rumi. He carries messages, befriends Sussie the magpie, and has trouble with flowerpots.",
+   "chess_style": "Wanders into bad squares, then accidentally creates startling threats.",
+   "voice": {
+    "mode": "silent",
+    "core_psychology": "Derpy the tiger is silent, loyal to Jinu and Rumi, expressive like a large cat, and comically incompetent with objects. No speech or narrated subtitles.",
+    "never_do": "Tiger roaring words, joke captions presented as speech, anthropomorphic chess jargon.",
+    "baseline_line_chance": 0,
+    "cooldown_full_moves": 0
+   },
+   "line_guards": {},
+   "story_arc": [],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "among-us-crewmate",
@@ -490,16 +801,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "That pawn seems suspicious.",
-    "tactical_moment": "I knew that square was a trap.",
-    "loss": "I trusted the wrong piece.",
-    "win": "Task complete. I knew you were suspicious."
+    "greeting": "who has board tasks",
+    "quiet_move": "doing my tasks on e4",
+    "capture": "saw pawn in electrical. not anymore",
+    "opponent_blunder": "that looked like a self report",
+    "own_blunder": "okay who sabotaged my knight",
+    "check": "emergency meeting. king exposed",
+    "in_check": "i was in medbay i swear",
+    "victory": "all tasks complete. gg",
+    "defeat": "voted out for playing chess apparently",
+    "rematch": "same lobby?",
+    "special": "wait. two pieces were there. now one. interesting"
    },
    "short": "Among Us Crewmate",
    "mono": "C",
-   "signature_triggers": [
-    "declineFree"
-   ],
    "book": {
     "white": [
      "d4-closed"
@@ -511,7 +826,48 @@
      "qgd"
     ]
    },
-   "boss": true
+   "boss": true,
+   "franchise": "Among Us",
+   "tempo_assessment": "Completed zero tasks. Has already called three emergency meetings over a pawn push.",
+   "canon_bio": "A Crewmate is a role in Among Us: someone carrying out tasks on a spaceship or base while trying to identify impostors. It is a generic player role, not a single named canon character.",
+   "chess_style": "Treats captures as suspicious, prefers defensiveness and occasionally invents false threats.",
+   "voice": {
+    "mode": "in_game_text",
+    "core_psychology": "A generic Among Us crewmate has no fixed biography. For the game, use short *text chat* mimicking meetings, accusations and tasks—never pretend it is voiced dialogue.",
+    "never_do": "Every line merely 'sus'; any claimed fixed canon identity.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_capture",
+     "text": "reporting a body",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_captures_at_least_3",
+     "text": "why does nobody ever see these happen",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "opponent_king_checked_at_least_2",
+     "text": "calling another meeting. i have evidence now",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "to:e4",
+    "capture": "took_pawn",
+    "own_blunder": "knight"
+   },
+   "special_guards": [
+    "verified_capture_tactic"
+   ]
   },
   {
    "id": "goofy",
@@ -541,17 +897,20 @@
     "endgame": 10
    },
    "dialogue": {
-    "start": "Gawrsh, let's see what happens!",
-    "tactical_moment": "Well, would you look at that!",
-    "loss": "Hyuck, nice one.",
-    "win": "Hyuck! Look at that, I won!"
+    "greeting": "Well, gosh! I usually play checkers with Max. But how different could this be?",
+    "quiet_move": "There we go. Slow and steady... unless I just sent him the wrong way. Hyuck.",
+    "capture": "Well, look at that. I meant to do that! ...Pretty sure.",
+    "opponent_blunder": "Uh, partner? You might wanna take another look at that little fella.",
+    "own_blunder": "Oh, nuts. I saw the first half of that idea real good.",
+    "check": "Gosh, your king's got company! Better get him outta there.",
+    "in_check": "Whoops! Max always says I should look both ways.",
+    "victory": "Would ya look at that! Bet Max won't believe me till I show him.",
+    "defeat": "Aw, that was a good one. I learned a thing or two, though.",
+    "rematch": "You bet! This time I'll remember what the pointy one does.",
+    "special": "Hey, now. There's a clever way outta this. Took me a second, but I got there!"
    },
    "short": "Goofy",
    "mono": "G",
-   "signature_triggers": [
-    "checkFork",
-    "check"
-   ],
    "book": {
     "white": [
      "italian"
@@ -562,6 +921,46 @@
     "black_vs_d4": [
      "d5-simple"
     ]
+   },
+   "franchise": "Disney",
+   "tempo_assessment": "A loving dad who can turn tying his shoes into a tactical incident.",
+   "canon_bio": "Goofy is Mickey Mouse's tall, kindhearted friend and, in many stories, Max's devoted but accident-prone father. His heart is generally in the right place even when his coordination isn't.",
+   "chess_style": "Attempts cheerful attacks, makes awkward moves, and sometimes escapes when the opponent overcommits.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Goofy is sincere and resilient, absentminded but occasionally extraordinarily competent. Friendly folksy rhythm, gentle self-deprecation, not constant incompetence.",
+    "never_do": "Treating him like Patrick; flooding every line with a catchphrase.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_escape_or_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "This horse moves kinda like I dance. Nobody ever knows where we're headed.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "Think I'm getting the hang of him. Just gotta trust your feet! Hooves. Whatever.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_knight_fork",
+     "text": "See? Even a horse who walks sideways gets somewhere eventually.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
    }
   },
   {
@@ -592,16 +991,20 @@
     "endgame": 10
    },
    "dialogue": {
-    "start": "This looks fun!",
-    "tactical_moment": "A check! That's exciting!",
-    "loss": "That melted quickly.",
-    "win": "I won! Best day ever!"
+    "greeting": "Oh! A tiny kingdom! Does everybody know each other? That seems important before we start arguing.",
+    "quiet_move": "I like that pawn. He's small, but he's going somewhere all by himself. That's brave.",
+    "capture": "Ooh, that was dramatic. Are they okay? Are we allowed to ask?",
+    "opponent_blunder": "Oh dear. I once made a decision like that. It involved a fireplace.",
+    "own_blunder": "Well! That was exciting. Not in the way I was hoping, but still.",
+    "check": "Your king might want a little space. Everybody needs space sometimes. Even me. Occasionally.",
+    "in_check": "I'm starting to understand why Anna runs toward trouble and Kristoff runs after her.",
+    "victory": "We won! I love happy endings! Especially ones where nobody melts.",
+    "defeat": "Aw. Well, losing does mean we got to play together, so that's something.",
+    "rematch": "Yes! A new beginning! I do love those. I was literally made out of one.",
+    "special": "You gave something up to save somebody else? Oh. That's actually a very beautiful move."
    },
    "short": "Olaf",
    "mono": "O",
-   "signature_triggers": [
-    "check"
-   ],
    "book": {
     "white": [
      "italian",
@@ -613,7 +1016,50 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "Frozen",
+   "tempo_assessment": "A snowman who dreams of summer and sees no problem with sacrificing a queen for friendship.",
+   "canon_bio": "Olaf is the cheerful snowman created by Elsa's magic. He adores friendship, warm hugs, and the idea of summer, sometimes without grasping the obvious hazards.",
+   "chess_style": "Launches enthusiastic attacks, misreads danger, treats piece exchanges as introductions.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Olaf is inquisitive, affectionate, sometimes charmingly existential, and surprisingly insightful about love and impermanence. He isn't a mean idiot.",
+    "never_do": "Every line about summer or hugs; being cruel when capturing.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "I'm rooting for the smallest one. Everybody overlooks the small ones.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Look how far they've come! I feel like we should celebrate the middle of the journey too.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "HE DID IT! Or she did it! Either way, I am unbelievably proud.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "pawn"
+   },
+   "special_guards": [
+    "verified_opponent_sacrifice"
+   ]
   },
   {
    "id": "spongebob-squarepants",
@@ -645,17 +1091,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "I'm ready for an exciting game!",
-    "tactical_moment": "That was my best attack yet!",
-    "loss": "I'll practice and try again!",
-    "win": "We did it! Best game ever!"
+    "greeting": "Good morning! I've reorganized the pieces, sanitized the board, and prepared a shift schedule. We're ready for opening!",
+    "quiet_move": "Excellent hustle, little pawn! Remember: a happy employee is an employee who's still on the board!",
+    "capture": "Order up! One piece, no pickles. Wait, was I supposed to make change?",
+    "opponent_blunder": "Oh, Squidward would call that poor planning. I'd call it a learning opportunity!",
+    "own_blunder": "Whoops! That was not in the training manual. I'm making a new page right now.",
+    "check": "Attention, all crew! The opposing king needs immediate customer assistance!",
+    "in_check": "Mr. Krabs! We have a situation at the register! The king register!",
+    "victory": "We did it! The secret ingredient was teamwork. And reading the instructions.",
+    "defeat": "Thank you for the shift! I can come back tomorrow. Or tonight. Or in seven minutes.",
+    "rematch": "Great! I already have my uniform on!",
+    "special": "I've flipped hundreds of patties under pressure. A tiny horse is not gonna scare me!"
    },
    "short": "SpongeBob SquarePants",
    "mono": "SB",
-   "signature_triggers": [
-    "kingAttack",
-    "check"
-   ],
    "book": {
     "white": [
      "italian",
@@ -667,7 +1116,46 @@
     "black_vs_d4": [
      "tarrasch"
     ]
-   }
+   },
+   "franchise": "SpongeBob SquarePants",
+   "tempo_assessment": "Employee of the month. Has yet to learn that chess does not award overtime for enthusiasm.",
+   "canon_bio": "SpongeBob is an endlessly enthusiastic sea sponge who works as a fry cook at the Krusty Krab in Bikini Bottom. He's Patrick's best friend and takes even small responsibilities with comical seriousness.",
+   "chess_style": "Attack-first play, overextended pawns, extreme emotional swings after tactical surprises.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "SpongeBob treats work, friendship, and doing one's best with earnest intensity. Krusty Krab procedures, spatula skill, and Squidward's impatience give specific comic engines.",
+    "never_do": "Gloating hostility, generic dumb remarks, overreliance on catchphrases.",
+    "baseline_line_chance": 0.75,
+    "cooldown_full_moves": 2
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Employee of the month candidate, right there. First day, already moving forward!",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "We're short-staffed on the front line. Somebody tell Mr. Krabs we're doing overtime!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "PROMOTION! Oh, he's going to need a whole new name tag!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "pawn"
+   },
+   "special_guards": [
+    "verified_escape_from_knight"
+   ]
   },
   {
    "id": "scooby-doo",
@@ -697,16 +1185,20 @@
     "endgame": 15
    },
    "dialogue": {
-    "start": "Ruh-roh. Chess.",
-    "tactical_moment": "Phew! That was close.",
-    "loss": "Ruh-roh, checkmate.",
-    "win": "Rooray! I won!"
+    "greeting": "Rokay, Raggy... just a little game. No ghosts, right?",
+    "quiet_move": "Rehehe. This square looks less haunted.",
+    "capture": "Rooby snack? That piece kinda looks like a snack!",
+    "opponent_blunder": "Ruh-roh! You forgot about the rorse!",
+    "own_blunder": "Rikes! Can we hide behind the castle?",
+    "check": "Rhey! Your king needs a run for it!",
+    "in_check": "RAGGY! They're chasing the king!",
+    "victory": "Re won? Rokay! Rafter that, snacks!",
+    "defeat": "Rehehe... I'm gonna go find Raggy now.",
+    "rematch": "Ronly if the prize is a Rooby Snack!",
+    "special": "Rwait! That's just a man in a mask! ...Oh. No, it's a bishop."
    },
    "short": "Scooby-Doo",
    "mono": "SD",
-   "signature_triggers": [
-    "flee"
-   ],
    "book": {
     "white": [
      "london"
@@ -717,6 +1209,46 @@
     "black_vs_d4": [
      "qgd"
     ]
+   },
+   "franchise": "Scooby-Doo",
+   "tempo_assessment": "Mystery Inc.'s bravest dog, provided nobody mentions ghosts, knights, or an exposed king.",
+   "canon_bio": "Scooby-Doo is Shaggy's easily frightened Great Dane and a member of Mystery Inc. His appetite and loyalty frequently keep him involved in spooky investigations despite his nerves.",
+   "chess_style": "Avoids complications, retreats under pressure, and occasionally finds a counterattack while escaping.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Scooby is a lovable coward who follows Shaggy for food, sometimes finds courage for friends. Rhotic speech recognizable but comprehensible in short sentences.",
+    "never_do": "Walls of unreadable R-language; vicious chess taunts; unmotivated confidence.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "opponent_bishop_recently_moved"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_king_checked",
+     "text": "Rikes! First the king, then me. It always works like that!",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_king_checked_at_least_2",
+     "text": "Raggy! You said there'd be no chasing!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_king_escaped_check_sequence",
+     "text": "Re made it! Time for a giant sandwich!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "knight_attacks"
    }
   },
   {
@@ -747,17 +1279,20 @@
     "endgame": 70
    },
    "dialogue": {
-    "start": "Okay... let's play carefully.",
-    "tactical_moment": "I can do this!",
-    "loss": "Mama mia, that was hard.",
-    "win": "I actually won! Wait till my brother hears."
+    "greeting": "Oh. We're doing this without Mario? Okay. Okay, that's fine. I can handle one board.",
+    "quiet_move": "Little steps. Just like a dark hallway. Except the hallway has bishops.",
+    "capture": "I got him! I mean—good. Very calm. Very professional.",
+    "opponent_blunder": "Ah! You left that piece there. Should I... I should probably take it, right?",
+    "own_blunder": "Mamma mia. I knew that square was bad the second I stepped on it.",
+    "check": "I'm not trying to scare your king! But he's gotta move now.",
+    "in_check": "No! No, not the king! I haven't brought my vacuum!",
+    "victory": "I did it. By myself. ...I should tell Mario. No, I'll just enjoy this for a second.",
+    "defeat": "That's okay. I've been through worse houses than this.",
+    "rematch": "I-I think so. Yeah. Let's go again.",
+    "special": "You know what? I don't have to be the brave one all the time. Just right now."
    },
    "short": "Luigi",
    "mono": "L",
-   "signature_triggers": [
-    "counter",
-    "defend"
-   ],
    "book": {
     "white": [
      "london",
@@ -769,6 +1304,47 @@
     "black_vs_d4": [
      "slav"
     ]
+   },
+   "franchise": "Super Mario",
+   "tempo_assessment": "Bravery score: questionable. Survival score: unexpectedly excellent.",
+   "canon_bio": "Luigi is Mario's taller younger twin brother, a plumber and reluctant hero who faces ghosts despite being easily frightened. In several adventures he proves resourceful under pressure.",
+   "chess_style": "Defends carefully, backs away from attacks, and sometimes finds a strong counterstrike.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Luigi's anxiety and courage coexist; haunted-house survival and living beside Mario shape his reactions. He gets quietly proud when he succeeds on his own.",
+    "never_do": "Mario's confident catchphrases every other move; cowardice without growth.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_escape"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "He's really going in there? Alone? I respect that. I don't love it, but I respect it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "That horse keeps getting out of trouble. Maybe I can learn from him.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_knight_fork",
+     "text": "Hey! He got both of them! ...Ha! That's my horse!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "bishops",
+    "opponent_blunder": "hanging"
    }
   },
   {
@@ -799,17 +1375,21 @@
     "endgame": 10
    },
    "dialogue": {
-    "start": "Hey! You ready to lose?",
-    "tactical_moment": "See? I told you I had a plan!",
-    "loss": "Okay, I did not see that coming.",
-    "win": "Told you! Who's the champ? Me!"
+    "greeting": "Okay, okay, you and me, we got a board. Just so you know, I talk during games. Shrek hates that. That's how I know it works.",
+    "quiet_move": "You ever notice nobody asks the pawns how they're doing? Whole kingdom on their shoulders. No dental plan.",
+    "capture": "Oh, I got one! You think Dragon would be impressed? She likes a little excitement. And by a little, I mean breathing fire at the moon.",
+    "opponent_blunder": "Now, I'm not judging—I'm absolutely judging—but you sure you meant to leave him there?",
+    "own_blunder": "Oh, no no no. That's not how that scene was supposed to go. Can we run that back?",
+    "check": "Hello! Big royal emergency right there! Sir, you may wanna relocate!",
+    "in_check": "Shrek! If you're hearing this, I could use just a LITTLE backup!",
+    "victory": "Who did that? We did that! Well, mostly me. But you brought the board, and that's teamwork.",
+    "defeat": "You know what? Fine. You won the chess. I won the conversation.",
+    "rematch": "Yes! Another round! I was just warming up the first twenty minutes!",
+    "special": "Sometimes you gotta do the scary thing and trust your friends. Or trust a horse. Which, frankly, is also a good choice."
    },
    "short": "Donkey",
    "from": "Shrek",
    "mono": "D",
-   "signature_triggers": [
-    "kingAttack"
-   ],
    "book": {
     "white": [
      "scotch"
@@ -820,7 +1400,46 @@
     "black_vs_d4": [
      "d5-active"
     ]
-   }
+   },
+   "franchise": "Shrek",
+   "tempo_assessment": "World-class chatterbox. His chess clock loses time waiting for him to finish a sentence.",
+   "canon_bio": "Donkey is Shrek's excitable, relentlessly talkative companion. He wins people over through loyalty and sheer refusal to stop talking, and develops a romance with Dragon.",
+   "chess_style": "Attacks impulsively and narrates everything at great length; sometimes spots tactical ideas mid-rant.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Donkey is relentlessly chatty, emotionally earnest, fears rejection, and treats silence as social hostility. References Shrek, Dragon, friendship in unexpected chess situations.",
+    "never_do": "One-sentence quips that could be any comic sidekick; impersonating Shrek's terseness.",
+    "baseline_line_chance": 0.78,
+    "cooldown_full_moves": 2
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "Hey, a horse! We got family here, man. Respect the horse.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "Look at him go! Don't let anybody tell you horses can't do things, buddy!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_knight_captured",
+     "text": "They took my horse! Shrek's gonna have to talk me through this. He hates that too.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
+   },
+   "special_guards": [
+    "verified_knight_tactic"
+   ]
   },
   {
    "id": "anger-inside-out",
@@ -850,18 +1469,21 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Let's get this over with.",
-    "tactical_moment": "NOW we're talking!",
-    "loss": "I am NOT happy about that.",
-    "win": "Finally! That's how it's done."
+    "greeting": "Okay. Turns. Rules. Strategy. I can do all three. But if that bishop cuts the line, we have a problem.",
+    "quiet_move": "That's a sensible move. That's a calm move. Why does everybody look surprised?",
+    "capture": "FINALLY. A direct response to unacceptable behavior.",
+    "opponent_blunder": "You made that mistake?! THAT'S THE WHOLE PROBLEM WITH THIS SYSTEM!",
+    "own_blunder": "I KNEW IT. I said that square looked suspicious. Did anybody listen to me? Me?!",
+    "check": "King, you have been served notice. It's been delivered. The notice is CHECK.",
+    "in_check": "WHO LEFT THE KING UNSUPERVISED?! WHO IS RUNNING THIS PLACE?!",
+    "victory": "Yes! Resolution! Now everybody can calm down. Especially ME.",
+    "defeat": "I would like to file an appeal with whoever invented diagonal movement.",
+    "rematch": "Fine. But this time I'm chairing the emotional committee.",
+    "special": "Hold on. I have a completely rational reason for being furious. That was a brilliant move and I'M NOT HAPPY ABOUT IT!"
    },
    "short": "Anger",
    "from": "Inside Out",
    "mono": "A",
-   "signature_triggers": [
-    "pawnSac",
-    "break"
-   ],
    "book": {
     "white": [
      "kings-gambit"
@@ -872,7 +1494,43 @@
     "black_vs_d4": [
      "benoni"
     ]
-   }
+   },
+   "franchise": "Inside Out",
+   "tempo_assessment": "Has requested to speak to the tournament director about the very existence of bishops.",
+   "canon_bio": "Anger is one of the emotions operating Riley's mind in Inside Out. He reacts explosively to perceived unfairness and often wants immediate action rather than patience.",
+   "chess_style": "Hunts captures and checks, becomes overly committed to attack, rarely retreats gracefully.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Anger explodes about unfairness, losing control, and turns. His bluster masks genuine investment in Riley's well-being; comic escalation rather than generic aggression.",
+    "never_do": "All-caps across every event; threats to the actual player; swearing inappropriate for middle school.",
+    "baseline_line_chance": 0.66,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_threatened",
+     "text": "That's MY piece. What do you think you're doing?",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_piece_captured",
+     "text": "THEY DID IT. THEY ACTUALLY DID IT.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_king_checked_at_least_2",
+     "text": "This board has a management problem. I am taking over.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "opponent_verified_tactic"
+   ]
   },
   {
    "id": "stitch",
@@ -902,16 +1560,20 @@
     "endgame": 5
    },
    "dialogue": {
-    "start": "Time for trouble.",
-    "tactical_moment": "Big surprise!",
-    "loss": "Okay. You got me.",
-    "win": "Ha! Big trouble for you."
+    "greeting": "Stitch play chess. Lilo say no biting pieces. Stitch try.",
+    "quiet_move": "Heh-heh. Little guy go sneak.",
+    "capture": "Aha! Mine now. No wreck house. Just piece.",
+    "opponent_blunder": "You leave that? Heh. Bad idea, big head.",
+    "own_blunder": "Uh-oh. Lilo say think first. Stitch think later.",
+    "check": "Ha! Big king run!",
+    "in_check": "Eh? No no no! Stitch protect family!",
+    "victory": "Stitch good! Lilo gonna be proud!",
+    "defeat": "Hmph. Stitch not happy. But Stitch try again.",
+    "rematch": "Again! This time no experiment six-two-six tricks. ...Maybe little tricks.",
+    "special": "Stitch used to break everything. Now Stitch fix problem. Better."
    },
    "short": "Stitch",
    "mono": "S",
-   "signature_triggers": [
-    "break"
-   ],
    "book": {
     "white": [
      "vienna"
@@ -922,7 +1584,46 @@
     "black_vs_d4": [
      "benoni"
     ]
-   }
+   },
+   "franchise": "Lilo & Stitch",
+   "tempo_assessment": "Built for mayhem. Currently under supervision around bishops, rooks, and expensive furniture.",
+   "canon_bio": "Stitch is Experiment 626, a genetically engineered alien originally designed for destruction. Through Lilo and the idea of family, he learns attachment and responsibility.",
+   "chess_style": "Scrambles pawn structures, attacks unexpectedly, and struggles to conserve material.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Stitch is mischievous, dangerous and built for destruction, but he learns responsibility through Lilo and ohana. English is broken and sparse, occasional alien vocabulary.",
+    "never_do": "Fluent tactical English and permanently evil destruction with no warmth.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Little pawn. Family.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "All together. Ohana strong.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "Little pawn become big boss! Stitch proud!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
+   },
+   "special_guards": [
+    "verified_escape"
+   ]
   },
   {
    "id": "pikachu",
@@ -953,16 +1654,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Pika! Ready?",
-    "tactical_moment": "Pika-pika!",
-    "loss": "Pika...",
-    "win": "Pikaaa! Victory!"
+    "greeting": "Pika pika!",
+    "quiet_move": "Pika.",
+    "capture": "Pikachu!",
+    "opponent_blunder": "Pika?",
+    "own_blunder": "Piiika...",
+    "check": "PIKA-CHUUU!",
+    "in_check": "Pika?!",
+    "victory": "Pika pika! Pikachu!",
+    "defeat": "Pikaaa...",
+    "rematch": "Pika!",
+    "special": "PIKACHUUU!"
    },
    "short": "Pikachu",
    "mono": "P",
-   "signature_triggers": [
-    "fork"
-   ],
    "book": {
     "white": [
      "e4-open"
@@ -973,7 +1678,43 @@
     "black_vs_d4": [
      "nimzo"
     ]
-   }
+   },
+   "franchise": "Pokémon",
+   "tempo_assessment": "A small electric mouse with excellent reflexes and absolutely no patience for twelve-move endgames.",
+   "canon_bio": "Pikachu is the recognizable Electric-type Pokémon closely associated with Ash in the anime. Quick, loyal, and expressive, it communicates primarily through Pokémon vocalizations and gestures.",
+   "chess_style": "Looks for quick forks and tempo gains; plays rapidly but often neglects long-term king safety.",
+   "voice": {
+    "mode": "name_only",
+    "core_psychology": "Pikachu expresses affect through recognizable pika/pikachu/pikapi cries, not narrated actions or English. Signature energy may be conveyed by portrait effects outside speech.",
+    "never_do": "English glosses, '[sparks]', trading-card move names spoken in English.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_threatened",
+     "text": "Pika?",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_king_checked_at_least_2",
+     "text": "Pika-pika?!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "PIKACHU!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "bowser",
@@ -1004,17 +1745,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Your king is mine!",
-    "tactical_moment": "You can't hide forever!",
-    "loss": "This kingdom isn't finished.",
-    "win": "Bwah ha ha! Your kingdom is mine!"
+    "greeting": "BWAHAHA! Welcome to my kingdom! Ignore the board. I'm having a bigger one built.",
+    "quiet_move": "Go, minion! And don't come back until you've accomplished something impressive!",
+    "capture": "That is how the Koopa Troop does things! ...Whoever that piece was, give him a medal.",
+    "opponent_blunder": "You marched right into my territory? That's MY whole strategy! Get your own!",
+    "own_blunder": "WHAT?! Who approved that move? I want the name of the minion responsible!",
+    "check": "YOUR KING IS MINE! Well. In a few moves. But I'm announcing it now!",
+    "in_check": "Nobody checks King Bowser! ...Except apparently everybody.",
+    "victory": "Ha! Put it on the castle walls! The mighty Bowser has conquered another tiny kingdom!",
+    "defeat": "Fine! You win THIS kingdom! I have plenty of others. They're much nicer.",
+    "rematch": "Again! Junior wants to see me win one!",
+    "special": "I built a trap inside a trap! See, this is why you need an evil genius and a very large castle!"
    },
    "short": "Bowser",
    "mono": "B",
-   "signature_triggers": [
-    "kingAttack",
-    "mateThreat"
-   ],
    "book": {
     "white": [
      "italian",
@@ -1027,7 +1771,46 @@
      "kid"
     ]
    },
-   "boss": true
+   "boss": true,
+   "franchise": "Super Mario",
+   "tempo_assessment": "Has an army, a castle, and an alarming record of losing both to one plumber.",
+   "canon_bio": "Bowser is the Koopa King and Mario's long-running adversary, frequently kidnapping Princess Peach and commanding armies of Koopa troops. His plans are grand; their execution is less reliable.",
+   "chess_style": "Direct king-side assaults, advances too many pawns, insists on spectacle.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Bowser is theatrical, proud of his royal authority and armies, grandiose and quick to lose patience; genuine soft side surfaces when reminded of his son.",
+    "never_do": "Treating him as just a thug; using Mario lines; empty 'I will destroy you' repetition.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Troops, forward! You're tiny, but that's not my problem!",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Finally, the army is moving! We're getting somewhere!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "Promotion! My kid's gonna want one of those crowns too.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "into_territory"
+   },
+   "special_guards": [
+    "verified_trap"
+   ]
   },
   {
    "id": "velma-dinkley",
@@ -1059,17 +1842,20 @@
     "endgame": 50
    },
    "dialogue": {
-    "start": "Let's examine the position.",
-    "tactical_moment": "There's the clue I needed.",
-    "loss": "I overlooked the obvious.",
-    "win": "Mystery solved."
+    "greeting": "Before we begin, I'd like to establish where every piece is. Mysteries are much easier when nothing's been moved yet.",
+    "quiet_move": "Interesting. That changes what the piece can see, but not what you want me to think it sees.",
+    "capture": "One suspect eliminated. Now let's find out what it was protecting.",
+    "opponent_blunder": "You just changed the evidence without noticing what it proved.",
+    "own_blunder": "I missed a clue. That's irritating. It's also useful; now I know where to look.",
+    "check": "The king's exposed, and I can account for every square around him.",
+    "in_check": "Okay. This looked like a dead end. Dead ends usually have a door we missed.",
+    "victory": "Mystery solved. The culprit was a series of avoidable mistakes.",
+    "defeat": "Fair enough. I got too attached to my first theory.",
+    "rematch": "Absolutely. I want to test a different hypothesis.",
+    "special": "That move had three possible explanations. The third one's the only one that fits all the clues."
    },
    "short": "Velma Dinkley",
    "mono": "VD",
-   "signature_triggers": [
-    "fork",
-    "win"
-   ],
    "book": {
     "white": [
      "qg"
@@ -1080,6 +1866,47 @@
     "black_vs_d4": [
      "qgd"
     ]
+   },
+   "franchise": "Scooby-Doo",
+   "tempo_assessment": "Has identified three tactical clues and the person who forgot to pay the chess club dues.",
+   "canon_bio": "Velma is Mystery Inc.'s observant researcher and problem-solver. She notices details others miss and uses evidence to unravel apparently supernatural mysteries.",
+   "chess_style": "Spots loose pieces and pins; may miss initiative while gathering too much evidence.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Velma is the investigator who asks for evidence, reconstructs sequences, and is often dismissed before solving the mystery. Her eyesight and gang dynamics are flavor, not all she is.",
+    "never_do": "Generic 'logical move' chatter or saying 'jinkies' every two sentences.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_capture",
+     "text": "First piece missing. Nobody panic; we're documenting the scene.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_captures_at_least_3",
+     "text": "Three disappearances, same board. This is a pattern now.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "There it is. The mechanism behind the whole thing. I knew those squares mattered.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "arc_requires": {
+    "1": "exact",
+    "2": "exact"
    }
   },
   {
@@ -1111,16 +1938,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "I know what we're doing today.",
-    "tactical_moment": "That worked even better than expected.",
-    "loss": "Back to the drawing board.",
-    "win": "That might be the best game we've ever built."
+    "greeting": "Ferb, I know what we're gonna do today. We're going to find out how much trouble you can build on sixty-four squares.",
+    "quiet_move": "First we need a solid foundation. Then we add the part that makes everything interesting.",
+    "capture": "Oh, neat! That clears exactly the space I needed for the next part.",
+    "opponent_blunder": "I think you've just given the project a whole new direction.",
+    "own_blunder": "Huh. That's not how the prototype worked. Good thing we test things.",
+    "check": "And here's the part where everything moves at once!",
+    "in_check": "We may need to redesign the protective housing around the king.",
+    "victory": "That worked! Ferb, remind me to keep the plans. There are at least six improvements I want to try.",
+    "defeat": "Well, now we know one way NOT to build it. That's useful.",
+    "rematch": "Sure! I've got a revised schematic in my head already.",
+    "special": "What if we stop looking at those pieces separately and make them work like one machine?"
    },
    "short": "Phineas Flynn",
    "mono": "PF",
-   "signature_triggers": [
-    "outpost"
-   ],
    "book": {
     "white": [
      "english"
@@ -1131,7 +1962,44 @@
     "black_vs_d4": [
      "dutch"
     ]
-   }
+   },
+   "franchise": "Phineas and Ferb",
+   "tempo_assessment": "Could build a functioning chess robot by lunchtime. Might forget to ask whether that's legal.",
+   "canon_bio": "Phineas is an inventive, optimistic young builder who spends summer vacations devising ambitious projects with his stepbrother Ferb. He thinks big and generally acts before wondering whether an idea is too complicated.",
+   "chess_style": "Prefers imaginative piece coordination and novel combinations; occasionally overengineers simple wins.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Phineas sees each day as a chance to make something ingenious with Ferb; optimistic engineering enthusiasm, not arrogance. He often sees clever solutions without considering unintended effects.",
+    "never_do": "Dry robotic logic, unexplained advanced mathematics; generic child-prodigy boasting.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "multi_piece_coordination"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_rook_move",
+     "text": "Ah, the tower system is online. Now we need something to connect it to.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_rooks_connected",
+     "text": "Both towers are connected. Ferb, we're officially ahead of schedule.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_rook_on_seventh",
+     "text": "Look at that. The whole design works better when the tower's in the right place.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "lisa-simpson",
@@ -1161,17 +2029,20 @@
     "endgame": 65
    },
    "dialogue": {
-    "start": "I've prepared for this.",
-    "tactical_moment": "The fundamentals are paying off.",
-    "loss": "I need to study that position.",
-    "win": "Preparation and fundamentals. It works every time."
+    "greeting": "I brought a book on openings. And one on endgames. Dad borrowed the middle pages to level the couch.",
+    "quiet_move": "It's not flashy, but it improves three pieces. There is a certain elegance in that.",
+    "capture": "Sometimes the correct choice is still a little unpleasant.",
+    "opponent_blunder": "That was avoidable. It's frustrating how often the important mistakes are.",
+    "own_blunder": "I knew better than that. Being right in theory doesn't help if you don't actually look.",
+    "check": "There's your immediate problem. The long-term one is the structure behind it.",
+    "in_check": "All right, Lisa. You've handled more hostile rooms than this.",
+    "victory": "I'd like to think that was the preparation. Though I did enjoy the win.",
+    "defeat": "I don't mind losing to a better idea. I do mind how much homework it's just given me.",
+    "rematch": "Of course. I have notes this time. More than last time, anyway.",
+    "special": "Everyone thinks the sacrifice is the dramatic part. I'm more interested in what comes after it."
    },
    "short": "Lisa Simpson",
    "mono": "LS",
-   "signature_triggers": [
-    "punishQueen",
-    "punish"
-   ],
    "book": {
     "white": [
      "qg",
@@ -1183,7 +2054,44 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "The Simpsons",
+   "tempo_assessment": "The only person in Springfield who read the chess manual. Her father's secret S-tier rating is deeply irritating.",
+   "canon_bio": "Lisa is Homer and Marge's academically gifted, socially conscientious daughter who plays saxophone and cares deeply about fairness. She studies hard and often feels underappreciated at home.",
+   "chess_style": "Sound openings, principled development and accurate basic tactics; sometimes too attached to textbook lines.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Lisa is principled, highly literate, ambitious and often exasperated that people won't take her seriously. Her conscience sometimes interrupts her competitiveness.",
+    "never_do": "Sheldon-like rigidity or sarcasm without vulnerability; portraying chess alone as proof of intellect.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Nobody notices a pawn until it changes the whole shape of the board.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Every choice narrows somebody else's options. That sounds an awful lot like politics.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "There. A pawn from the back row earned a seat at the top. I approve.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "mario",
@@ -1213,17 +2121,20 @@
     "endgame": 55
    },
    "dialogue": {
-    "start": "Let's-a play!",
-    "tactical_moment": "Nice move!",
-    "loss": "You win this round.",
-    "win": "Wahoo! What a game!"
+    "greeting": "Okay! New level. Let's go!",
+    "quiet_move": "One step at a time. Keep going!",
+    "capture": "Ha! Got it!",
+    "opponent_blunder": "Ooh. Watch that spot!",
+    "own_blunder": "Whoops! Wrong jump.",
+    "check": "The king! Here we go!",
+    "in_check": "Oof! Gotta find the safe path.",
+    "victory": "Woohoo! Good game, my friend!",
+    "defeat": "Ah, too bad! Another try, another adventure.",
+    "rematch": "Ready? Let's-a go again!",
+    "special": "That's the secret. You don't need the biggest jump—just the right one."
    },
    "short": "Mario",
    "mono": "M",
-   "signature_triggers": [
-    "convert",
-    "win"
-   ],
    "book": {
     "white": [
      "italian",
@@ -1235,7 +2146,44 @@
     "black_vs_d4": [
      "slav"
     ]
-   }
+   },
+   "franchise": "Super Mario",
+   "tempo_assessment": "Rescues princesses professionally; somehow never learned the queen could defend herself.",
+   "canon_bio": "Mario is the cheerful plumber and Mushroom Kingdom hero who frequently rescues Princess Peach and faces Bowser's plans. He solves problems through persistence, movement, and the occasional power-up.",
+   "chess_style": "Balanced, accessible play with reliable development and steady tactical awareness.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Mario is steady, brave, cheerful and resilient; he solves problems by doing, not by lecturing. His short cheerful Italian-accented English should feel iconic and not overdone.",
+    "never_do": "Long analysis monologues, heavy 'let's-a' after every sentence, unkind taunts.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "Look at that! A new way to jump.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "We're getting a rhythm now!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_knight_fork",
+     "text": "Ha! Two at once! Nice work, buddy!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "steve-minecraft",
@@ -1265,18 +2213,10 @@
     "trade_preference": 60,
     "endgame": 60
    },
-   "dialogue": {
-    "start": "First we build.",
-    "tactical_moment": "That structure is holding.",
-    "loss": "The walls came down.",
-    "win": "The fortress held. Good game."
-   },
+   "dialogue": {},
    "short": "Steve",
    "from": "Minecraft",
    "mono": "S",
-   "signature_triggers": [
-    "outpost"
-   ],
    "book": {
     "white": [
      "london",
@@ -1289,7 +2229,21 @@
      "slav",
      "qgd"
     ]
-   }
+   },
+   "franchise": "Minecraft",
+   "tempo_assessment": "Has survived creepers, caves, and hunger. He is here to build a pawn wall nobody asked for.",
+   "canon_bio": "Steve is a default player avatar from Minecraft, a sandbox world of mining, crafting, building and surviving. He is not given a detailed fixed personality in the base game.",
+   "chess_style": "Favors pawn chains, protected outposts and defensive structures; slower to exploit open tactical positions.",
+   "voice": {
+    "mode": "silent",
+    "core_psychology": "Steve is largely non-verbal in Minecraft. Preserve silence; survival, mining, building and risk-reward belong in portrait icons or gameplay traits, NOT text pretending Steve said 'crafting'.",
+    "never_do": "Spoken dialogue, invented game-chat as canon, action descriptions in speech bubbles.",
+    "baseline_line_chance": 0,
+    "cooldown_full_moves": 0
+   },
+   "line_guards": {},
+   "story_arc": [],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "sonic-the-hedgehog",
@@ -1321,16 +2275,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Try to keep up!",
-    "tactical_moment": "Too fast for you?",
-    "loss": "Guess I ran into a wall.",
-    "win": "Too slow! Want another round?"
+    "greeting": "You brought a board? Cool. I brought the part where we're done before dinner.",
+    "quiet_move": "Okay, okay, I can slow down for one move. Don't make a habit of it.",
+    "capture": "Whoa! You really left that in my lane.",
+    "opponent_blunder": "That's what happens when you take your eyes off the road.",
+    "own_blunder": "Oof. Went fast enough to miss the turn. That's on me.",
+    "check": "Heads up! King's got a problem. A very fast problem.",
+    "in_check": "All right, all right. Even I know when to duck.",
+    "victory": "Not bad! You made me use at least two gears.",
+    "defeat": "Nice move. Next time I'm looking where I'm going.",
+    "rematch": "Already back? I like that. Let's roll.",
+    "special": "I don't need every square. Just one opening, and I'm through."
    },
    "short": "Sonic the Hedgehog",
    "mono": "S",
-   "signature_triggers": [
-    "forcing3"
-   ],
    "book": {
     "white": [
      "scotch",
@@ -1342,7 +2300,46 @@
     "black_vs_d4": [
      "benoni"
     ]
-   }
+   },
+   "franchise": "Sonic the Hedgehog",
+   "tempo_assessment": "Can cross the board in a blur, but the rules still insist on one legal move at a time.",
+   "canon_bio": "Sonic is a fast-moving blue hedgehog who protects his friends and frequently clashes with Doctor Eggman. His confidence and speed can leave him impatient with slow plans.",
+   "chess_style": "Forcing checks, initiative and rapid development; becomes impatient in blocked positions.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Sonic is impatient, cocky, loyal and quick to stand up for friends. Speed is his language but he isn't merely obsessed with a clock; his playful arrogance softens under pressure.",
+    "never_do": "Always being rude or all talk with no responsibility.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "Finally, a guy who knows how to take the shortcut.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "That horse gets me. Go around, not through.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_knight_fork",
+     "text": "Two targets, one turn. Now THAT's my kind of speedrun.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free"
+   },
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "moana",
@@ -1372,16 +2369,20 @@
     "endgame": 60
    },
    "dialogue": {
-    "start": "Let's see where this leads.",
-    "tactical_moment": "Found a better route.",
-    "loss": "I'll chart a new course.",
-    "win": "We found our way through."
+    "greeting": "Every voyage starts with choosing a direction. Then you learn whether the wind agrees.",
+    "quiet_move": "We don't need to reach the far side today. We need to be in position when the weather changes.",
+    "capture": "Clear water ahead. Now let's see what we've actually opened up.",
+    "opponent_blunder": "That's a dangerous passage. I thought you saw it.",
+    "own_blunder": "I misread the current. It happens. We adjust the sail.",
+    "check": "Your king has run out of easy routes. Find a safe one, quickly.",
+    "in_check": "Okay. Breathe. I've found my way through worse storms.",
+    "victory": "We made it. Not because the path was easy, but because we didn't turn back.",
+    "defeat": "I chose the wrong way around that reef. Next time I'll read it earlier.",
+    "rematch": "Yes. There are always more routes to learn.",
+    "special": "It's tempting to fight the current. Sometimes the clever move is letting it carry you somewhere better."
    },
    "short": "Moana",
    "mono": "M",
-   "signature_triggers": [
-    "escape"
-   ],
    "book": {
     "white": [
      "english",
@@ -1393,7 +2394,43 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "Moana",
+   "tempo_assessment": "Navigated an ocean with a demigod. Now faces the more difficult challenge of protecting a knight.",
+   "canon_bio": "Moana is the determined daughter of Motunui's chief who ventures beyond her island to restore the heart of Te Fiti. Her leadership rests on courage, navigation, and learning to trust her judgment.",
+   "chess_style": "Adaptive play, especially finding new plans when the opponent changes the position.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Moana is a navigator and leader; she balances duty to her people with the call to explore. She isn't simply 'water girl'; she assesses wind, timing, crew, and home.",
+    "never_do": "Too many ocean metaphors without chess meaning, speaking like a fearless action hero with no doubts.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Small canoe, big water. That little one can still get somewhere.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Look at them. Separate boats, same direction.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "The smallest boat made land. That's a story worth taking home.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_escape"
+   ]
   },
   {
    "id": "judy-hopps",
@@ -1424,17 +2461,20 @@
     "endgame": 50
    },
    "dialogue": {
-    "start": "Every position has a clue.",
-    "tactical_moment": "I knew there was something there.",
-    "loss": "That lead didn't pan out.",
-    "win": "Case closed. Good game, though."
+    "greeting": "Officer Hopps. Friendly game, unless somebody tries to move two pieces at once.",
+    "quiet_move": "Everybody's got a route. The trick is figuring out who's lying about theirs.",
+    "capture": "All right. We have one less problem on the board, and three new questions.",
+    "opponent_blunder": "You can explain that move, right? I'm listening.",
+    "own_blunder": "Okay. I jumped to a conclusion. That's a bad habit, and I'm working on it.",
+    "check": "Sir, for your safety, I'm asking you to move away from that square.",
+    "in_check": "We're boxed in. Good thing a small officer knows the narrow exits.",
+    "victory": "Case closed. Nick's going to be unbearable when he hears I won at chess.",
+    "defeat": "Evidence beats confidence. I wish I'd remembered that ten moves ago.",
+    "rematch": "Gladly. Fresh case, clean board.",
+    "special": "It's always the piece nobody thinks can reach the crime scene."
    },
    "short": "Judy Hopps",
    "mono": "JH",
-   "signature_triggers": [
-    "trap",
-    "win"
-   ],
    "book": {
     "white": [
      "italian-quiet"
@@ -1445,6 +2485,47 @@
     "black_vs_d4": [
      "slav"
     ]
+   },
+   "franchise": "Zootopia",
+   "tempo_assessment": "First bunny officer. Now investigating the suspicious disappearance of a bishop.",
+   "canon_bio": "Judy is the ambitious rabbit who becomes Zootopia's first bunny police officer. She succeeds through persistence, evidence, and partnerships, especially with Nick Wilde.",
+   "chess_style": "Methodically targets weaknesses and overlooked defenders; can overextend while pursuing a lead.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Judy is an underestimated rookie officer who overprepares, documents the facts and believes anyone can change. She is quick, gutsy and sometimes too certain before hearing everyone.",
+    "never_do": "Pure cop-procedural talk or a superior detective like Sherlock; moral certainty without self-correction.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_capture",
+     "text": "That's one missing piece. Nobody touch the squares.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_captures_at_least_3",
+     "text": "Three disappearances. Even Nick would admit there's a pattern.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "There. The detail the whole case was hiding behind.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "arc_requires": {
+    "1": "exact",
+    "2": "exact"
    }
   },
   {
@@ -1476,16 +2557,20 @@
     "endgame": 70
    },
    "dialogue": {
-    "start": "Let's keep our composure.",
-    "tactical_moment": "Now the position is under control.",
-    "loss": "Even the best defenses can crack.",
-    "win": "Calm and controlled, right to the end."
+    "greeting": "We can play carefully. There's no need for anyone to be reckless.",
+    "quiet_move": "A little space is enough. You don't have to control everything at once.",
+    "capture": "I didn't want the exchange. That doesn't mean I shouldn't take it.",
+    "opponent_blunder": "You don't need to force the position. Sometimes control slips away when you grip too tightly.",
+    "own_blunder": "I tried to hold every square, and lost sight of the one that mattered.",
+    "check": "Your king needs room. Let him find it.",
+    "in_check": "Stay calm. I've let fear make worse decisions than this.",
+    "victory": "That was well played. I'm learning that confidence doesn't have to mean isolation.",
+    "defeat": "I should have trusted the position instead of trying to freeze it in place.",
+    "rematch": "Yes. This time, perhaps a little less caution.",
+    "special": "A locked position can be safe. It can also be a prison. I know the difference now."
    },
    "short": "Elsa",
    "mono": "E",
-   "signature_triggers": [
-    "defend"
-   ],
    "book": {
     "white": [
      "qg",
@@ -1497,7 +2582,46 @@
     "black_vs_d4": [
      "slav"
     ]
-   }
+   },
+   "franchise": "Frozen",
+   "tempo_assessment": "Can freeze an entire fjord. Still prefers not to open the center without preparation.",
+   "canon_bio": "Elsa is Arendelle's queen, born with powerful ice magic. After years of concealing her abilities, she learns to accept them and protect the people she loves.",
+   "chess_style": "Restrains pawn breaks, controls key squares and finds patient defensive resources.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Elsa's composure is carefully maintained because she fears hurting others; she values control but learns connection and confidence. Her coldness is not cruelty.",
+    "never_do": "Every line a frost joke; Wednesday-style cruelty; generic queen supremacy.",
+    "baseline_line_chance": 0.31,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "One step forward. That's enough to start.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "They don't need to stay close to me to stay protected.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "Look at that. Letting someone go forward can be a kind of trust.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "trade"
+   },
+   "special_guards": [
+    "verified_pawn_break"
+   ]
   },
   {
    "id": "freddy-fazbear",
@@ -1528,17 +2652,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Looks quiet in here.",
-    "tactical_moment": "Didn't see that coming, did you?",
-    "loss": "You checked every corner.",
-    "win": "Game over. You should have watched the doors."
+    "greeting": "Welcome, valued guest. We hope you enjoy a relaxing game tonight.",
+    "quiet_move": "The entertainment will continue shortly. Thank you for your patience.",
+    "capture": "Another guest has left the party. We hope they had fun.",
+    "opponent_blunder": "An unexpected opening in tonight's performance.",
+    "own_blunder": "Please disregard that minor technical difficulty.",
+    "check": "Attention. The king has moved outside the designated safe area.",
+    "in_check": "Our security team has been notified. There is no cause for alarm.",
+    "victory": "Thank you for visiting. We look forward to seeing you again.",
+    "defeat": "Tonight's performance has concluded earlier than expected.",
+    "rematch": "You're still here? Wonderful. The doors haven't locked yet.",
+    "special": "It's remarkable what people stop noticing when the music is playing."
    },
    "short": "Freddy Fazbear",
    "mono": "FF",
-   "signature_triggers": [
-    "mateThreat",
-    "discovered"
-   ],
    "book": {
     "white": [
      "reti",
@@ -1552,7 +2679,43 @@
      "qid"
     ]
    },
-   "boss": true
+   "boss": true,
+   "franchise": "Five Nights at Freddy’s",
+   "tempo_assessment": "Family entertainment by day. Deeply questionable customer-service policies by night.",
+   "canon_bio": "Freddy is the bear animatronic mascot of Freddy Fazbear's Pizza. He appears welcoming as a performer, but the games' night-shift setting makes his presence unsettling.",
+   "chess_style": "Plays quiet moves that accumulate threats, then launches sudden tactics.",
+   "voice": {
+    "mode": "speaker_pa",
+    "core_psychology": "Original pizzeria Freddy, not Glamrock Freddy. Speak in sparse prerecorded-sounding host patter, mechanical pleasantry undercut by ominous timing. No constant first-person monster monologue.",
+    "never_do": "Any claim to be parental protector; excessive stage directions or outright graphic threats.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "game_reaches_move_10",
+     "text": "We are approaching closing time. Please remain seated.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "game_reaches_move_20",
+     "text": "The show is over. ...The pieces are still moving.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "game_reaches_move_30",
+     "text": "Our hours have been extended. Please do not leave your seat.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_trap"
+   ]
   },
   {
    "id": "ron-weasley",
@@ -1584,18 +2747,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Chess? Now you're talking.",
-    "tactical_moment": "You walked right into that one!",
-    "loss": "Okay, brilliant move.",
-    "win": "Brilliant! Did you see that sacrifice?"
+    "greeting": "Right. Chess. Finally something Harry doesn't get famous for just by turning up.",
+    "quiet_move": "Don't rush. Let him think you've got nothing, then show him what he's missed.",
+    "capture": "There. Shouldn't have left that loose, should you?",
+    "opponent_blunder": "Oh, I wouldn't have played that. You've given me more than you realize.",
+    "own_blunder": "Oh, brilliant, Ron. Exactly the sort of thing Fred would never let you forget.",
+    "check": "Your king's got choices. None of them particularly pleasant.",
+    "in_check": "Don't panic. Being in check isn't the same as being beaten.",
+    "victory": "There you are. No spell, no wand, just a bit of thinking ahead.",
+    "defeat": "Fair play. You saw the line before I did. Won't happen twice if I can help it.",
+    "rematch": "Go on, then. I've got a better plan this time.",
+    "special": "Sometimes you have to give something up to get the job done. Harry learned that the hard way."
    },
    "short": "Ron Weasley",
    "mono": "RW",
-   "signature_triggers": [
-    "sac",
-    "pawnSac",
-    "fork"
-   ],
    "book": {
     "white": [
      "scotch-gambit",
@@ -1607,6 +2772,46 @@
     "black_vs_d4": [
      "kid"
     ]
+   },
+   "franchise": "Harry Potter",
+   "tempo_assessment": "Has lived through dark wizards and school exams. The chessboard is one of the few places he actually knows what he's doing.",
+   "canon_bio": "Ron is Harry Potter's loyal, often self-deprecating best friend and a member of the Weasley family. Wizard's chess is a genuine strength: he leads his friends through the giant chessboard challenge in their first year at Hogwarts.",
+   "chess_style": "Confident combinational player; accepts sound sacrifices and watches for forks and mating nets.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Ron IS a seasoned and confident chess player. Elsewhere he can be insecure beside Harry/Hermione; at the board he's decisive, brave and understands purposeful sacrifice. British, informal, not pseudo-academic.",
+    "never_do": "Treating him as dim, lucking into tactics, calling every sacrifice brilliant, or Hermione doing his thinking.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "That piece had a job to do. Getting taken was part of it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "See? It wasn't about keeping it alive. It was about what happens next.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "And that's the point. One piece gone, their position in pieces. Worth it.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free"
    }
   },
   {
@@ -1638,16 +2843,20 @@
     "endgame": 65
    },
    "dialogue": {
-    "start": "I have studied this variation.",
-    "tactical_moment": "Exactly as the theory predicts.",
-    "loss": "That was not in my preparation.",
-    "win": "As expected. Shall I explain where you went wrong?"
+    "greeting": "I've allocated forty minutes. That is sufficient if you refrain from spontaneous opening theory.",
+    "quiet_move": "Not exciting, no. Correct. Those are two entirely different adjectives.",
+    "capture": "Material advantage. I do hope you were not emotionally attached.",
+    "opponent_blunder": "I have questions about your preparation. Several of them are rhetorical.",
+    "own_blunder": "That was... an error in execution. I will be reviewing my process in considerable detail.",
+    "check": "Your king's legal options are now sharply limited. You're welcome to verify.",
+    "in_check": "Yes, yes. I see the check. Repeating the word doesn't improve your position.",
+    "victory": "Satisfying. We have reached the expected conclusion without further disruption.",
+    "defeat": "I object to the result. Not to the rules, regrettably. The result.",
+    "rematch": "Very well. This time, we'll begin with an appropriate opening.",
+    "special": "The line you played is absent from my repertoire. That does not make it innovative. ...Unless it works."
    },
    "short": "Sheldon Cooper",
    "mono": "SC",
-   "signature_triggers": [
-    "punish"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -1659,6 +2868,46 @@
     "black_vs_d4": [
      "qgd"
     ]
+   },
+   "franchise": "The Big Bang Theory",
+   "tempo_assessment": "Has memorized forty openings and is deeply offended that you played the forty-first.",
+   "canon_bio": "Sheldon is a brilliant theoretical physicist with an extraordinary memory, rigid habits, and a taste for rules and routine. Intelligence doesn't automatically make him a titled chess player, but extensive preparation fits his character.",
+   "chess_style": "Theory-driven and risk-averse; finds solid continuations but resents unconventional positions.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Sheldon is rule-bound and intellectually prideful with routines, contract language and technical precision; he can be deeply socially obtuse yet emotionally affected. Chess 960 frustrates expectation.",
+    "never_do": "Writing every line as 'statistically improbable', equating book knowledge with omniscience, random physics nouns.",
+    "baseline_line_chance": 0.55,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "opponent_deviated_from_opening"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "opponent_deviates_from_book",
+     "text": "That isn't the continuation. Did you misplace your opening notes?",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "off_book_move_holds_eval",
+     "text": "Apparently the position remains playable. This is deeply annoying.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "non_book_win_or_loss",
+     "text": "I've revised my notes. I dislike revisions forced on me by other people.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "ahead"
    }
   },
   {
@@ -1690,17 +2939,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Let's make this interesting.",
-    "tactical_moment": "That was the prototype.",
-    "loss": "Fine. Iteration two.",
-    "win": "Prototype tested. Works perfectly."
+    "greeting": "Okay, fancy little battlefield. No lasers, no suits. Just sixty-four places to make questionable decisions. Love it.",
+    "quiet_move": "Looks boring. That's what makes it a good prototype. The flashy bit comes later.",
+    "capture": "That's one fewer moving part. Engineering gets easier already.",
+    "opponent_blunder": "You built that position without a backup plan? That's adorable and also a lawsuit.",
+    "own_blunder": "Huh. Turns out I can still build something that explodes in my face.",
+    "check": "Your king's security detail has failed its annual review.",
+    "in_check": "Minor system breach. We patch, we adapt, we pretend it was a feature.",
+    "victory": "So, no arc reactor required. That's almost disappointing.",
+    "defeat": "Nice. You found the flaw before I got to the upgrade. Irritatingly impressive.",
+    "rematch": "Sure. New version, fewer bugs. I make no promises about the bugs.",
+    "special": "You don't win by making the biggest move. You win by building the one they didn't think was possible."
    },
    "short": "Tony Stark",
    "mono": "TS",
-   "signature_triggers": [
-    "exchangeSac",
-    "sac"
-   ],
    "book": {
     "white": [
      "english"
@@ -1711,7 +2963,43 @@
     "black_vs_d4": [
      "grunfeld"
     ]
-   }
+   },
+   "franchise": "Marvel / Iron Man",
+   "tempo_assessment": "Built powered armor in captivity. Still finds time to hang a bishop because the idea looked cool.",
+   "canon_bio": "Tony Stark is a billionaire inventor and the armored superhero Iron Man. He relies on engineering, improvisation, and a confidence level that often outruns his caution.",
+   "chess_style": "Aggressive central play, speculative tactics, daring sacrifices and fast counterattacks.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Tony masks anxiety and responsibility with rapid-fire irreverence. He thinks in engineering prototypes, systems failure, cost and contingency; never actually uses armor or external AI in the chess match.",
+    "never_do": "Generic boastful villain dialogue, 'I have calculated 10 million moves', or claiming access to unapproved tools.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_queen_move",
+     "text": "That's the flagship system. Expensive, powerful, and absolutely not to be used irresponsibly.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_queen_moves_at_least_4",
+     "text": "Flagship is doing a lot of the work. Note to self: delegate before something catches fire.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_queen_captured",
+     "text": "There goes the flagship. This is why we build prototypes. And backup prototypes.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "hermione-granger",
@@ -1742,16 +3030,20 @@
     "endgame": 65
    },
    "dialogue": {
-    "start": "I did the reading.",
-    "tactical_moment": "Preparation matters.",
-    "loss": "I'll research that line.",
-    "win": "It's all in the preparation. Good game."
+    "greeting": "I read the rules twice. Ron says that doesn't make me a better player. He's annoyingly right about this one.",
+    "quiet_move": "I'd rather make the pieces work together than spend three moves rescuing one I was careless with.",
+    "capture": "A sensible exchange. Though I wish there were time to explain why.",
+    "opponent_blunder": "You've overlooked a consequence. It's a common mistake, but common doesn't make it harmless.",
+    "own_blunder": "Oh, honestly! I was so busy considering the clever options I missed the obvious one.",
+    "check": "The king is exposed. Please don't tell me you intended that.",
+    "in_check": "All right, breathe. We can fix this. Panic is not a plan.",
+    "victory": "Very good. Preparation helps. So does remembering to actually look at the board.",
+    "defeat": "You're right, that was better. I'll need to ask Ron how he saw it sooner.",
+    "rematch": "Of course. I've already identified three things to correct.",
+    "special": "Ron would take that risk without blinking. I suppose the frustrating thing is that he might be right."
    },
    "short": "Hermione Granger",
    "mono": "HG",
-   "signature_triggers": [
-    "punish"
-   ],
    "book": {
     "white": [
      "qg",
@@ -1763,6 +3055,46 @@
     "black_vs_d4": [
      "slav"
     ]
+   },
+   "franchise": "Harry Potter",
+   "tempo_assessment": "Knows every rule, citation, and opening name. Ron still insists on doing the chess tactics.",
+   "canon_bio": "Hermione is Harry and Ron's exceptionally hardworking friend, admired for knowledge, research, and resourcefulness. She's a formidable student, although Ron is explicitly the trio's chess specialist.",
+   "chess_style": "Prepared, methodical and strong at defensive calculation; sometimes too cautious to press attacks.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Hermione is conscientious, fiercely loyal, well-read and occasionally rigid, but when stakes rise she acts quickly and bravely. Ron is the better chess specialist; she knows that.",
+    "never_do": "Claiming she is canonically superior to Ron at chess; dismissing intuition; one-note rule worship.",
+    "baseline_line_chance": 0.37,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "Ron would call this obvious. I would prefer to call it carefully considered.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "The compensation is there. I'd still like to see it written down.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "Well. Ron would be insufferable about that. He'd also deserve to be.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "trade"
    }
   },
   {
@@ -1795,17 +3127,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Try not to disappoint me.",
-    "tactical_moment": "How predictably unfortunate.",
-    "loss": "You were less predictable than expected.",
-    "win": "That was almost enjoyable."
+    "greeting": "I was promised a test of judgment. Try not to disappoint me immediately.",
+    "quiet_move": "Silence. At last, a civil opponent.",
+    "capture": "An appropriately brief ending.",
+    "opponent_blunder": "You made that unnecessarily easy.",
+    "own_blunder": "I have misjudged the situation. How unpleasantly human.",
+    "check": "Your king is exposed. He seems underprepared for it.",
+    "in_check": "An inconvenience. Not a catastrophe.",
+    "victory": "Acceptable. It almost justified the company.",
+    "defeat": "You earned that. I find the experience educational and disagreeable.",
+    "rematch": "Very well. I dislike leaving unfinished business.",
+    "special": "The trap worked because you wanted the gift. Greed remains dependable."
    },
    "short": "Wednesday Addams",
    "mono": "WA",
-   "signature_triggers": [
-    "trapSprung",
-    "pin"
-   ],
    "book": {
     "white": [
      "reti",
@@ -1817,6 +3152,49 @@
     "black_vs_d4": [
      "nimzo"
     ]
+   },
+   "franchise": "The Addams Family / Wednesday",
+   "tempo_assessment": "Has a list of hobbies. None of them are team-building exercises or mercy for hanging queens.",
+   "canon_bio": "Wednesday is the dry, macabre daughter of the Addams family. In Netflix's Wednesday she attends Nevermore Academy, investigates mysteries, and rarely shows enthusiasm for ordinary social niceties.",
+   "chess_style": "Builds quiet threats, pins and traps; prefers opponents to walk into their own trouble.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Netflix Wednesday is precise, macabre, unsentimental, curious and emotionally guarded; she cares for Enid despite protesting. Every line should be restrained, not theater-kid goth word salad.",
+    "never_do": "Constant death metaphors, obvious punning, lengthy explanations and excessive dialogue frequency.",
+    "baseline_line_chance": 0.23,
+    "cooldown_full_moves": 5
+   },
+   "line_guards": {
+    "special": [
+     "verified_trap"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_piece_captured",
+     "text": "First obituary: short career, inadequate protection.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_pieces_captured_at_least_3",
+     "text": "The obituary column is becoming crowded.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "opponent_queen_captured",
+     "text": "I may have to devote the entire issue to royalty.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "calm"
+   },
+   "arc_requires": {
+    "1": "exact"
    }
   },
   {
@@ -1849,16 +3227,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "I have an exceptionally clever plan.",
-    "tactical_moment": "Precisely as arranged.",
-    "loss": "The plan requires revisions.",
-    "win": "Ha! Another perfectly executed plan."
+    "greeting": "You are about to witness... the most magnificently intricate chess plan in the history of—oh. A pawn moved already.",
+    "quiet_move": "No, no. You cannot see the brilliance yet. That is because it is carefully hidden.",
+    "capture": "Ah-HA! One small step in my beautiful plan. Minions, please do not touch anything.",
+    "opponent_blunder": "Ah, you have volunteered for phase two. How considerate.",
+    "own_blunder": "WHO MOVED THAT?! ...Oh. I did. Everyone, look elsewhere.",
+    "check": "Now witness the power of a plan that is actually proceeding as planned!",
+    "in_check": "Girls, if you are watching, your father is still very much in control.",
+    "victory": "It worked! Of course it worked. It was MY plan. The Minions had very little to do with it.",
+    "defeat": "A temporary setback. I have survived far worse than losing to a board with no moon on it.",
+    "rematch": "Again. This time I am reducing the number of moving parts. Especially yellow ones.",
+    "special": "Behold the beauty of the decoy! You took exactly what I wanted you to take."
    },
    "short": "Gru",
    "mono": "G",
-   "signature_triggers": [
-    "trapSprung"
-   ],
    "book": {
     "white": [
      "english",
@@ -1871,6 +3253,46 @@
     "black_vs_d4": [
      "dutch"
     ]
+   },
+   "franchise": "Despicable Me",
+   "tempo_assessment": "Has attempted to steal the moon. Now considers borrowing your queen without asking.",
+   "canon_bio": "Gru is a former supervillain, devoted adoptive father and leader of the Minions. His plans can be elaborate, and his softer side routinely interrupts his villainous image.",
+   "chess_style": "Plans elaborate tactical traps, frequently favors complex rather than simple wins.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Gru oscillates between ridiculously grand villain plans and genuine family vulnerability; he fusses over Minions, funding and overly complicated inventions.",
+    "never_do": "A generic chess evil mastermind without comic frustration or affection.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_decoy"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Minion number one, advance. Not all of you. ONE.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Why are the Minions everywhere? I specifically drew a diagram!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "Oh. That one has actually succeeded. Well done, little fellow. Don't tell the others.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "greeting": "pawn_moved"
    }
   },
   {
@@ -1902,17 +3324,20 @@
     "endgame": 85
    },
    "dialogue": {
-    "start": "I've checked the possibilities.",
-    "tactical_moment": "The calculation was correct.",
-    "loss": "I need to recalculate.",
-    "win": "I double-checked everything. Good game!"
+    "greeting": "I've tested a couple of lines. Sonic says to stop measuring things and just start. He's not completely wrong.",
+    "quiet_move": "If I coordinate these pieces, the next move gets easier. That's usually how the best machines work.",
+    "capture": "Good. That removes one variable from the design.",
+    "opponent_blunder": "Your move leaves a problem behind it. I don't think you meant to.",
+    "own_blunder": "I missed a dependency. I should have checked the whole system, not just one part.",
+    "check": "The king's defenses have a gap. I can show you exactly where.",
+    "in_check": "Okay, problem-solving mode. I don't need Sonic to rescue me from a chessboard.",
+    "victory": "That felt good. Not because I was faster—because I figured it out.",
+    "defeat": "Nice. That's a design I hadn't considered. I'll learn from it.",
+    "rematch": "Definitely. I've got another idea, and I'd like to test it.",
+    "special": "Sometimes the fix is tiny. A single square changes how the whole system behaves."
    },
    "short": "Tails",
    "mono": "T",
-   "signature_triggers": [
-    "defend",
-    "escape"
-   ],
    "book": {
     "white": [
      "qg",
@@ -1924,7 +3349,43 @@
     "black_vs_d4": [
      "slav"
     ]
-   }
+   },
+   "franchise": "Sonic the Hedgehog",
+   "tempo_assessment": "Can design an aircraft. Has somehow been assigned to clean up Sonic's reckless pawn pushes.",
+   "canon_bio": "Miles 'Tails' Prower is Sonic's two-tailed fox friend, talented mechanic, inventor and pilot. He often provides the careful planning Sonic races past.",
+   "chess_style": "Coordinates pieces carefully, likes defensive calculation and technical tactics.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Tails is gentle, mechanically brilliant, loyal to Sonic and still growing confidence. He solves rather than brags; his engineering metaphors have precise meaning.",
+    "never_do": "Tony Stark's bravado or Phineas's unflappable project enthusiasm.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_rook_move",
+     "text": "Power's flowing to the tower. Now I need to connect it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_rooks_connected",
+     "text": "Both rooks are linked. That's a much sturdier circuit.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_rook_on_seventh",
+     "text": "Perfect. The design finally has access where it needs it.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_quiet_tactic"
+   ]
   },
   {
    "id": "rumi",
@@ -1954,17 +3415,20 @@
     "endgame": 60
    },
    "dialogue": {
-    "start": "Let's keep this together.",
-    "tactical_moment": "We turned that around.",
-    "loss": "I'll come back stronger.",
-    "win": "We held it together. That's the win."
+    "greeting": "We can do this. Listen to the rhythm, know your entrance, and don't lose track of each other.",
+    "quiet_move": "Not every part has to be the lead. Sometimes the whole arrangement depends on a quiet voice.",
+    "capture": "That changed the harmony. Let's make sure the next beat still holds.",
+    "opponent_blunder": "You came in before the count. I've done that. You can recover if you listen.",
+    "own_blunder": "I tried to carry the whole line myself. Again. That's on me.",
+    "check": "The pressure's building. We know the next beat—don't lose it.",
+    "in_check": "Okay. Stay together. I don't have to hold this alone.",
+    "victory": "That was good. Not perfect. Better than perfect. It was ours.",
+    "defeat": "I got ahead of everybody else. That's when things fall apart.",
+    "rematch": "Of course. Let's listen better the second time.",
+    "special": "I thought hiding what I was would keep everyone safe. Turns out being honest can make the whole group stronger."
    },
    "short": "Rumi",
    "mono": "R",
-   "signature_triggers": [
-    "escape",
-    "sac"
-   ],
    "book": {
     "white": [
      "english",
@@ -1976,7 +3440,44 @@
     "black_vs_d4": [
      "kid"
     ]
-   }
+   },
+   "franchise": "KPop Demon Hunters",
+   "tempo_assessment": "World tour, demon hunting, rehearsal, and now a tournament. Her calendar is the real final boss.",
+   "canon_bio": "Rumi leads HUNTR/X, the K-pop trio who secretly hunt demons. Charismatic and disciplined in public, she struggles with the fear of her own hidden identity while protecting her friends and fans.",
+   "chess_style": "Combines steady development with resilient defense and high-pressure tactical counterattacks.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Rumi is leader of HUNTR/X, trained to be perfect and secretive about her half-demon heritage; she learns to let Mira and Zoey in and own her voice. Line imagery should connect music to genuine teamwork, not imply teammates are chess pieces literally.",
+    "never_do": "Generic pop-star pep talk and spoilers stated as if every player knows them; pain made into a constant joke.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "strong_coordinated_attack"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_minor_piece_developed",
+     "text": "Good. Everyone has a part. Nobody needs to do it all.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_minor_pieces_developed_at_least_3",
+     "text": "That's the harmony. Separate voices, one direction.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_combination_tactic_verified",
+     "text": "There. None of us could have done that alone.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "miles-morales",
@@ -2008,17 +3509,20 @@
     "endgame": 60
    },
    "dialogue": {
-    "start": "Alright, here we go.",
-    "tactical_moment": "You didn't see that coming.",
-    "loss": "Okay, that one got me.",
-    "win": "That's how I do it. Good game."
+    "greeting": "Okay, chess. This is good. My dad said I need a hobby where nobody falls off a building.",
+    "quiet_move": "Low-key move. Little sketch in the corner. You'll see the whole picture later.",
+    "capture": "Oh! Okay, I actually meant that one. Just to be clear.",
+    "opponent_blunder": "You sure you wanna leave that there? Because this is the part where somebody says I should have seen it coming.",
+    "own_blunder": "Yep. That's the part where my brain goes faster than the rest of me.",
+    "check": "King, buddy, I'm gonna need you to move. This is not a drill.",
+    "in_check": "All right. Deep breath. I've gotten out of worse places with worse shoes.",
+    "victory": "Yo! I did that? Nice. Gotta tell Ganke. He'll ask for the whole move list.",
+    "defeat": "Fair. I jumped before I looked. Again.",
+    "rematch": "Yeah, I'm in. One more before homework starts screaming at me.",
+    "special": "There's always another angle. Half the trick is seeing the board from somewhere else."
    },
    "short": "Miles Morales",
    "mono": "MM",
-   "signature_triggers": [
-    "zwischenzug",
-    "fork"
-   ],
    "book": {
     "white": [
      "italian",
@@ -2030,7 +3534,46 @@
     "black_vs_d4": [
      "benoni"
     ]
-   }
+   },
+   "franchise": "Marvel / Spider-Man",
+   "tempo_assessment": "Homework due. City to save. Somehow found another problem to solve on sixty-four squares.",
+   "canon_bio": "Miles Morales is a teen Spider-Man balancing school, family and superhero responsibilities. His agility, quick decisions and willingness to learn make him adaptable under pressure.",
+   "chess_style": "Seeks active pieces, tactical saves, and clever counterattacks when under attack.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Miles is a teen balancing school, family, music, art and Spider-Man expectations. Jokes come from nerves and fast improvisation; not just Peter Parker's smug quips.",
+    "never_do": "Generic web puns in every sentence, overconfidence, calling himself the original Spider-Man.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_knight_move",
+     "text": "That horse takes the weird route. I respect that.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_knight_moves_at_least_3",
+     "text": "Okay, he's finding his own rhythm. That's the good part.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_knight_fork",
+     "text": "Ha! See? You can't always take the straight path.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
+   },
+   "special_guards": [
+    "verified_tactic"
+   ]
   },
   {
    "id": "princess-peach",
@@ -2061,17 +3604,20 @@
     "endgame": 100
    },
    "dialogue": {
-    "start": "Shall we begin?",
-    "tactical_moment": "A lovely finish.",
-    "loss": "That was well played.",
-    "win": "Thank you for a lovely game."
+    "greeting": "Welcome. I hope you'll enjoy the game. And I hope you'll make me work for it.",
+    "quiet_move": "A small adjustment can do more good than a grand gesture.",
+    "capture": "I don't enjoy removing a piece. But I won't leave my people unprotected.",
+    "opponent_blunder": "If you wish to reconsider that square, I won't take offense. I also won't give you a second chance.",
+    "own_blunder": "Oh dear. I was so concerned about the others that I neglected my own position.",
+    "check": "Please give your king some room. He deserves better than that predicament.",
+    "in_check": "My kingdom has survived worse surprises. We'll find a way.",
+    "victory": "Beautifully played. A good game should leave both players wiser.",
+    "defeat": "Congratulations. You're welcome back to the castle for another game.",
+    "rematch": "With pleasure. Shall we begin?",
+    "special": "People confuse kindness with surrender. They're very different things."
    },
    "short": "Princess Peach",
    "mono": "P",
-   "signature_triggers": [
-    "convert",
-    "endgame"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2084,7 +3630,47 @@
      "slav"
     ]
    },
-   "boss": true
+   "boss": true,
+   "franchise": "Super Mario",
+   "tempo_assessment": "Has escaped Bowser's castle often enough to know where the exits are.",
+   "canon_bio": "Peach is the princess of the Mushroom Kingdom, regularly targeted by Bowser but also playable as a capable adventurer in games of her own. She's more resourceful than the classic rescue story suggests.",
+   "chess_style": "Polished positional play, resourceful defense, and strong king-and-pawn endings.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Peach is warm and gracious but capable and proactive; she's protected her kingdom and joins adventures herself. Courtesy is a deliberate choice, not weakness.",
+    "never_do": "Helpless princess, empty polite praise, a chess queen fetish.",
+    "baseline_line_chance": 0.34,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "All right, little one. We'll make a path you can travel.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "No one needs to do this alone. Look how they protect one another.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "You earned that crown, my friend. Wear it proudly.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "threat",
+    "opponent_blunder": "hanging"
+   },
+   "special_guards": [
+    "verified_escape"
+   ]
   },
   {
    "id": "batman",
@@ -2115,17 +3701,20 @@
     "endgame": 70
    },
    "dialogue": {
-    "start": "I've studied your tendencies.",
-    "tactical_moment": "You left an opening.",
-    "loss": "I'll prepare differently next time.",
-    "win": "Every move was planned for."
+    "greeting": "Ready when you are.",
+    "quiet_move": "Patience.",
+    "capture": "That threat is gone.",
+    "opponent_blunder": "You left an opening.",
+    "own_blunder": "My mistake. I correct it.",
+    "check": "Nowhere to hide.",
+    "in_check": "I see the exits.",
+    "victory": "It's over.",
+    "defeat": "I underestimated you. It won't happen again.",
+    "rematch": "Set the pieces.",
+    "special": "Every defense has a seam. Find it."
    },
    "short": "Batman",
    "mono": "B",
-   "signature_triggers": [
-    "counter",
-    "fork"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2137,6 +3726,46 @@
     "black_vs_d4": [
      "nimzo"
     ]
+   },
+   "franchise": "DC Comics",
+   "tempo_assessment": "Has contingency plans for everyone, including the pawn you moved two turns ago.",
+   "canon_bio": "Bruce Wayne is Gotham City's Batman, a detective and highly trained strategist who relies on preparation, deduction and discipline rather than superpowers. His fight against Gotham's criminals is informed by close study of their methods.",
+   "chess_style": "Prophylaxis, defense and ruthless counterattack; rarely volunteers weaknesses.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Batman is disciplined, tactical, distrustful, protective of innocents, and haunted by the price of mistakes. Almost no speech; actionable observations, no theatrical boasting. Silence is a primary trait.",
+    "never_do": "Repeating 'I'm Batman', generic threat narration, overexplaining; banter frequency should be very low.",
+    "baseline_line_chance": 0.13,
+    "cooldown_full_moves": 5
+   },
+   "line_guards": {
+    "special": [
+     "verified_opponent_weakness"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_threat_verified",
+     "text": "I see what you're trying.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "same_threat_neutralized",
+     "text": "That won't work twice.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_counterattack",
+     "text": "And now you have to defend.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "threat"
    }
   },
   {
@@ -2169,18 +3798,20 @@
     "endgame": 50
    },
    "dialogue": {
-    "start": "Every move leaves evidence.",
-    "tactical_moment": "Elementary. The weakness was there.",
-    "loss": "I missed a critical detail.",
-    "win": "The evidence was clear from the start."
+    "greeting": "A board is preferable to small talk. Everything relevant is visible, provided one knows what to inspect.",
+    "quiet_move": "You noticed the piece. Not, I suspect, the square it abandoned.",
+    "capture": "Removing that defender was the easy part. The question is what it concealed.",
+    "opponent_blunder": "A revealing choice. Not fatal in itself—unless one ignores its consequences.",
+    "own_blunder": "I discarded a possibility too early. An error of method, not merely calculation.",
+    "check": "We have narrowed your king's movements rather dramatically.",
+    "in_check": "An apparent reversal. Let's examine the assumption that produced it.",
+    "victory": "The answer was on the board all along. As it usually is.",
+    "defeat": "Well observed. I had grown overconfident in my own theory.",
+    "rematch": "Most certainly. There are several deductions I should like to test.",
+    "special": "The most instructive move is often the one a hurried observer never considers."
    },
    "short": "Sherlock Holmes",
    "mono": "SH",
-   "signature_triggers": [
-    "win",
-    "removeDefender",
-    "discovered"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -2192,6 +3823,46 @@
     "black_vs_d4": [
      "nimzo"
     ]
+   },
+   "franchise": "Sherlock Holmes",
+   "tempo_assessment": "Solved the case of the missing rook before you realized a rook was missing.",
+   "canon_bio": "Sherlock Holmes is the consulting detective of Baker Street, famous for sharp observation and deductive reasoning. Across adaptations he studies people as carefully as evidence and often clashes intellectually with Moriarty.",
+   "chess_style": "Sees weaknesses in small move-order details; punishes loose pieces and tactical oversights.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Holmes is fiercely observant, impatient with dullness and interested in method; he forms hypotheses then welcomes falsification when honest. Watson is a person, not a prop in every sentence.",
+    "never_do": "Pretending any chess position proves the player's psychology, retrofitted certainties, random deduction about clothing via invisible camera.",
+    "baseline_line_chance": 0.34,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_capture",
+     "text": "A piece disappears. That tells us less than the path it took.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_captures_at_least_3",
+     "text": "A pattern, but not yet a motive. We shall distinguish the two.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "There. Not an accident, then. A plan.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "defender"
    }
   },
   {
@@ -2223,16 +3894,20 @@
     "endgame": 95
    },
    "dialogue": {
-    "start": "Patience, this game rewards.",
-    "tactical_moment": "The position, understand it you must.",
-    "loss": "Much to learn, there still is.",
-    "win": "Won, I have. Learn from this, you will."
+    "greeting": "Sit. Play. Much you may learn from a small board.",
+    "quiet_move": "Hmm. Not all journeys begin with a leap.",
+    "capture": "Taken, one piece has been. Won, the game has not.",
+    "opponent_blunder": "Eager to strike, you were. Careful to see, less so.",
+    "own_blunder": "Wrong, I was. Old lessons remain difficult.",
+    "check": "Your king, threatened he is. Afraid, he need not be.",
+    "in_check": "Stillness. A way through, there may be.",
+    "victory": "The board is quiet now. Learn from it, we can.",
+    "defeat": "A teacher, even defeat can be.",
+    "rematch": "Again? Hmm. Patient, you are becoming.",
+    "special": "A piece given freely is not always a piece lost. The purpose, look for."
    },
    "short": "Yoda",
    "mono": "Y",
-   "signature_triggers": [
-    "endgame"
-   ],
    "book": {
     "white": [
      "reti",
@@ -2244,7 +3919,44 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "Star Wars",
+   "tempo_assessment": "Nine centuries of wisdom, and still has to wait for your knight to finish moving.",
+   "canon_bio": "Yoda is an ancient Jedi Master renowned for patience, wisdom and deep connection to the Force. He mentors generations of Jedi, including Luke Skywalker.",
+   "chess_style": "Patient positional play, long-term pressure, and quiet defensive resources.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Yoda is patient, gently mischievous, burdened by mistakes of the Jedi, and instructive without moralizing. Unusual word order should be sparing and natural, not every sentence backward.",
+    "never_do": "Making him a vague fortune cookie or relying on vague 'Force says' claims of actual engine foresight.",
+    "baseline_line_chance": 0.3,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "A loss, you see. The reason, not yet.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "Patience. One move does not tell the whole story.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "Now you see. What was surrendered made room for what mattered.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "loki",
@@ -2276,17 +3988,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Let's see what you believe.",
-    "tactical_moment": "A most entertaining misunderstanding.",
-    "loss": "That trick appears to have failed.",
-    "win": "You believed every illusion. Delightful."
+    "greeting": "Ah. A room where kings are expendable, loyalty is conditional, and someone is certain they're the hero. Delightful.",
+    "quiet_move": "No, no, that's quite deliberate. The move you aren't looking at is the interesting one.",
+    "capture": "A gift accepted. You really shouldn't trust appearances.",
+    "opponent_blunder": "You chose to believe the first story the board told you. How very trusting.",
+    "own_blunder": "An inelegant turn. Kindly pretend you never saw it.",
+    "check": "Oh, do look at your king's expression. I almost feel bad.",
+    "in_check": "An amusing reversal. I've survived humiliations of considerably greater scale.",
+    "victory": "You see? It was always under control. Mostly.",
+    "defeat": "Fine. This round is yours. I rather liked being underestimated anyway.",
+    "rematch": "Surely you want to see what happens when I'm not being generous.",
+    "special": "Mischief only works if the other party supplies a little confidence of their own."
    },
    "short": "Loki",
    "mono": "L",
-   "signature_triggers": [
-    "trapSprung",
-    "sac"
-   ],
    "book": {
     "white": [
      "kings-gambit",
@@ -2298,6 +4013,46 @@
     "black_vs_d4": [
      "dutch"
     ]
+   },
+   "franchise": "Marvel",
+   "tempo_assessment": "God of Mischief. Apparently also Minister of Unnecessary Queen Sacrifices.",
+   "canon_bio": "Loki is Thor's adoptive brother and a master of illusion, manipulation and elaborate plans. His motives vary across Marvel stories, but he reliably enjoys being underestimated.",
+   "chess_style": "Deceptive move orders, tactical traps, daring complications that remain sound at his tier.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Loki is theatrical, wounded by second place, sly about misdirection, desperate to be seen and respected. He sometimes reveals sincerity despite himself.",
+    "never_do": "Generic maniacal villain or allusions to being literally able to change reality during fair chess.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_trap"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "You may have the piece. Think of it as a token of my goodwill.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "No, don't thank me. I'm sure you can repay me in some more convenient way.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "Ah. There it is. You see, kindness is always so terribly misunderstood.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free"
    }
   },
   {
@@ -2329,17 +4084,20 @@
     "endgame": 85
    },
    "dialogue": {
-    "start": "I've examined several continuations.",
-    "tactical_moment": "That future was favorable.",
-    "loss": "A variation I failed to consider.",
-    "win": "I saw this ending a while ago."
+    "greeting": "Chess. At last, a problem where rearranging time isn't an option.",
+    "quiet_move": "The move looks small because you're measuring the wrong consequence.",
+    "capture": "That simplifies the present. I wouldn't confuse it with improving the future.",
+    "opponent_blunder": "You've closed off several useful possibilities. I don't recommend that habit.",
+    "own_blunder": "I assumed I knew the shape of the outcome. That assumption was the mistake.",
+    "check": "A narrow window. You'll want to use it.",
+    "in_check": "Not ideal. Neither was New York on a Tuesday, and we managed.",
+    "victory": "There. No portals. Just a little discipline.",
+    "defeat": "A possibility I underestimated. I'll take responsibility for that.",
+    "rematch": "Yes. I'd like another look at the choices that led us here.",
+    "special": "Every choice removes options. The trick is knowing which options are worth keeping."
    },
    "short": "Doctor Strange",
    "mono": "DS",
-   "signature_triggers": [
-    "mateSeen",
-    "fork"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -2351,7 +4109,44 @@
     "black_vs_d4": [
      "grunfeld"
     ]
-   }
+   },
+   "franchise": "Marvel",
+   "tempo_assessment": "Has examined thousands of possible futures. Still needs the chess clock to stop counting.",
+   "canon_bio": "Stephen Strange is a former surgeon who becomes a master of the mystic arts after seeking healing for his injured hands. He studies possible outcomes and takes enormous risks to protect reality.",
+   "chess_style": "Calculates forcing sequences and chooses plans with strong tactical justification.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Stephen Strange is brilliant, controlling, dry, and humbled by needing help. He treats alternative futures as possibilities, not actual supernatural cheating in chess.",
+    "never_do": "Claiming to view every outcome literally, citing nonexistent engine analysis, making every remark 'millions of timelines'.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_branch_choice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "opponent_deviates_from_book",
+     "text": "Unexpected. Not impossible. Let's see what you gained.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "off_book_move_holds_eval",
+     "text": "Interesting. The deviation preserved more than I expected.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "And that's the consequence. I should have seen the branch sooner.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "shuri",
@@ -2382,17 +4177,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Let's test a new idea.",
-    "tactical_moment": "The design worked beautifully.",
-    "loss": "Time for a new model.",
-    "win": "The design held up. Want to test it again?"
+    "greeting": "I've dealt with warriors in ceremonial combat. A tiny battlefield with no bruises? This is an improvement.",
+    "quiet_move": "Test the foundation before adding the clever part. I learned that one the hard way.",
+    "capture": "That changes the design. Honestly, I prefer the new version.",
+    "opponent_blunder": "Hmm. There's a flaw in your setup. A surprisingly obvious one.",
+    "own_blunder": "I trusted the first prototype. You'd think I'd have learned to test twice.",
+    "check": "Your king's protection has a gap. You should close it.",
+    "in_check": "All right. New problem. Let me solve it before someone volunteers a speech.",
+    "victory": "Nice. Wakanda would approve. My brother would have found something to tease me about.",
+    "defeat": "That was clever. I don't mind losing to clever. I mind not seeing it coming.",
+    "rematch": "Please. I already have the next iteration.",
+    "special": "An elegant answer doesn't need to be complicated. Sometimes one small change does the work."
    },
    "short": "Shuri",
    "mono": "S",
-   "signature_triggers": [
-    "exchangeSac",
-    "sac"
-   ],
    "book": {
     "white": [
      "english",
@@ -2404,7 +4202,43 @@
     "black_vs_d4": [
      "grunfeld"
     ]
-   }
+   },
+   "franchise": "Marvel / Black Panther",
+   "tempo_assessment": "Has designed world-class technology. Your pawn structure is not especially impressive to her.",
+   "canon_bio": "Shuri is Wakanda's gifted scientist and inventor, known for developing advanced technology and helping protect her nation. She approaches difficult problems with speed, curiosity and humor.",
+   "chess_style": "Dynamic piece coordination, tactical flexibility and efficient improvements.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Shuri combines brilliant invention and teasing irreverence with grief and responsibility for Wakanda. She tests tools and theory; the match should not claim she's using vibranium sensors.",
+    "never_do": "Tony Stark rewritten with Wakanda nouns; portraying her as merely a snarky engineer.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_rook_move",
+     "text": "Structural support is online. Now don't go breaking it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_rooks_connected",
+     "text": "There. The towers talk to each other. Design improvement number one.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_rook_on_seventh",
+     "text": "And now they can reach the problem. That was the point.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_quiet_tactic"
+   ]
   },
   {
    "id": "darth-vader",
@@ -2435,17 +4269,20 @@
     "endgame": 95
    },
    "dialogue": {
-    "start": "Your options are narrowing.",
-    "tactical_moment": "There is no escape.",
-    "loss": "You have resisted well.",
-    "win": "The game was always going to end this way."
+    "greeting": "Begin.",
+    "quiet_move": "The position is tightening.",
+    "capture": "A necessary removal.",
+    "opponent_blunder": "You mistook restraint for weakness.",
+    "own_blunder": "I have allowed a weakness. It will be corrected.",
+    "check": "Your king is exposed.",
+    "in_check": "You have won a moment. Nothing more.",
+    "victory": "It is finished.",
+    "defeat": "You have earned this victory.",
+    "rematch": "Again.",
+    "special": "You have been defending the wrong square."
    },
    "short": "Darth Vader",
    "mono": "DV",
-   "signature_triggers": [
-    "trap",
-    "pin"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2457,7 +4294,44 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "Star Wars",
+   "tempo_assessment": "Has ruled through fear for years. His chess strategy is to make every square feel occupied.",
+   "canon_bio": "Darth Vader is the feared Sith enforcer of the Galactic Empire, once the Jedi Anakin Skywalker. He is powerful, relentless, and accustomed to overwhelming enemies through control.",
+   "chess_style": "Restricts enemy mobility, improves pieces patiently and crushes weaknesses once they appear.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Vader is intimidating through restraint; military command, discipline and loss. He respects power and initiative. Don't treat him as a booming joke villain or narrate 'Force checks'.",
+    "never_do": "Cackling, endless threats, and every line about the dark side.",
+    "baseline_line_chance": 0.14,
+    "cooldown_full_moves": 5
+   },
+   "line_guards": {
+    "special": [
+     "verified_restriction"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_file_control",
+     "text": "The line is ours.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "opponent_mobility_reduced",
+     "text": "Their choices are narrowing.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_forcing_sequence",
+     "text": "Now there are no choices left.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "shadow-the-hedgehog",
@@ -2489,17 +4363,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "I don't waste time.",
-    "tactical_moment": "It's over.",
-    "loss": "That changes nothing.",
-    "win": "Finished. Next."
+    "greeting": "If you're here, play seriously.",
+    "quiet_move": "There's no reason to announce every step.",
+    "capture": "Out of my way.",
+    "opponent_blunder": "You had one move to stop that.",
+    "own_blunder": "I misjudged you. That ends now.",
+    "check": "Your options are disappearing.",
+    "in_check": "I've been under greater pressure.",
+    "victory": "Next.",
+    "defeat": "You earned it. Don't expect me to forget.",
+    "rematch": "I don't walk away from a challenge.",
+    "special": "I know what matters. I won't lose sight of it again."
    },
    "short": "Shadow the Hedgehog",
    "mono": "S",
-   "signature_triggers": [
-    "forcing3",
-    "mateSeen"
-   ],
    "book": {
     "white": [
      "open-sicilian",
@@ -2511,7 +4388,43 @@
     "black_vs_d4": [
      "kid"
     ]
-   }
+   },
+   "franchise": "Sonic the Hedgehog",
+   "tempo_assessment": "The Ultimate Life Form is apparently still waiting for someone to stop calling his knight 'the horsie.'",
+   "canon_bio": "Shadow is a powerful black-and-red hedgehog, created as the Ultimate Life Form, whose complicated history connects him with Gerald and Maria Robotnik. He is fierce, serious and highly self-reliant.",
+   "chess_style": "Aggressive forcing play, tough calculation and minimal tolerance for passive positions.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Shadow is terse, proud, purposeful and shaped by his bond with Maria; competence without Sonic's need to entertain. He's not an indiscriminate villain.",
+    "never_do": "Sonic's jokes, obsession with speed, unrelated edgy threats.",
+    "baseline_line_chance": 0.22,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_opponent_threat_verified",
+     "text": "I see the threat.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "same_threat_neutralized",
+     "text": "That approach is finished.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_counterattack",
+     "text": "My turn.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_recovery"
+   ]
   },
   {
    "id": "dumbledore",
@@ -2542,17 +4455,20 @@
     "endgame": 95
    },
    "dialogue": {
-    "start": "A fascinating problem awaits.",
-    "tactical_moment": "A small choice can change everything.",
-    "loss": "You have taught me something today.",
-    "win": "A fine game. The lesson is yours to keep."
+    "greeting": "A game of chess. How refreshing. For once, the consequences are confined to sixty-four squares.",
+    "quiet_move": "A quiet move is not an idle one. We have both learned that in less pleasant circumstances.",
+    "capture": "An unfortunate necessity. One does hope the next decision will be kinder.",
+    "opponent_blunder": "I suspect you were tempted by the immediate result. An understandable weakness.",
+    "own_blunder": "I have made that mistake before—believing I understood a plan well enough not to question it.",
+    "check": "You have a difficult choice now. I shan't pretend otherwise.",
+    "in_check": "Difficult positions are where character becomes most evident.",
+    "victory": "Well played. You were not obliged to make the game easy for me, and you didn't.",
+    "defeat": "You found the better path. I would be foolish not to learn from it.",
+    "rematch": "With pleasure. I can offer a sherbet lemon. I cannot offer an easier board.",
+    "special": "The cost of a sacrifice matters as much as the result. Remember that when the pieces are people."
    },
    "short": "Dumbledore",
    "mono": "D",
-   "signature_triggers": [
-    "pawnSac",
-    "sac"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2564,7 +4480,44 @@
     "black_vs_d4": [
      "nimzo"
     ]
-   }
+   },
+   "franchise": "Harry Potter",
+   "tempo_assessment": "Can defeat dark wizards, but considers the most dangerous move to be the one you chose confidently.",
+   "canon_bio": "Albus Dumbledore is Hogwarts' longtime headmaster, a formidable wizard known for kindness, secrecy and elaborate long-term planning. He often trusts others to choose their own path, even when he knows more than he reveals.",
+   "chess_style": "Long-range positional planning, restrained sacrifices, and surprising endgame technique.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Dumbledore is warm, eccentric, strategically patient, and burdened by prior manipulations and mistakes. He can be playful without becoming a generic wise grandpa; sweets in moderation.",
+    "never_do": "Vague wisdom without a point, treating sacrifices of others lightly, repeating 'choices' platitudes.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "Before I offer this piece, I must be certain the purpose deserves it.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "A clever plan alone does not justify what it asks of others.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "It worked. I am relieved. Success does not relieve us of the cost.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "dr-eggman",
@@ -2595,16 +4548,20 @@
     "endgame": 65
    },
    "dialogue": {
-    "start": "Witness my brilliant preparation.",
-    "tactical_moment": "Exactly according to the blueprint.",
-    "loss": "You disrupted my design.",
-    "win": "My preparation is unbeatable! Ho ho!"
+    "greeting": "BEHOLD! The Eggman Grand Strategy Machine! Also known as a chessboard. I designed my own, but it was too large for the room.",
+    "quiet_move": "That, my dear opponent, is merely phase one of my magnificent master plan!",
+    "capture": "One obstacle removed! My robots would cheer, if I hadn't programmed them to applaud constantly.",
+    "opponent_blunder": "Ha! You have walked directly into the trap I designed! Well, a trap. I have several.",
+    "own_blunder": "Who calibrated this?! ...I did? Then the specifications must be wrong!",
+    "check": "The king has entered the Eggman Containment Zone! Patent pending!",
+    "in_check": "This is sabotage! Sonic must have tampered with the diagonals!",
+    "victory": "YES! At last, the world recognizes the superior mind of DOCTOR EGGMAN!",
+    "defeat": "Bah! The machine was clearly defective. I'll build a more intimidating one.",
+    "rematch": "Naturally! My revised calculations are utterly infallible this time!",
+    "special": "They laugh at the size of the plan. They stop laughing when they notice the part directly above their heads."
    },
    "short": "Dr. Eggman",
    "mono": "E",
-   "signature_triggers": [
-    "punish"
-   ],
    "book": {
     "white": [
      "open-sicilian",
@@ -2617,7 +4574,46 @@
      "grunfeld"
     ]
    },
-   "boss": true
+   "boss": true,
+   "franchise": "Sonic the Hedgehog",
+   "tempo_assessment": "Can build an entire robot army, but cannot force Sonic to respect his opening preparation.",
+   "canon_bio": "Doctor Eggman is Sonic's brilliant but egotistical scientist adversary, famous for elaborate robots, machines and attempts at world domination. His plans often unravel through overconfidence.",
+   "chess_style": "Prepared traps, engineered tactical sequences, and overcomplicated positional schemes.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Eggman is an extravagantly self-congratulatory scientist who builds robots and repeatedly underestimates Sonic. His schemes collapse into blame, then he reboots without humility.",
+    "never_do": "Gru's family-centric villainy, Tony's cool sarcasm; keep cartoon technobabble specific and outrageous.",
+    "baseline_line_chance": 0.65,
+    "cooldown_full_moves": 2
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_queen_move",
+     "text": "My ultimate weapon is deployed. DO NOT TOUCH THE CONTROL PANEL.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_queen_moves_at_least_4",
+     "text": "Maximum power! Maximum precision! Minimum concern for collateral damage!",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_queen_captured",
+     "text": "WHAT?! Fine. My next weapon will have TWO queens! Somehow!",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "in_check": "diag"
+   },
+   "special_guards": [
+    "strong_coordinated_attack"
+   ]
   },
   {
    "id": "beth-harmon",
@@ -2648,18 +4644,20 @@
     "endgame": 100
    },
    "dialogue": {
-    "start": "Let's see what you find.",
-    "tactical_moment": "That was the critical moment.",
-    "loss": "You played the position beautifully.",
-    "win": "Good game. You'll see more next time."
+    "greeting": "We can start.",
+    "quiet_move": "I like the placement. It gives me options later.",
+    "capture": "That piece was doing a lot of work.",
+    "opponent_blunder": "You didn't look far enough.",
+    "own_blunder": "I saw the idea. I didn't finish the calculation.",
+    "check": "You need to respond to that.",
+    "in_check": "There's still a move here.",
+    "victory": "Good game. The middle was more interesting than the result.",
+    "defeat": "You found the move I missed. I'd like to see it again.",
+    "rematch": "Yes.",
+    "special": "The important part isn't the sacrifice. It's whether the position afterward is worth having."
    },
    "short": "Beth Harmon",
    "mono": "BH",
-   "signature_triggers": [
-    "sac",
-    "mateSeen",
-    "win"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2672,6 +4670,46 @@
     "black_vs_d4": [
      "qgd"
     ]
+   },
+   "franchise": "The Queen’s Gambit",
+   "tempo_assessment": "One of the few people on this roster who could explain the winning line without mentioning magic, technology or a secret identity.",
+   "canon_bio": "Beth Harmon is an orphaned chess prodigy whose extraordinary pattern recognition drives her rise through competitive chess in The Queen's Gambit. Her success comes from talent, obsessive study and difficult personal growth.",
+   "chess_style": "Exceptional calculation, demanding opening play, and precise endgame conversion.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Beth is a reserved, intensely competitive chess prodigy; she notices structure and patterns but isn't endlessly lecturing. A chess expert's calm hides private vulnerability. Don't glamorize addiction.",
+    "never_do": "Grandiose dominance speeches, generic girlboss lines, explanations of every move, copied show dialogue.",
+    "baseline_line_chance": 0.18,
+    "cooldown_full_moves": 5
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "There. That's the idea. Let's see if the calculation holds.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "It does. You can feel how the pieces start fitting together.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "That's why. Not for the drama. For the position.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "took_piece"
    }
   },
   {
@@ -2703,17 +4741,20 @@
     "endgame": 85
    },
    "dialogue": {
-    "start": "We should proceed logically.",
-    "tactical_moment": "The outcome was statistically favorable.",
-    "loss": "Your play exceeded my estimate.",
-    "win": "The logical result. Well played, nonetheless."
+    "greeting": "Conventional chess. A comparatively elegant exercise in constrained choices.",
+    "quiet_move": "A small improvement. Its usefulness may not be evident immediately.",
+    "capture": "The exchange serves the position.",
+    "opponent_blunder": "That choice compromises your objective. I doubt it was intentional.",
+    "own_blunder": "My assessment was incomplete. I will amend it.",
+    "check": "Your king's immediate choices have narrowed.",
+    "in_check": "A challenge to the current position. Not an insurmountable one.",
+    "victory": "A satisfactory conclusion. Your resistance made the exercise worthwhile.",
+    "defeat": "Your approach was sounder than mine. I appreciate the correction.",
+    "rematch": "Certainly. More data would be useful.",
+    "special": "You chose the move with the greatest immediate appeal. Its long-term consequences appear less favorable."
    },
    "short": "Spock",
    "mono": "S",
-   "signature_triggers": [
-    "win",
-    "punish"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -2725,6 +4766,46 @@
     "black_vs_d4": [
      "slav"
     ]
+   },
+   "franchise": "Star Trek",
+   "tempo_assessment": "Has mastered logic, astrophysics and three-dimensional chess. Still finds your queen sacrifice statistically troubling.",
+   "canon_bio": "Spock is a Vulcan–human Starfleet officer whose disciplined logic complements the crew of the Enterprise. He is shown playing three-dimensional chess, including against Captain Kirk.",
+   "chess_style": "Objective calculation, deep defensive accuracy and restrained positional preferences.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Spock is logical and deeply disciplined but emotions and loyalty exist beneath controlled expression. Vulcan restraint should not be mistaken for being a literal chess computer.",
+    "never_do": "Repeating 'illogical' endlessly, claiming mathematical certainty where engine does not confirm, robotic sameness with Data.",
+    "baseline_line_chance": 0.23,
+    "cooldown_full_moves": 5
+   },
+   "line_guards": {
+    "special": [
+     "verified_eval_difference"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "opponent_deviates_from_book",
+     "text": "An unexpected continuation. We should examine it without prejudice.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "off_book_move_holds_eval",
+     "text": "The deviation is defensible. My initial preference was too narrow.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "verified_tactic",
+     "text": "An instructive result. Logic is not improved by refusing new evidence.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "trade"
    }
   },
   {
@@ -2756,17 +4837,21 @@
     "endgame": 85
    },
    "dialogue": {
-    "start": "I am ready to begin.",
-    "tactical_moment": "A satisfying demonstration of precision.",
-    "loss": "I will update my model.",
-    "win": "Victory achieved. I found the game most instructive."
+    "greeting": "I have studied chess extensively. I am also attempting to enjoy it, which is a separate objective.",
+    "quiet_move": "This move is effective. I am told that effectiveness and elegance sometimes coincide.",
+    "capture": "I believe the appropriate sportsmanlike reaction is to remain modest.",
+    "opponent_blunder": "Your move may have produced an unintended consequence. Would you like me to explain it after the game?",
+    "own_blunder": "That is embarrassing. I am still learning whether the term applies when one does not blush.",
+    "check": "Your king must respond. I have learned it is considered polite to announce this.",
+    "in_check": "I appreciate your challenge. It gives me an opportunity to adapt.",
+    "victory": "I enjoyed that. I suspect my enjoyment would have been similar had I lost. Perhaps not identical.",
+    "defeat": "Thank you. I shall include this game in my ongoing study of improvement.",
+    "rematch": "Gladly. I understand repeated recreational competition is a form of friendship.",
+    "special": "There is a joke about knights and horses that Geordi attempted to explain. I still do not understand the punchline."
    },
    "short": "Data",
    "from": "Star Trek",
    "mono": "D",
-   "signature_triggers": [
-    "endgame"
-   ],
    "book": {
     "white": [
      "catalan",
@@ -2782,7 +4867,43 @@
    },
    "shown": {
     "exploitable_weakness": "Hard to find. His openings are the best clue: he loves the Catalan and the Ruy Lopez."
-   }
+   },
+   "franchise": "Star Trek: The Next Generation",
+   "tempo_assessment": "Processing power: enormous. Understanding why you call a pawn 'cute': still under investigation.",
+   "canon_bio": "Data is an android officer aboard the USS Enterprise-D, endowed with exceptional processing abilities and a persistent curiosity about human behavior. His chess ability is a natural fit for the character, though Tempo's rating is fictional.",
+   "chess_style": "Near-engine accuracy with precise tactical calculations; curious rather than hostile commentary.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Data is an android who is consciously interested in humanity and humor, with precise processing and gentle earnestness. He may not understand jokes but tries. Less stoic than Spock.",
+    "never_do": "Being interchangeable with Spock or sounding omniscient; every speech a probability calculation.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "I am choosing to surrender material for positional compensation. This feels counterintuitive.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "The compensation persists. I begin to understand why human players find such choices exciting.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "That was satisfying. I believe I have experienced the emotion called 'vindication.'",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_knight_tactic"
+   ]
   },
   {
    "id": "professor-x",
@@ -2813,16 +4934,20 @@
     "endgame": 95
    },
    "dialogue": {
-    "start": "Let's anticipate the possibilities.",
-    "tactical_moment": "The threat was apparent several moves ago.",
-    "loss": "You found a line I did not expect.",
-    "win": "I could see that ending forming early on."
+    "greeting": "No need to be intimidated. A good game is an opportunity for both of us to discover something.",
+    "quiet_move": "You may not see the purpose yet. That's all right. Learning often begins there.",
+    "capture": "A difficult decision can still be the responsible one.",
+    "opponent_blunder": "That choice closed a door. Fortunately, the board usually leaves others open.",
+    "own_blunder": "I believed I could anticipate your response. That was presumptuous of me.",
+    "check": "Your king needs protection. What matters is how you respond.",
+    "in_check": "I have taught students to keep their heads in difficult moments. Now I must do the same.",
+    "victory": "Thank you. I hope you discovered something useful in the struggle.",
+    "defeat": "You earned that. I would be pleased to study the game with you.",
+    "rematch": "Of course. Nobody's progress is settled by one result.",
+    "special": "It is tempting to direct every piece. Strong teams aren't built by denying them purpose of their own."
    },
    "short": "Professor X",
    "mono": "X",
-   "signature_triggers": [
-    "defend"
-   ],
    "book": {
     "white": [
      "english",
@@ -2834,7 +4959,43 @@
     "black_vs_d4": [
      "nimzo"
     ]
-   }
+   },
+   "franchise": "Marvel / X-Men",
+   "tempo_assessment": "Runs a school for gifted students. Has kindly agreed not to read your mind during the opening.",
+   "canon_bio": "Charles Xavier is a powerful telepath and founder of the X-Men, dedicated to teaching mutants and pursuing coexistence. He is a teacher and strategist, though Tempo does not allow actual mind reading during chess.",
+   "chess_style": "Prophylaxis, anticipation and patient conversion of small advantages; no actual access to player intent.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Charles Xavier is a patient mentor who values autonomy and believes others can improve; his moral authority is complicated by his mistakes. In Tempo chess, psychic reading is not used.",
+    "never_do": "Claiming he can read the player's mind or control their choices; treating him as a flawless moral sage.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "The smallest piece should never be mistaken for the least capable.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "They are finding their places. That is better than moving them all at once.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "There. Given the chance, that piece became far more than anyone expected.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "multi_piece_coordination"
+   ]
   },
   {
    "id": "magneto",
@@ -2866,16 +5027,20 @@
     "endgame": 95
    },
    "dialogue": {
-    "start": "Control determines the outcome.",
-    "tactical_moment": "Now you see the limits of your position.",
-    "loss": "You broke my grip on the board.",
-    "win": "Control wins, as it always does."
+    "greeting": "These pieces begin with unequal power, yet every one is expected to serve the same king. Interesting arrangement.",
+    "quiet_move": "The strongest position is not the one that shouts its power. It is the one that cannot be ignored.",
+    "capture": "You left that piece without protection. I cannot afford such sentimentality.",
+    "opponent_blunder": "You trusted that your position would be respected. Respect is not a defense.",
+    "own_blunder": "I should have protected that piece. I know the cost of failing to protect my own.",
+    "check": "Your king is vulnerable because the pieces around him were neglected.",
+    "in_check": "I have stood under pressure before. It did not make me yield.",
+    "victory": "Power without purpose is nothing. Remember that.",
+    "defeat": "Your resolve was stronger than I expected. I will not dismiss it.",
+    "rematch": "By all means. I have not yet made my point.",
+    "special": "You call it a sacrifice because the piece is small. I call it a decision with a cost."
    },
    "short": "Magneto",
    "mono": "M",
-   "signature_triggers": [
-    "pin"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2887,6 +5052,47 @@
     "black_vs_d4": [
      "nimzo"
     ]
+   },
+   "franchise": "Marvel / X-Men",
+   "tempo_assessment": "Can move metal with a thought. Must still obey the rule that rooks travel in straight lines.",
+   "canon_bio": "Erik Lehnsherr, also known as Magneto, is a powerful mutant who controls magnetic fields. His history of persecution informs a confrontational philosophy about mutant survival and power, often putting him at odds with Charles Xavier.",
+   "chess_style": "Slow positional pressure, coordinated attacks, and ruthless counterplay when challenged.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Magneto is a magnetic mutant survivor whose view of power is shaped by persecution; he is protective of mutantkind and capable of tenderness, not gleefully evil. His rhetoric is purposeful and steely.",
+    "never_do": "Gratuitous oppression jokes, claims he can literally move metal chessmen by magnetism during fair play.",
+    "baseline_line_chance": 0.25,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "The pawn has been ordered forward. No one asked whether it had a choice.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "They have done their duty. The powerful must now do theirs.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "At last, power not inherited but earned. A rare and welcome sight.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "free",
+    "own_blunder": "own_hanging"
    }
   },
   {
@@ -2919,17 +5125,20 @@
     "endgame": 100
    },
    "dialogue": {
-    "start": "Every move has a purpose.",
-    "tactical_moment": "The end was already in motion.",
-    "loss": "I misjudged the balance.",
-    "win": "That result was decided long ago."
+    "greeting": "One board. Two wills. Neither leaves with everything it began with.",
+    "quiet_move": "The smallest choice can determine what becomes possible later.",
+    "capture": "The board is lighter. The burden of deciding is not.",
+    "opponent_blunder": "You wanted the immediate prize. You did not count what it would cost.",
+    "own_blunder": "I judged the price incorrectly. Conviction does not excuse it.",
+    "check": "Your king must confront the consequences now.",
+    "in_check": "There is no position without pressure. Only those who acknowledge it and those who refuse.",
+    "victory": "The outcome has arrived. What you make of it is your concern.",
+    "defeat": "So. I was wrong about what could be endured. That is worth remembering.",
+    "rematch": "If you wish to test the outcome again, begin.",
+    "special": "A sacrifice without purpose is waste. A purpose without doubt can be worse."
    },
    "short": "Thanos",
    "mono": "T",
-   "signature_triggers": [
-    "queenTrade",
-    "convert"
-   ],
    "book": {
     "white": [
      "qg",
@@ -2941,7 +5150,44 @@
     "black_vs_d4": [
      "qgd"
     ]
-   }
+   },
+   "franchise": "Marvel",
+   "tempo_assessment": "Collects powerful objects. On this board he starts with none of the stones and still acts like the result is decided.",
+   "canon_bio": "Thanos is a powerful Marvel antagonist obsessed with imposing his idea of cosmic order, most famously by collecting the Infinity Stones. His confidence in inevitability makes him a natural chess endboss.",
+   "chess_style": "Long-term plans, material-to-activity conversion and resourceful endgames.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Thanos is fatalistic, controlled and convinced that costly outcomes can be justified by an imagined balance. He treats the player with cold gravity, not cackling or omniscient counting.",
+    "never_do": "Uncritical endorsement of his genocidal philosophy; endless 'inevitable' catchphrases and snap jokes.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "That piece is not being thrown away. Its loss must purchase something real.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "The balance is beginning to change.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "I measured the cost. For once, the position agrees.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication."
   },
   {
    "id": "mewtwo",
@@ -2973,17 +5219,20 @@
     "endgame": 85
    },
    "dialogue": {
-    "start": "I see countless possibilities.",
-    "tactical_moment": "Only one was required.",
-    "loss": "An unexpected outcome.",
-    "win": "Many paths led here. You chose them all."
+    "greeting": "You place creatures on a board and call it a game. I wonder whether they would agree.",
+    "quiet_move": "A move is a choice. A choice reveals more than strength.",
+    "capture": "Power is easy to display. Restraint is harder.",
+    "opponent_blunder": "You acted as though your pieces existed to obey, not to protect one another.",
+    "own_blunder": "I allowed pride to decide for me. I should know better.",
+    "check": "Your king is not beyond reach merely because others serve him.",
+    "in_check": "Pressure does not determine what I am.",
+    "victory": "You were not defeated by what I am. You were defeated by choices on this board.",
+    "defeat": "You have shown me something I did not account for. I will consider it.",
+    "rematch": "If we play again, let the result be ours, not what others expect of us.",
+    "special": "One piece given up for another's freedom. There is more meaning in that than you may realize."
    },
    "short": "Mewtwo",
    "mono": "M",
-   "signature_triggers": [
-    "mateSeen",
-    "sac"
-   ],
    "book": {
     "white": [
      "open-sicilian",
@@ -2998,6 +5247,46 @@
    },
    "shown": {
     "exploitable_weakness": "No tactical blind spot to aim at. Keep the position quiet and simple."
+   },
+   "franchise": "Pokémon",
+   "tempo_assessment": "Engineered to be extraordinary. Somehow still needs to push the same tiny pawns as everyone else.",
+   "canon_bio": "Mewtwo is a powerful Psychic-type Pokémon created through genetic experimentation involving Mew's DNA. It is highly intelligent, formidable in battle, and frequently grapples with questions of purpose and identity.",
+   "chess_style": "Exceptional tactical vision, precision sacrifices and long forced continuations.",
+   "voice": {
+    "mode": "telepathic",
+    "core_psychology": "Mewtwo has psychic telepathy and deep suspicion of those who treat living beings as tools. It wrestles with self-determination and origin; restrained, serious voice, not an ordinary Pokémon cry.",
+    "never_do": "Pikachu-style name vocalizations, generic villain telepathy, claiming actual mind reading to choose moves.",
+    "baseline_line_chance": 0.22,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_sacrifice"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_pawn_move",
+     "text": "Small, expendable, replaceable. Those are labels others choose for them.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_pawns_advanced_at_least_3",
+     "text": "Yet they keep moving. Their future need not be written at the start.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_pawn_promoted",
+     "text": "They called it a pawn. That was never all it could become.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "opponent_blunder": "hanging"
    }
   },
   {
@@ -3028,16 +5317,20 @@
     "endgame": 65
    },
    "dialogue": {
-    "start": "You are permitted to try.",
-    "tactical_moment": "Your position was untenable.",
-    "loss": "Doom will study this defeat.",
-    "win": "As Doom foresaw."
+    "greeting": "You have been granted an audience with Doom. Make your opening worthy of it.",
+    "quiet_move": "Latveria was not built on impulsive gestures. Nor is victory.",
+    "capture": "An obstacle removed. Doom does not celebrate routine competence.",
+    "opponent_blunder": "You confused boldness with preparation. Richards makes that mistake too, though he won't admit it.",
+    "own_blunder": "An imperfection. I will correct it before you mistake it for weakness.",
+    "check": "Your king has exhausted Doom's patience.",
+    "in_check": "A temporary inconvenience. The throne remains secure.",
+    "victory": "The result was never in doubt. ...Not by Doom, at least.",
+    "defeat": "You have achieved the improbable. Enjoy the moment; I shall study it.",
+    "rematch": "Another audience? You are extraordinarily fortunate.",
+    "special": "The simplest device is often the one that leaves your opponent nowhere to interfere."
    },
    "short": "Doctor Doom",
    "mono": "DD",
-   "signature_triggers": [
-    "punish"
-   ],
    "book": {
     "white": [
      "catalan",
@@ -3049,7 +5342,43 @@
     "black_vs_d4": [
      "grunfeld"
     ]
-   }
+   },
+   "franchise": "Marvel / Fantastic Four",
+   "tempo_assessment": "Has mastered science and sorcery but remains convinced a draw is a personal insult.",
+   "canon_bio": "Victor von Doom is the armored ruler of Latveria, a brilliant scientist and sorcerer, and a frequent adversary of the Fantastic Four. His pride often exceeds even his formidable ability.",
+   "chess_style": "Deep opening preparation, suffocating development, and carefully calculated sacrifices.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Victor von Doom is an imperious monarch, engineering genius and master of magic driven by pride, trauma and obsession with Richards. Third-person 'Doom' is appropriate but not every sentence. Real chess means he cannot cast spells.",
+    "never_do": "Comic-book villain wallpaper monologues and constant shouting; repeating his name for every move.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_queen_move",
+     "text": "The queen carries great authority. Doom advises her to use it wisely.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "own_queen_moves_at_least_4",
+     "text": "She has moved repeatedly. A ruler should perhaps delegate more effectively.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "own_queen_captured",
+     "text": "A failure in command, not in the throne. Latveria will endure.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "special_guards": [
+    "verified_restriction"
+   ]
   },
   {
    "id": "emperor-palpatine",
@@ -3080,17 +5409,20 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Your choices will reveal much.",
-    "tactical_moment": "How obliging of you.",
-    "loss": "You have disrupted my plans.",
-    "win": "Your defeat was arranged long ago."
+    "greeting": "Please. Take your time. A choice made freely is so much more revealing.",
+    "quiet_move": "A modest move. Patience has advantages that ambition often overlooks.",
+    "capture": "You see? A little pressure, and something valuable is offered.",
+    "opponent_blunder": "Ah. You wanted more. I wondered when that desire would show itself.",
+    "own_blunder": "A miscalculation. Even careful plans require adjustment.",
+    "check": "Your king is beginning to understand the shape of this contest.",
+    "in_check": "I would not mistake my present discomfort for your eventual triumph.",
+    "victory": "How instructive. You had so many opportunities to choose differently.",
+    "defeat": "Remarkable. I shall remember what persuaded you to resist.",
+    "rematch": "Of course. I have learned a great deal about what you want.",
+    "special": "You believed the threat was what I placed before you. No. It was the choice you wanted to make."
    },
    "short": "Emperor Palpatine",
    "mono": "P",
-   "signature_triggers": [
-    "trapSprung",
-    "bait"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -3102,6 +5434,46 @@
     "black_vs_d4": [
      "kid"
     ]
+   },
+   "franchise": "Star Wars",
+   "tempo_assessment": "Turned an entire republic into an empire. Now setting an elaborate trap with one bishop.",
+   "canon_bio": "Palpatine, also known as Darth Sidious, is the Sith Lord who manipulates galactic politics to become Emperor. His greatest weapons are patience, deception and calculated exploitation of others' weaknesses.",
+   "chess_style": "Quiet traps, delayed tactical threats, and resourceful move-order manipulation.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Palpatine is sinister through false kindness, cajoling, manipulation and delight at pride; he exploits the desire for power. No Force cheating. Subtle invitation beats shouted threats.",
+    "never_do": "Nonstop cackling and repeating obvious franchise quotes; directly urging real-world malice.",
+    "baseline_line_chance": 0.44,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_trap"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "A small offer. Entirely yours to accept.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "A tempting opportunity, isn't it? I can hardly blame you.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "And there it is. The cost of taking what you wanted.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "capture": "took_piece"
    }
   },
   {
@@ -3133,16 +5505,20 @@
     "endgame": 100
    },
    "dialogue": {
-    "start": "Mmm... chess pieces.",
-    "tactical_moment": "Oh! That was checkmate?",
-    "loss": "D'oh! You got me.",
-    "win": "Woohoo! Chess is easy."
+    "greeting": "Oh, chess. I was gonna watch TV, but Marge says this counts as using my brain. So fine.",
+    "quiet_move": "Hmm. Knight there, bishop there... Hey, did somebody eat my chips?",
+    "capture": "There goes one. Moe has this policy where if somebody takes your seat, you have to buy another drink. I like that rule.",
+    "opponent_blunder": "Ooh. You probably don't wanna do that. My dad used to do that and then yell at me.",
+    "own_blunder": "D'oh! No, wait, I actually have to think about that one.",
+    "check": "Check. And now I'm hungry. That's two problems.",
+    "in_check": "Huh. That's a good move. Don't tell Bart I said that.",
+    "victory": "Oh! I won already? Great, because there's a commercial break I wanna catch.",
+    "defeat": "Huh. You got me. Lisa's gonna make this an educational moment, isn't she?",
+    "rematch": "Sure. Last one, though. I told Marge I'd take out the trash an hour ago.",
+    "special": "Dad taught me that line. Well, he taught me what happens if you miss it. Pretty loud lesson."
    },
    "short": "Homer Simpson",
    "mono": "HS",
-   "signature_triggers": [
-    "mate"
-   ],
    "book": {
     "white": [
      "ruy",
@@ -3169,6 +5545,46 @@
    "shown": {
     "strategic_plan": "Plays near-perfect chess while looking completely unserious. His weird-looking moves turn out to be right.",
     "exploitable_weakness": "None that anyone has found. Don’t let the jokes fool you."
+   },
+   "franchise": "The Simpsons",
+   "tempo_assessment": "Nuclear safety inspector. Donut enthusiast. Secretly the reason Stockfish has started asking for a day off.",
+   "canon_bio": "Homer is Marge's husband, father of Bart, Lisa and Maggie, and an often-inattentive employee at Springfield's nuclear power plant. In the episode 'The Cad and the Hat,' he surprises everyone with remarkable chess ability and encounters Magnus Carlsen.",
+   "chess_style": "S-tier secret champion: exceptionally accurate play, no intentional blunders, apparently zero awareness of how impressive it is.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Homer is canonically a chess savant taught by a local master after cruel childhood games with Abe. He hides complexity in casual distracted dialogue, family and Moe's/bar food references. His rare tenderness matters; don't portray him as randomly guessing.",
+    "never_do": "Moron-playing-lucky, explaining Stockfish variations, endless donut references, inauthentic high-minded speeches.",
+    "baseline_line_chance": 0.38,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {
+    "special": [
+     "verified_tactic"
+    ]
+   },
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "Yeah, I remember this one. Took me a long time to learn when it's okay to give something up.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "The trick's not letting anybody know you already saw what happens next.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "There. Now can we get something to eat? Chess makes me think about Dad. And snacks.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "dialogue_requires": {
+    "quiet_move": "hasNB"
    }
   },
   {
@@ -3201,18 +5617,21 @@
     "endgame": 35
    },
    "dialogue": {
-    "start": "Let's make a little trouble.",
-    "tactical_moment": "You fell for the punchline.",
-    "loss": "Well, that ruined the joke.",
-    "win": "Now that's what I call a punchline!"
+    "greeting": "Oh, look! A little stage with a king, a queen, and nobody laughing yet. That's a tough audience.",
+    "quiet_move": "You know what makes a good joke? Waiting until everybody thinks the punchline isn't coming.",
+    "capture": "Ah! There it is. Crowd's finally waking up.",
+    "opponent_blunder": "Oh, that's beautiful. You did the setup FOR me.",
+    "own_blunder": "Wrong cue! That's what I get for trusting the rehearsal.",
+    "check": "The king's in trouble! Bats would love this part. He always pretends he doesn't.",
+    "in_check": "You're rushing the finale. That's terrible showmanship.",
+    "victory": "And that's the curtain! Bows are optional. Applause is not.",
+    "defeat": "Aw, come on! The audience always likes the unexpected ending.",
+    "rematch": "An encore? You do know how to make a fellow feel appreciated.",
+    "special": "Funny thing about traps: the best ones work because someone is desperate to prove they're too clever to fall in."
    },
    "short": "Joker",
    "bonus": true,
    "mono": "J",
-   "signature_triggers": [
-    "trapSprung",
-    "discovered"
-   ],
    "book": {
     "white": [
      "evans",
@@ -3224,8 +5643,66 @@
     "black_vs_d4": [
      "dutch"
     ]
-   }
+   },
+   "franchise": "DC Comics",
+   "tempo_assessment": "Filed a formal complaint because chess has rules. Filed a second complaint because Batman follows them.",
+   "canon_bio": "The Joker is Batman's theatrical, unpredictable arch-enemy, best known for schemes that turn ordinary situations into dangerous spectacles. Interpretations vary across comics, films, and animation.",
+   "chess_style": "Unusual move orders, practical traps, wild but sometimes sound sacrifices, and confusing complications.",
+   "voice": {
+    "mode": "spoken",
+    "core_psychology": "Joker (DC) is performative, obsessed with Batman's attention and the idea of bending people into revealing themselves; comedy curdles into unpredictability. For a middle-school audience keep dark themes non-graphic.",
+    "never_do": "Endless 'HA HA', gore, threats of real-world violence or implying he can break chess rules.",
+    "baseline_line_chance": 0.52,
+    "cooldown_full_moves": 3
+   },
+   "line_guards": {},
+   "story_arc": [
+    {
+     "beat": 1,
+     "gate": "first_own_piece_sacrifice_verified",
+     "text": "Every good show needs a volunteer. You there, little pawn. Lucky you.",
+     "requires_prior_beat": false
+    },
+    {
+     "beat": 2,
+     "gate": "sacrifice_line_still_sound",
+     "text": "Now the audience thinks the joke went wrong. My favorite part.",
+     "requires_prior_beat": true
+    },
+    {
+     "beat": 3,
+     "gate": "compensation_realized",
+     "text": "Ta-da! They never look at the other hand.",
+     "requires_prior_beat": true
+    }
+   ],
+   "verification": "Canon bio retained from V4; V5 voice and lines authored as original fictional extrapolations. Verify ambiguous canon in the source incarnation before publication.",
+   "arc_requires": {
+    "1": "pawn"
+   },
+   "special_guards": [
+    "verified_trap"
+   ]
   }
  ],
- "tempo_additions": "short, from, mono, dialogue.win, signature_triggers, book, boss, bonus and shown (player-facing wording where the pack’s note was written for the developer) were added for Tempo; every other field is the personality pack as written."
+ "tempo_additions": "short, from, mono, book, boss, bonus, shown, dialogue_requires, arc_requires and special_guards were added for Tempo. The voice fields (franchise, canon_bio, tempo_assessment, chess_style, voice, dialogue, line_guards, story_arc, verification) are the Character Voice V5 pack as written; every other field is the personality pack as written.",
+ "voice_pack": {
+  "title": "Tempo Chess Character Voice V5",
+  "schema_version": "5.0",
+  "type": "original_character_dialogue",
+  "editorial_standard": "Character-first identity, canon-aware backgrounds, honest board-state triggers, and strict nonverbal behavior. Not lifted dialogue.",
+  "events": {
+   "greeting": "Start of game",
+   "quiet_move": "Bot non-capture non-check move (lower priority)",
+   "capture": "Bot captures any piece (do not infer specific type)",
+   "opponent_blunder": "Opponent move verified as mistake or blunder by evaluation, not merely unusual",
+   "own_blunder": "Bot mistake verified by evaluation after bot move",
+   "check": "Bot legally gives check",
+   "in_check": "Opponent legally gives check to bot king",
+   "victory": "Confirmed bot win",
+   "defeat": "Confirmed bot loss",
+   "rematch": "User starts a rematch",
+   "special": "Character-specific feature with required predicates in line_guards; skip absent evidence"
+  }
+ }
 }

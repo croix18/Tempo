@@ -1,0 +1,35 @@
+/* ---------- what the characters say ---------- */
+/* a line grows away from the board: up from the strip above it, down from the strip below it, so it never covers a square */
+.player .bubble { max-width: min(440px, calc(100% - 50px)); }
+.player.timed .bubble { max-width: min(440px, calc(100% - 150px)); }
+.player.above .bubble { top: auto; bottom: 4px; transform: none; animation-name: say-in; }
+.player.below .bubble { top: 4px; bottom: auto; transform: none; animation-name: say-in; }
+.player.above .bubble.out, .player.below .bubble.out { animation: say-out 0.26s ease-in forwards; }
+.player.above .bubble::before { top: auto; bottom: 15px; transform: rotate(45deg); }
+.player.below .bubble::before { top: 15px; transform: rotate(45deg); }
+@keyframes say-in { from { opacity: 0; transform: translateX(-6px) scale(0.97); } to { opacity: 1; transform: none; } }
+@keyframes say-out { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateX(-4px) scale(0.98); } }
+@media (max-height: 520px) and (orientation: landscape) and (max-width: 979px) {
+  .player.above .bubble::before { bottom: 8px; }
+  .player.below .bubble::before { top: 8px; }
+}
+@media (prefers-reduced-motion: reduce) { .player.above .bubble, .player.below .bubble, .player.above .bubble.out, .player.below .bubble.out { animation: none; } }
+/* a tap puts the line away */
+.player .bubble { pointer-events: auto; cursor: pointer; }
+/* how a character talks: typed into a game chat, announced over a speaker, or thought rather than said */
+.bubble.chat { font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace; font-size: 13px; background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.player .bubble.chat::before { background: var(--navy); border-color: var(--navy); }
+.bubble.pa { box-shadow: inset 3px 0 0 var(--gold-fill), var(--shadow); letter-spacing: 0.01em; }
+.bubble.mind { font-style: italic; border-color: var(--ink-3); border-radius: 18px; }
+.player .bubble.mind::before { width: 6px; height: 6px; left: -11px; border: 1px solid var(--ink-3); border-radius: 50%; }
+/* its word on the result, on the end sheet */
+.end-say { justify-content: center; align-items: center; gap: 10px; margin-bottom: 12px; }
+.end-say .bubble { max-width: min(420px, 100%); line-height: 1.35; }
+.end-say .bubble .more { display: block; margin-top: 6px; }
+
+/* ---------- the character sheet: About and How they play ---------- */
+.profile-head .from { margin-top: 1px; }
+.profile-tabs { margin: 4px 0 14px; }
+.about .facts dd { max-width: 62ch; }
+.about .facts dd.take { font-family: var(--serif); font-size: 17px; line-height: 1.35; color: var(--ink); }
+.profile-note { margin: 14px 0 0; font-size: 14px; line-height: 1.45; color: var(--ink-2); max-width: 62ch; }
