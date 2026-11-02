@@ -275,11 +275,23 @@ var App = (function () {
 var UI = (function () {
   'use strict';
   var h = U.h, C = TempoCore;
-  /* the bot's portrait; a bot without one gets its initial in its tone */
+  /* the bot's portrait; a bot without one gets its initial in its tone. A copy made with tools/with_portraits.py also
+     has pictures (window.TEMPO_PORTRAITS: id -> image link or embedded image): the picture covers the badge once it
+     has loaded, and if it doesn't load the badge simply stays, never a broken image. */
   function avatar(bot, size) {
     var el = h('span', { class: 'avatar ' + (size || '') + ' tone-' + (bot.tone || 'cream'), 'aria-hidden': 'true' });
     if (window.TempoAvatars && TempoAvatars.has(bot.id)) { el.classList.add('drawn'); el.innerHTML = TempoAvatars.svg(bot); }
     else el.textContent = bot.name.replace(/^The /, '').charAt(0);
+    var pic = window.TEMPO_PORTRAITS && TEMPO_PORTRAITS[bot.id];
+    if (typeof pic === 'string' && /^(https:\/\/|data:image\/)/.test(pic)) {
+      var img = document.createElement('img');
+      img.className = 'photo'; img.alt = ''; img.draggable = false;
+      img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+      img.onload = function () { if (img.naturalWidth) el.classList.add('has-photo'); else img.remove(); };
+      img.onerror = function () { img.remove(); };
+      img.src = pic;
+      el.appendChild(img);
+    }
     return el;
   }
   function stars(n, of) {

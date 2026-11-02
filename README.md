@@ -79,6 +79,7 @@ assets/, data/      Stockfish, fonts, puzzle and opening data
 build/build.py      packs everything into one file
 tests/              rules, engine and content checks
 tools/push.sh       commit and push from a Claude session
+tools/with_portraits.py  a copy of Tempo with pictures for the characters, for your own use; the published build keeps its badges
 ```
 
 ## Pushing from a Claude session

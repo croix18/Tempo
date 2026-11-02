@@ -253,6 +253,12 @@ button.list-row:hover { background: var(--surface-2); }
 .avatar.sm { width: 34px; height: 34px; font-size: 16px; }
 .avatar.drawn { background: none; box-shadow: none; overflow: hidden; }
 .avatar.drawn svg { width: 100%; height: 100%; display: block; }
+/* a picture over the badge (your own copy only, see tools/with_portraits.py): a head-and-shoulders crop in the circle */
+.avatar { position: relative; }
+.avatar .photo { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; object-fit: cover; object-position: 50% 18%;
+  background: var(--surface-2); opacity: 0; transition: opacity 0.2s ease; }
+.avatar.has-photo { overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.avatar.has-photo .photo { opacity: 1; }
 .tone-cream { background: #EFE3C4; color: #1B2A4A; }
 .tone-gold { background: #D4AF37; color: #16223D; }
 .tone-navy { background: #1B2A4A; color: #F3E9CF; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); }
@@ -6513,11 +6519,23 @@ var App = (function () {
 var UI = (function () {
   'use strict';
   var h = U.h, C = TempoCore;
-  /* the bot's portrait; a bot without one gets its initial in its tone */
+  /* the bot's portrait; a bot without one gets its initial in its tone. A copy made with tools/with_portraits.py also
+     has pictures (window.TEMPO_PORTRAITS: id -> image link or embedded image): the picture covers the badge once it
+     has loaded, and if it doesn't load the badge simply stays, never a broken image. */
   function avatar(bot, size) {
     var el = h('span', { class: 'avatar ' + (size || '') + ' tone-' + (bot.tone || 'cream'), 'aria-hidden': 'true' });
     if (window.TempoAvatars && TempoAvatars.has(bot.id)) { el.classList.add('drawn'); el.innerHTML = TempoAvatars.svg(bot); }
     else el.textContent = bot.name.replace(/^The /, '').charAt(0);
+    var pic = window.TEMPO_PORTRAITS && TEMPO_PORTRAITS[bot.id];
+    if (typeof pic === 'string' && /^(https:\/\/|data:image\/)/.test(pic)) {
+      var img = document.createElement('img');
+      img.className = 'photo'; img.alt = ''; img.draggable = false;
+      img.loading = 'lazy'; img.decoding = 'async'; img.referrerPolicy = 'no-referrer';
+      img.onload = function () { if (img.naturalWidth) el.classList.add('has-photo'); else img.remove(); };
+      img.onerror = function () { img.remove(); };
+      img.src = pic;
+      el.appendChild(img);
+    }
     return el;
   }
   function stars(n, of) {
