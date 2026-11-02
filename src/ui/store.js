@@ -253,7 +253,18 @@ var Store = (function () {
     return out;
   }
   /* the unfinished game: null unless its start position is legal and every move replays */
-  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'ask', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt'];
+  var CURRENT_KEYS = ['id', 'bot', 'color', 'startFen', 'moves', 'sans', 'coach', 'ask', 'hanging', 'takebacks', 'clock', 'times', 'hints', 'undos', 'warned', 'result', 'reason', 'startedAt', 'rematch', 'talk'];
+  /* what the character has said in this game (src/talk.js): lines said up to the position on the board, in order */
+  var TALK_KEY = /^(arc[1-3]|greeting|quiet_move|capture_pawn|capture_major|opponent_blunder|own_blunder|check|in_check|tactical_success|queen_lost|player_thinking|rematch)$/;
+  function cleanTalk(t, n) {
+    if (!isObj(t)) return null;
+    var log = Array.isArray(t.log) ? t.log.filter(function (x) {
+      return Array.isArray(x) && finite(x[0]) && x[0] === Math.floor(x[0]) && x[0] >= -10 && x[0] <= n && typeof x[1] === 'string' && TALK_KEY.test(x[1]);
+    }).slice(-64).map(function (x) { return x.length > 2 && (typeof x[2] === 'string' || x[2] === null) ? [x[0], x[1], x[2]] : [x[0], x[1]]; }) : [];
+    var heard = {};
+    if (isObj(t.heard)) keysOf(t.heard).forEach(function (k) { if (TALK_KEY.test(k) && !/^arc/.test(k) && t.heard[k]) heard[k] = 1; });
+    return { log: log, heard: heard, think: t.think ? 1 : 0 };
+  }
   function cleanCurrent(c) {
     if (!isObj(c) || c.result != null) return null;
     var C = TempoCore;
@@ -283,6 +294,8 @@ var Store = (function () {
     out.hints = count(c.hints); out.undos = count(c.undos); out.warned = count(c.warned);
     out.result = null; out.reason = null;
     out.startedAt = finite(c.startedAt) ? c.startedAt : Date.now();
+    out.rematch = c.rematch === true;
+    out.talk = bot === c.bot ? cleanTalk(c.talk, c.moves.length) : null;
     return out;
   }
 

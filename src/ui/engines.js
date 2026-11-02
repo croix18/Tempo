@@ -224,7 +224,7 @@ var Engines = (function () {
     return tempo({ cmd: 'bot', fen: game.fen, moves: game.moves, cfg: cfg, seed: seed, ctx: { last: ctx.last || null } }).then(function (r) {
       if (!r || !r.move) return null;
       logIt({ bot: bot.id, ply: game.moves.length, via: 'tempo', kind: r.kind, move: r.move, score: r.score, best: r.best, top: r.top, seed: seed, ms: Date.now() - t0 });
-      return { uci: r.move, via: 'tempo', kind: r.kind, score: r.score, best: r.best };
+      return { uci: r.move, via: 'tempo', kind: r.kind, score: r.score, best: r.best, top: r.top || null };
     });
   }
   /* Stockfish analyses several moves at full skill; TempoBots.sfPick chooses among them for the character */
@@ -235,7 +235,7 @@ var Engines = (function () {
       var pick = TempoBots.sfPick(bot, TempoEngine.posFrom(game.fen, game.moves), r.lines, Math.random, ctx.last);
       if (!pick) return null;
       logIt({ bot: bot.id, ply: game.moves.length, via: 'stockfish', kind: pick.kind, move: pick.uci, score: pick.score, best: pick.best, mate: pick.mate, cands: pick.cands, ms: Date.now() - t0 });
-      return { uci: pick.uci, via: 'stockfish', kind: pick.kind, score: pick.score, best: pick.best, mate: pick.mate };
+      return { uci: pick.uci, via: 'stockfish', kind: pick.kind, score: pick.score, best: pick.best, mate: pick.mate, top: pick.cands && pick.cands[0] ? pick.cands[0].uci : null };
     });
   }
   function botDecide(bot, game, ctx) {

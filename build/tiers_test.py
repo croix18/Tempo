@@ -74,7 +74,8 @@ async def test_promotion(browser):
     await pg.wait_for_selector('.sheet .result-hero', timeout=15000); await pg.wait_for_timeout(300)
     end = await pg.locator('.sheet').inner_text()
     check('the end of the game says the promotion match is open, with a button to play it', 'Promotion match open' in end and await pg.locator('.sheet button', has_text='Play Among Us Crewmate').count() == 1, end)
-    check('…and the character says its losing line', 'The little castle fell over.' in end, end)
+    lost = await pg.evaluate("TempoTalk.voice('ralph-wiggum').lines.defeat")
+    check('…and the character says its losing line', lost in end, end)
     check('promotion: no page errors', not errors, errors[:3])
     await ctx.close()
 
@@ -113,14 +114,14 @@ async def test_characters(browser):
       out.n = B.BOTS.length; out.tiers = B.TIERS.map(t => t.members.length); out.bosses = B.TIERS.map(t => t.boss);
       const svgs = B.BOTS.map(b => TempoAvatars.svg(b)); out.svg = svgs.every(s => s.indexOf('<svg') === 0) && new Set(svgs).size === svgs.length;
       out.old = !!TempoAvatars.svg(B.find('pip')) && B.find('pip').name === 'Pip';
-      out.lines = B.BOTS.every(b => b.lines.hello && b.lines.win && b.lines.lose && b.lines.tactic && b.sig.length);
+      out.lines = B.BOTS.every(b => { const v = TempoTalk.voice(b.id); return v && TempoTalk.EVENTS.every(e => v.lines[e]) && v.beats.length === 3; });
       out.books = B.BOTS.every(b => b.book.w.length && b.book.e4.length && b.book.d4.length && b.book.w.concat(b.book.e4, b.book.d4).every(f => TempoBook.has(f)));
       out.sf = B.BOTS.filter(b => b.sf).map(b => b.id).length;
       return out; })()""")
     check('61 characters: six tiers of ten and the Joker', r['n'] == 61 and r['tiers'] == [10] * 6, r)
     check('each tier’s promotion match is its top character', r['bosses'] == ['among-us-crewmate', 'bowser', 'freddy-fazbear', 'princess-peach', 'dr-eggman', 'homer-simpson'], r['bosses'])
     check('every character has its own badge, and the old ladder bots keep their portraits', r['svg'] and r['old'], r)
-    check('every character has its lines and signature moments', r['lines'])
+    check('every character has its fifteen lines and its three-beat story', r['lines'])
     check('every character’s opening families exist', r['books'])
     check('the Masters, the Legends and the Joker play with Stockfish', r['sf'] == 21, r['sf'])
     # opening books: side-aware, and they never force a move after you leave them
@@ -139,14 +140,13 @@ async def test_characters(browser):
     check('a position the book doesn’t know leaves the book', b['deviated'] is None, b)
     check('the Chaos Crew drop their book after a few moves', b['patrickDeep'] is None, b)
     check('a game from another position never uses the book', b['fromFen'] is None, b)
-    # signature moments come from the board: a knight fork, a retreat from a safe square, a Scholar's Mate try
-    m = await pg.evaluate("""(() => { const C = TempoCore, mk = (fen, u) => { const p = new C.Pos(fen); return Play._moments(p, p.parseMove(u), { via: 'tempo', score: 0, best: 0 }, { last: null, prevScore: null, forcing: 0, lastEv: {}, said: 0, lastSaid: -99, genericAt: -99 }, null); };
-      return { fork: mk('r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', 'b5c7'), retreat: mk('4k3/8/8/8/3B4/8/8/4K3 w - - 0 1', 'd4b2'),
-        scholar: mk('rnbqkbnr/pppp1ppp/8/4p3/2B1P3/8/PPPP1PPP/RNBQK1NR w KQkq - 1 3', 'd1h5'), quiet: mk('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'g1f3') }; })()""")
-    check('a knight fork of king and rook is a fork', m['fork'].get('fork') == 1 and m['fork'].get('check') == 1, m['fork'])
-    check('moving a piece nothing attacked back toward home is a retreat', m['retreat'].get('retreat') == 1, m['retreat'])
-    check('an early queen move at f7 is a Scholar’s Mate try', m['scholar'].get('scholar') == 1, m['scholar'])
-    check('a quiet developing move is none of these', not any(m['quiet'].get(k) for k in ('fork', 'retreat', 'scholar', 'sac', 'check')), m['quiet'])
+    # a tactic line needs the fork on the board and the referee's word that it works
+    m = await pg.evaluate("""(() => { const C = TempoCore, T = TempoTalk, ralph = TempoBots.byId('ralph-wiggum');
+      const g = () => ({ id: 'tt' + Math.random(), color: 'b', startFen: 'r3k3/8/8/1N6/8/8/8/4K3 w - - 0 1', moves: ['b5c7'] });
+      const yes = T.bot(g(), ralph, { kind: 'search' }, { prev: { v: 0, mat: 0, engine: 'stockfish' }, now: { v: 420, mat: 0, engine: 'stockfish' } }, { chat: 'some', rng: () => 0.99 });
+      const no = T.bot(g(), ralph, { kind: 'search' }, {}, { chat: 'some', rng: () => 0.99 });
+      return { yes: yes && yes.key, no: no && no.key }; })()""")
+    check('a knight fork the referee backs gets the tactic line; without the referee, no claim', m['yes'] == 'tactical_success' and m['no'] != 'tactical_success', m)
     # chat: Off is silent; Some says hello
     await pg.evaluate("Store.state.settings.chat = 'off'; Store.state.settings.botChat = false; Store.touch('settings'); App.go('play')"); await pg.wait_for_timeout(300)
     await pg.locator('.char', has_text='Dory').first.click(); await pg.wait_for_timeout(300)
@@ -156,7 +156,8 @@ async def test_characters(browser):
     await pg.locator('.char', has_text='Dory').first.click(); await pg.wait_for_timeout(300)
     await pg.locator('.sheet button', has_text='Start game').click(); await pg.wait_for_timeout(900)
     said = await pg.evaluate("document.querySelector('.player .bubble').textContent")
-    check('with chat off the character says nothing; with Some it says hello', silent and 'Are we playing chess?' in said, (silent, said))
+    hello = await pg.evaluate("TempoTalk.voice('dory').lines.greeting")
+    check('with chat off the character says nothing; with Some it says hello', silent and hello in said, (silent, said))
     await pg.evaluate("Store.state.current = null; Store.touch(); App.go('prefs')"); await pg.wait_for_timeout(300)
     await pg.locator('.v-prefs .seg button', has_text='Lots').click(); await pg.wait_for_timeout(200)
     check('Preferences sets the chat level', await pg.evaluate("Store.state.settings.chat === 'lots' && Store.state.settings.botChat === true"))
@@ -164,6 +165,7 @@ async def test_characters(browser):
     await pg.evaluate("Store.state.settings.unlockAll = true; App.go('play')"); await pg.wait_for_timeout(300)
     await pg.locator('.tier-fold', has_text='The Contenders').click(); await pg.wait_for_timeout(450)
     await pg.locator('#tier-B .char', has_text='Wednesday').click(); await pg.wait_for_timeout(400)
+    await pg.locator('.sheet .seg button', has_text='How they play').click(); await pg.wait_for_timeout(200)
     sheet = await pg.locator('.sheet').inner_text()
     check('the character sheet shows tier, rating, plan, tricks, weak spot and openings', all(x in sheet for x in ['Tier B', 'about 1700', 'How Wednesday Addams plays', 'Favorite tricks', 'Weak spot', 'Against 1.e4: French Defense']), sheet[:300])
     check('…and the radar of its seven traits', await pg.evaluate("document.querySelectorAll('.sheet svg.radar text.lbl').length === 7 && /Tricks 95/.test(document.querySelector('.sheet svg.radar').getAttribute('aria-label'))"))

@@ -396,8 +396,15 @@ function moves(p, names) {
     .sort(function (a, b) { return b.w - a.w; });
 }
 function has(name) { return !!FAM[name]; }
+/* is p a book position (some family has a move from it); with uci, is that move one of the book's moves there */
+function known(p, uci) {
+  build();
+  var at = index[key(p)]; if (!at) return false;
+  if (!uci) return true;
+  return Object.keys(at).some(function (n) { return !!at[n][uci]; });
+}
 
-var Book = { FAM: FAM, moves: moves, expand: expand, has: has, key: key, build: build, errors: function () { build(); return errors.slice(); } };
+var Book = { FAM: FAM, moves: moves, expand: expand, has: has, known: known, key: key, build: build, errors: function () { build(); return errors.slice(); } };
 G.TempoBook = Book;
 if (typeof module !== 'undefined' && module.exports) module.exports = Book;
 })(typeof self !== 'undefined' ? self : (typeof globalThis !== 'undefined' ? globalThis : this));

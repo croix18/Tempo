@@ -26,11 +26,20 @@ def safe_json(s): return s.replace('</', '<\\/')
 
 b64 = {k: rd('build/%s.b64' % k).strip() for k in ['sfjs', 'sfwasm', 'puzzles', 'openings', 'dmsans', 'dmserif']}
 
-# the characters: content/characters.json goes into the roster script, which the page and the engine worker both load
-profiles = json.dumps(json.load(open(os.path.join(ROOT, 'content/characters.json'), encoding='utf-8')), ensure_ascii=True, separators=(',', ':'))
+# the characters: content/characters.json goes into the roster script, which the page and the engine worker both load,
+# except what they say and the story behind them, which only the page needs (src/talk.js reads it from d-voices)
+VOICE_FIELDS = ['franchise', 'canon_background', 'tempo_assessment', 'character_interpretation', 'on_board_personality', 'voice_direction',
+                'running_bit_description', 'dialogue', 'dialogue_arcs', 'dialogue_style', 'dialogue_requires', 'arc_requires', 'editorial_note']
+chars = json.load(open(os.path.join(ROOT, 'content/characters.json'), encoding='utf-8'))
+voices = {'profiles': {p['id']: {k: p[k] for k in VOICE_FIELDS if k in p} for p in chars['profiles']}}
+for p in chars['profiles']:
+    for k in VOICE_FIELDS: p.pop(k, None)
+chars.pop('voice_pack', None)
+profiles = json.dumps(chars, ensure_ascii=True, separators=(',', ':'))
+voices_json = json.dumps(voices, ensure_ascii=True, separators=(',', ':'))
 core = rd('src/core.js'); book = rd('src/book.js'); engine = rd('src/engine.js')
 bots = 'var TEMPO_PROFILES = ' + safe_json(profiles) + ';\n' + rd('src/bots.js')
-ui_order = ['inflate.js', 'ui/pieces.js', 'ui/avatars.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/play.js',
+ui_order = ['inflate.js', 'ui/pieces.js', 'ui/avatars.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'talk.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/play.js',
             'ui/clock.js', 'ui/puzzles.js', 'ui/learn.js', 'ui/openings.js', 'ui/train.js', 'ui/progress.js']
 ui = '\n;\n'.join(rd('src/' + f) for f in ui_order)
 boot = """
@@ -70,6 +79,7 @@ body = """<div id="app"></div>
 <script type="text/plain" id="d-openings">%(openings)s</script>
 <script type="application/json" id="d-lessons">%(lessons)s</script>
 <script type="application/json" id="d-reps">%(reps)s</script>
+<script type="application/json" id="d-voices">%(voices)s</script>
 <script id="src-core">%(core)s</script>
 <script id="src-book">%(book)s</script>
 <script id="src-bots">%(bots)s</script>
@@ -77,7 +87,7 @@ body = """<div id="app"></div>
 <script>%(ui)s
 %(boot)s</script>
 """ % dict(sfjs=b64['sfjs'], sfwasm=b64['sfwasm'], puzzles=b64['puzzles'], openings=b64['openings'],
-           lessons=safe_json(lessons_json), reps=safe_json(reps_json), core=core, book=book, bots=bots, engine=engine, ui=ui, boot=boot)
+           lessons=safe_json(lessons_json), reps=safe_json(reps_json), voices=safe_json(voices_json), core=core, book=book, bots=bots, engine=engine, ui=ui, boot=boot)
 
 OUT = os.environ.get('TEMPO_OUT') or os.path.join(ROOT, 'dist')  # a separate output folder lets parallel work build without clashing
 os.makedirs(OUT, exist_ok=True)
