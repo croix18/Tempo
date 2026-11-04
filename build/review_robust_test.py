@@ -1,5 +1,7 @@
-"""Game review robustness: good moves aren't called mistakes, the mistake navigator keeps the board in view,
-Show best move uses the position before the mistake, retry grading, stale engine answers, empty games and long names.
+"""Game review robustness: good moves aren't called mistakes; the summary comes first (the coach's verdict, both
+accuracies, Start review in view); Next and its partner go through the key moments and keep the board in view; your
+own mistakes keep the better move for you to find; Show the capture plays out the reply; Best move uses the position
+before the mistake; retry grading; Fix your mistakes; stale engine answers; empty games and long names.
 
     TEMPO_URL=file:///path/to/Tempo.html python3 build/review_robust_test.py
 """
@@ -101,7 +103,7 @@ async def test_opera(browser):
     combo = [(i, k) for i, k in white if i >= 18 and k in FLAGGED]
     check('opera: the winning combination (10.Nxb5 to 17.Rd8#) has no flagged move', not combo, combo or cls[18::2])
     await go(pg, 29)
-    chip = await pg.evaluate("(document.querySelector('.rv-card .rv-chip') || {}).innerText || ''")
+    chip = await pg.evaluate("(document.querySelector('.rv-card .rv-kind-label') || {}).innerText || ''")
     check('opera: the card for 15.Bxd7+ calls it good', chip.strip() not in ('Inaccuracy', 'Mistake', 'Blunder', 'Missed win') and chip.strip(), chip)
     check('opera: no page errors', not errors, errors[:3])
     await ctx.close()
@@ -113,12 +115,47 @@ async def test_phone(browser):
     await pg.evaluate("Review.openGame('rv-pip')")
     await wait_review(pg)
     s = await pg.evaluate("Review._state()")
-    keys = s['keyPlies']
+    keys, moments = s['keyPlies'], s['moments']
     check('pip: 4.Bg5 is a blunder', s['cls'][BG5 - 1] == 'blunder', s['cls'][BG5 - 1])
     check('pip: at least two mistakes to fix', len(keys) >= 2 and BG5 in keys, keys)
-    check('pip: review opens on the first mistake', s['ply'] == keys[0], s['ply'])
-    txt = await card_text(pg)
-    check('pip: navigator says "Mistake 1 of N"', ('Mistake 1 of %d' % len(keys)) in txt, txt[:40])
+    check('pip: your mistakes are key moments', all(k in moments for k in keys), (keys, moments))
+
+    # the summary first: the coach's verdict, both accuracies, and Start review on screen
+    check('summary: the review opens on the summary, at the final position', s['stage'] == 'recap' and s['ply'] == len(PIP), (s['stage'], s['ply']))
+    recap = (await pg.evaluate("(document.querySelector('.rv-recap:not([hidden])') || {}).innerText || ''")).replace('\n', ' ')
+    check('summary: the coach names the costliest move', re.search(r'(costliest move was|were (winning|ahead) before) \d+\.', recap), recap[:200])
+    check('summary: both accuracies', 'Your accuracy' in recap and recap.count('%') >= 2, recap[:200])
+    gb = await pg.locator('.rv-go').bounding_box()
+    check('summary: Start review is on screen without scrolling', gb and gb['y'] >= 0 and gb['y'] + gb['height'] <= 844, gb)
+    fix = await pg.locator('.rv-fix').inner_text()
+    check('summary: Fix your mistakes counts them', ('Fix your %d mistakes' % len(keys)) in fix, fix)
+    check('summary: the board’s step buttons wait for the walk through', not await pg.locator('.rv-controls').is_visible())
+
+    # a move named in the verdict opens it
+    await pg.locator('.rv-verdict .rv-link').first.click(); await pg.wait_for_timeout(900)
+    s = await pg.evaluate("Review._state()")
+    check('summary: a move in the verdict opens the walk through at that move', s['stage'] == 'walk' and s['ply'] in keys, (s['stage'], s['ply']))
+    await pg.locator('.rv-to-summary').click(); await pg.wait_for_timeout(700)
+    check('Summary goes back to the summary', (await pg.evaluate("Review._state()"))['stage'] == 'recap')
+
+    # Start review: the first key moment, and Next goes through them in order
+    await pg.locator('.rv-go').click(); await pg.wait_for_timeout(1000)
+    s = await pg.evaluate("Review._state()")
+    check('start review: the first key moment', s['stage'] == 'walk' and s['ply'] == moments[0], (s['stage'], s['ply'], moments))
+    check('start review: "Key moment 1 of N"', ('Key moment 1 of %d' % len(moments)) in await card_text(pg), (await card_text(pg))[:60])
+    await pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)"); await pg.wait_for_timeout(400)
+    await pg.locator('.rv-next').click(); await pg.wait_for_timeout(1200)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('next: the second key moment', s['ply'] == moments[1], (s['ply'], moments))
+    check('next: the board is in view after the jump', board_in_view(b), b)
+    check('next: the counter follows', ('Key moment 2 of %d' % len(moments)) in await card_text(pg))
+    nb = await pg.locator('.rv-next').bounding_box()
+    check('next: Next stays on screen', nb and nb['y'] + nb['height'] <= 844 + 1, nb)
+    await pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)"); await pg.wait_for_timeout(400)
+    await pg.locator('.rv-prev').click(); await pg.wait_for_timeout(1200)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('previous: back to the first key moment', s['ply'] == moments[0], s['ply'])
+    check('previous: the board is in view', board_in_view(b), b)
 
     # wording from the right side's view
     await go(pg, BG5 + 1)  # Pip's 4...c5, which leaves the bishop on g5 alone
@@ -128,34 +165,35 @@ async def test_phone(browser):
         check('pip: the opponent’s miss names Pip and your piece', re.search(r'Pip missed fxg5, which wins your bishop', txt), txt[:160])
     check('pip: no "your opponent had just made a mistake" template', 'off the hook' not in txt, txt[:160])
 
-    # tap targets on a touch screen
-    sizes = await pg.evaluate("""() => {
-      const q = (s) => Array.from(document.querySelectorAll(s)).map(e => { const r = e.getBoundingClientRect(); return [s, Math.round(r.width), Math.round(r.height)]; });
-      return [].concat(q('.rv-nav button'), q('.rv-controls button'), q('.rv-card .rv-actions button')); }""")
+    # your own mistake: what it allows, but the better move is yours to find
     await go(pg, BG5)
-    sizes += await pg.evaluate("""() => Array.from(document.querySelectorAll('.rv-card .rv-actions button')).map(e => { const r = e.getBoundingClientRect(); return [e.innerText, Math.round(r.width), Math.round(r.height)]; })""")
+    txt = await card_text(pg)
+    check('your blunder: the coach doesn’t give the better move away', 'Best was' not in txt and 'Find a better move' in txt and 'Best move' in txt, txt[:220])
+
+    # tap targets on a touch screen
+    sizes = await pg.evaluate("""() => Array.from(document.querySelectorAll('.rv-foot button, .rv-controls button, .rv-card .rv-actions button')).map(e => { const r = e.getBoundingClientRect(); return [e.innerText || e.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; })""")
     small = [x for x in sizes if x[2] < 44 or x[1] < 44]
-    check('touch: navigator, step arrows, Find a better move and Show best move are at least 44px', not small and len(sizes) >= 10, small or len(sizes))
+    check('touch: Next, the step arrows, Find a better move, Show the capture and Best move are at least 44px', not small and len(sizes) >= 9, small or sizes)
 
-    # navigator from further down the page: the board comes back into view
-    await go(pg, keys[0])
-    await pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)"); await pg.wait_for_timeout(400)
-    await pg.locator('.rv-nav button[aria-label="Next mistake"]').click(); await pg.wait_for_timeout(1200)
-    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
-    check('navigator: next jumps to mistake 2', s['ply'] == keys[1], s['ply'])
-    check('navigator: board is in view after the jump', board_in_view(b), b)
-    check('navigator: label follows', ('Mistake 2 of %d' % len(keys)) in await card_text(pg))
-    await pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)"); await pg.wait_for_timeout(400)
-    await pg.locator('.rv-nav button[aria-label="Previous mistake"]').click(); await pg.wait_for_timeout(1200)
-    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
-    check('navigator: previous jumps back', s['ply'] == keys[0], s['ply'])
-    check('navigator: board in view after previous', board_in_view(b), b)
+    # Show the capture: the reply that takes the bishop, played on the board
+    idea = pg.locator('.rv-card .rv-actions button', has_text='Show the')
+    check('your blunder: a button shows what it allows', await idea.count() == 1, await idea.count())
+    if await idea.count():
+        label = (await idea.inner_text()).strip()
+        await idea.click()
+        await pg.locator('.rv-card button', has_text='Back to the move').wait_for(timeout=15000)
+        g5 = await pg.evaluate("document.querySelector('.v-review .board').__board.pos.b[TempoCore.sqIndex('g5')]")
+        line = await pg.evaluate("(document.querySelector('.rv-card .rv-playing') || {}).innerText || ''")
+        check('show the capture: Pip’s pawn takes the bishop on g5', label == 'Show the capture' and g5 == -1 and 'xg5' in line, (label, g5, line))
+        await pg.locator('.rv-card button', has_text='Back to the move').click(); await pg.wait_for_timeout(700)
+        s = await pg.evaluate("Review._state()")
+        check('show the capture: Back to the move', s['ply'] == BG5 and s['mode'] == 'game', (s['ply'], s['mode']))
 
-    # Show best move: the position before 4.Bg5, the best move in green, the line, no badge
+    # Best move: the position before 4.Bg5, the best move in green, the line, no badge
     await go(pg, BG5)
     s = await pg.evaluate("Review._state()")
     best = s['evals'][BG5 - 1]['best']
-    await pg.locator('.rv-card button', has_text='Show best move').click(); await pg.wait_for_timeout(700)
+    await pg.locator('.rv-card button', has_text='Best move').click(); await pg.wait_for_timeout(700)
     b = await pg.evaluate(BOARD)
     before_fen = await pg.evaluate(FEN_AT, BG5 - 1)
     check('show best: board shows the position before the mistake', b['fen'] == before_fen, b['fen'])
@@ -163,6 +201,7 @@ async def test_phone(browser):
     check('show best: no badge on the board', not b['badge'], b['badge'])
     txt = await card_text(pg)
     check('show best: says the best move and the line', 'Best was' in txt and 'The line goes' in txt, txt[:200])
+    check('show best: then the lesson and the puzzles for it', 'Work on this' in txt, txt[-120:])
 
     # Find a better move: the best move
     best_san = await pg.evaluate("(a) => { const p = new TempoCore.Pos(); for (const u of a.pre) p.make(p.parseMove(u)); return p.san(p.parseMove(a.best)); }", {'pre': PIP[:BG5 - 1], 'best': best})
@@ -204,8 +243,61 @@ async def test_phone(browser):
     await pg.wait_for_timeout(4000)
     s = await pg.evaluate("Review._state()"); txt = await card_text(pg)
     check('race: next-move tap before the verdict lands on the next move', s['ply'] == BG5 and s['mode'] == 'game' and not re.search(r'Yes, |is safe, but|doesn’t work', txt), (s['ply'], s['mode'], txt[:80]))
+
+    # Fix your mistakes: from the summary, straight into finding a better move for each, in order
+    await pg.locator('.rv-to-summary').click(); await pg.wait_for_timeout(700)
+    await pg.locator('.rv-fix').click(); await pg.wait_for_timeout(900)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('fix your mistakes: the first mistake, your turn to find a better move', s['practice'] == 0 and s['mode'] == 'retry' and s['ply'] == keys[0] and b['movable'], (s['practice'], s['mode'], s['ply'], b['movable']))
+    check('fix your mistakes: "Mistake 1 of N"', ('Mistake 1 of %d' % len(keys)) in await card_text(pg), (await card_text(pg))[:80])
+    await pg.locator('.rv-next', has_text='Next mistake').click(); await pg.wait_for_timeout(900)
+    s = await pg.evaluate("Review._state()")
+    check('fix your mistakes: Next mistake goes to the second', s['practice'] == 1 and s['mode'] == 'retry' and s['ply'] == keys[1], (s['practice'], s['mode'], s['ply']))
+
+    # the end of the walk through: Finish, then back to the summary
+    await pg.evaluate("(n) => { const b = document.querySelectorAll('.v-review .moves .mv')[n - 1]; b.click(); }", moments[-1]); await pg.wait_for_timeout(700)
+    fin = pg.locator('.rv-next', has_text='Finish')
+    check('the last key moment: Next becomes Finish', await fin.count() == 1)
+    if await fin.count():
+        await fin.click(); await pg.wait_for_timeout(700)
+        txt = await card_text(pg)
+        check('finish: that’s every key moment, and your mistakes to fix', 'That’s every key moment.' in txt and 'Fix your' in txt, txt[:200])
+        await pg.locator('.rv-next', has_text='Back to the summary').click(); await pg.wait_for_timeout(700)
+        check('finish: Back to the summary', (await pg.evaluate("Review._state()"))['stage'] == 'recap')
     check('phone: no page errors', not errors, errors[:3])
     await ctx.close()
+
+
+async def test_loading(browser):
+    """While the engine reads the game: a gold scanner over the board, nervous pieces, a silly line, the progress, the
+    graph drawing itself and the board following the engine. When it's done, all of that goes. Reduced motion: no scanner."""
+    for reduce in (False, True):
+        tag = 'reduced motion: ' if reduce else 'loading: '
+        ctx = await browser.new_context(reduced_motion='reduce' if reduce else 'no-preference', **PHONE)
+        pg = await ctx.new_page(); errors = []
+        pg.on('pageerror', lambda e: errors.append(str(e)))
+        await pg.goto(URL)
+        await pg.wait_for_function("window.App && App.name && (Engines.status === 'ready' || Engines.status === 'failed')", timeout=30000)
+        await pg.evaluate(ADD_GAME, {'moves': PIP, 'id': 'rv-load', 'result': '1-0'})
+        await pg.evaluate("Review.openGame('rv-load')")
+        await pg.wait_for_function("() => { const g = document.querySelector('.rv-live path.eg-white'); return g && g.getAttribute('d').split('L').length > 4; }", timeout=60000)
+        r = await pg.evaluate("""() => ({ beam: !!document.querySelector('.rv-beam'), beamShown: !!document.querySelector('.rv-beam') && getComputedStyle(document.querySelector('.rv-beam')).display !== 'none',
+          hop: getComputedStyle(document.querySelector('.v-review .b-pcs .pc')).animationName, silly: (document.querySelector('.rv-silly') || {}).textContent || '',
+          prog: (document.querySelector('#rv-progress') || {}).textContent || '', fen: document.querySelector('.v-review .board').__board.pos.fen() })""")
+        start = await pg.evaluate("new TempoCore.Pos().fen()")
+        if not reduce:
+            check(tag + 'a gold scanner sweeps the board and the pieces hop', r['beamShown'] and r['hop'] == 'rv-hop', r)
+            check(tag + 'a silly line and the real progress', len(r['silly']) > 8 and 'move' in r['prog'], (r['silly'], r['prog']))
+            check(tag + 'the board follows the engine through the game', r['fen'] != start, r['fen'])
+        else:
+            check(tag + 'no scanner and no hopping', not r['beamShown'] and r['hop'] == 'none', r)
+            check(tag + 'the silly line and the progress still show', len(r['silly']) > 8 and 'move' in r['prog'], (r['silly'], r['prog']))
+        await wait_review(pg)
+        await pg.wait_for_timeout(900)
+        r = await pg.evaluate("() => ({ beam: !!document.querySelector('.rv-beam'), scanning: !!document.querySelector('.rv-scanning'), live: !!document.querySelector('.rv-live'), silly: !!document.querySelector('.rv-silly') })")
+        check(tag + 'when it’s done: the scanner, the silly lines and the drawing graph are gone', not any(r.values()), r)
+        check(tag + 'no page errors', not errors, errors[:3])
+        await ctx.close()
 
 
 async def test_empty(browser):
@@ -236,8 +328,9 @@ async def test_long_names(browser):
     sw = await pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")
     check('long names: no horizontal scroll at 390px while reviewing', sw[0] <= sw[1], sw)
     await wait_review(pg)
+    recap = await pg.evaluate("(document.querySelector('.rv-recap:not([hidden])') || {}).innerText || ''")
     summary = await pg.evaluate("(() => { const s = document.querySelector('.rv-summary'); return s && !s.hidden ? s.innerText : ''; })()")
-    check('summary: accuracy and every kind of move are on screen, blunders included', 'Your accuracy' in summary and 'Blunder' in summary and 'Book' in summary and 'Brilliant' in summary, summary[:160])
+    check('summary: accuracy, and every kind of move (blunders included), are on screen', 'Your accuracy' in recap and 'Blunder' in summary and 'Book' in summary and 'Brilliant' in summary, (recap[:80], summary[:160]))
     for p in range(1, 8):
         await go(pg, p)
         sw = await pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")
@@ -269,7 +362,9 @@ async def test_repertoire(browser):
     await pg.locator('.rv-opening button', has_text='Show the move').click(); await pg.wait_for_timeout(500)
     card = await card_text(pg)
     check('repertoire: the move card says the move left the line', 'This left your Giuoco Piano line' in card, card[:200])
-    await pg.locator('.rv-opening button', has_text='Drill this line').click(); await pg.wait_for_timeout(800)
+    s = await pg.evaluate("Review._state()")
+    check('repertoire: where you left your line is a key moment', s['ply'] in s['moments'], (s['ply'], s['moments']))
+    await pg.locator('.rv-card button', has_text='Drill this line').click(); await pg.wait_for_timeout(800)
     where = await pg.evaluate("[App.name, (document.querySelector('.view h1') || {}).innerText || '']")
     check('repertoire: Drill this line opens that line\'s drill', where[0] == 'openings' and 'Giuoco Piano' in where[1], where)
     check('repertoire: no page errors', not errors, errors[:3])
@@ -277,10 +372,10 @@ async def test_repertoire(browser):
 
 
 async def main():
-    which = sys.argv[1:] or ['opera', 'phone', 'empty', 'long', 'repertoire']
+    which = sys.argv[1:] or ['opera', 'phone', 'loading', 'empty', 'long', 'repertoire']
     async with async_playwright() as p:
         browser = await p.chromium.launch(executable_path=CHROME, args=['--no-sandbox'])
-        for name, fn in [('opera', test_opera), ('phone', test_phone), ('empty', test_empty), ('long', test_long_names), ('repertoire', test_repertoire)]:
+        for name, fn in [('opera', test_opera), ('phone', test_phone), ('loading', test_loading), ('empty', test_empty), ('long', test_long_names), ('repertoire', test_repertoire)]:
             if name not in which: continue
             try:
                 await fn(browser)

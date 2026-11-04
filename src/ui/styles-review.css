@@ -1,4 +1,4 @@
-/* Review: the mistake navigator and move card under the board, the graph, the move list and the details. */
+/* Review: the summary, then the coach card for each move under the board, the graph, the move list and the details. */
 :root {
   --rv-white: #F4EFE4;          /* White's share of the graph and eval bar */
   --rv-black: #22314F;          /* Black's share */
@@ -54,27 +54,119 @@
 .v-review .rv-evalbar.flip { background: var(--rv-white); }
 .v-review .rv-evalbar.flip i { background: var(--rv-black); }
 
-/* the card under the board */
-.rv-card { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 16px; min-height: 160px; } /* tall enough for an ordinary move, so stepping through quiet moves moves nothing below it */
-.rv-nav { display: flex; align-items: center; gap: 6px; margin: -4px -8px 0; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
-.rv-nav .btn { width: 40px; min-height: 40px; flex: none; color: var(--ink); }
-.rv-nav .btn[disabled] { opacity: 0.3; }
-.rv-nav-text { flex: 1; min-width: 0; text-align: center; font-weight: 600; font-size: 14.5px; }
-.rv-body { display: flex; flex-direction: column; gap: 10px; }
-.rv-move { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
-.rv-chip { background: var(--surface-2); color: var(--ink); font-size: 13px; padding: 4px 11px 4px 9px; }
-.rv-chip .dot-k { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex: none; }
+/* ---------- the summary: the coach's verdict, both accuracies, and Start review ---------- */
+.rv-recap { display: flex; flex-direction: column; gap: 16px; padding: 18px 18px 18px; }
+.rv-recap[hidden], .rv-card[hidden], .rv-extra[hidden] { display: none; }
+.rv-coach { display: flex; gap: 14px; align-items: flex-start; }
+.rv-coach-mark { width: 34px; height: 34px; border-radius: 10px; margin-top: 1px; }
+.rv-verdict { margin: 0; font-size: 17px; line-height: 1.5; color: var(--ink); }
+div.rv-verdict { font-weight: 600; }
+.rv-link { border: 0; background: none; padding: 0 2px; margin: 0 -1px; font: inherit; font-weight: 700; color: inherit; cursor: pointer; border-radius: 4px;
+  text-decoration: underline; text-decoration-color: var(--gold-fill); text-decoration-thickness: 2px; text-underline-offset: 4px; }
+.rv-link:hover { background: var(--gold-wash); }
+.rv-acc-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 14px 0 2px; border-top: 1px solid var(--line); }
+.rv-acc { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.rv-acc > div { display: flex; flex-direction: column; min-width: 0; }
+.rv-acc .label { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rv-acc b { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.1; color: var(--ink); }
+.rv-acc-opp { flex-direction: row-reverse; text-align: right; }
+.rv-acc .avatar { flex: none; }
+.rv-start { display: flex; flex-direction: column; gap: 10px; }
+.rv-start .btn { width: 100%; }
+.rv-go { min-height: 54px; font-size: 17px; gap: 8px; }
+.rv-go .ic { order: 2; }
+.rv-fix { min-height: 48px; }
+.rv-fix .ic { color: var(--gold); }
+.rv-prog { margin-top: 4px; }
+.rv-recap .meter { margin-top: 2px; }
+.rv-extra { display: flex; flex-direction: column; gap: 12px; }
+
+/* ---------- while the engine reads the game: the fun part ---------- */
+/* a gold scanner sweeps the board */
+.rv-beam { position: absolute; left: 0; right: 0; top: -18%; height: 18%; z-index: 5; pointer-events: none;
+  background: linear-gradient(to bottom, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, 0.22) 62%, rgba(255, 232, 160, 0.95) 95%, rgba(212, 175, 55, 0) 100%);
+  animation: rv-beam 1.9s cubic-bezier(.45, 0, .55, 1) infinite; }
+@keyframes rv-beam { from { top: -18%; } to { top: 100%; } }
+/* the pieces hop about nervously while they're judged (translate, so it never fights the board's own moves) */
+.rv-scanning .b-pcs .pc { animation: rv-hop 1.15s ease-in-out infinite; }
+.rv-scanning .b-pcs .pc:nth-child(2n) { animation-delay: -0.35s; }
+.rv-scanning .b-pcs .pc:nth-child(3n) { animation-delay: -0.7s; }
+.rv-scanning .b-pcs .pc:nth-child(5n) { animation-delay: -0.95s; animation-duration: 0.95s; }
+.rv-scanning .b-pcs .pc:nth-child(7n) { animation-delay: -0.2s; animation-duration: 1.35s; }
+@keyframes rv-hop { 0%, 55%, 100% { translate: 0 0; } 25% { translate: 0 -9%; } 40% { translate: 0 1.5%; } }
+/* when it's done, everyone jumps at once: ta-da */
+.rv-tada .b-pcs .pc { animation: rv-tada 0.7s cubic-bezier(.3, 1.5, .5, 1) both; }
+@keyframes rv-tada { 0% { translate: 0 0; } 40% { translate: 0 -20%; } 100% { translate: 0 0; } }
+/* Tempo's mark thinks: its two gold squares chase each other round */
+.rv-coach-mark.rv-thinking::before, .rv-coach-mark.rv-thinking::after { animation: rv-chase 1.6s cubic-bezier(.6, 0, .4, 1) infinite; }
+.rv-coach-mark.rv-thinking::after { animation-delay: -0.8s; }
+@keyframes rv-chase { 0%, 100% { left: 0; top: 0; } 25% { left: 50%; top: 0; } 50% { left: 50%; top: 50%; } 75% { left: 0; top: 50%; } }
+.rv-silly { font-size: 15.5px; line-height: 1.45; color: var(--ink); margin-top: 3px; min-height: 2.9em; }
+.rv-silly.in { animation: rv-silly-in 0.35s ease-out both; }
+@keyframes rv-silly-in { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+/* the graph draws itself as the engine reads */
+.rv-live { background: var(--surface-2); border-radius: 10px; }
+.rv-live .evalgraph { cursor: default; }
+.rv-recap.rv-fresh > * { animation: rv-silly-in 0.4s ease-out both; }
+.rv-recap.rv-fresh > :nth-child(2) { animation-delay: 0.08s; }
+.rv-recap.rv-fresh > :nth-child(3) { animation-delay: 0.16s; }
+@media (prefers-reduced-motion: reduce) {
+  .rv-beam { display: none; }
+  .rv-scanning .b-pcs .pc, .rv-tada .b-pcs .pc, .rv-coach-mark.rv-thinking::before, .rv-coach-mark.rv-thinking::after, .rv-silly.in, .rv-recap.rv-fresh > * { animation: none; }
+}
+
+/* ---------- the coach card: where you are, this move, and Next ---------- */
+.rv-card { display: flex; flex-direction: column; gap: 12px; padding: 10px 16px 14px; }
+.rv-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 -8px; }
+.rv-to-summary { color: var(--ink-2); padding: 0 10px 0 6px; gap: 4px; }
+.rv-to-summary .ic { width: 18px; height: 18px; }
+.rv-where { font-size: 13.5px; font-weight: 600; color: var(--ink-2); font-variant-numeric: tabular-nums; padding-right: 8px; }
+.rv-body { display: flex; flex-direction: column; gap: 10px; min-height: 104px; } /* tall enough for an ordinary move, so stepping through quiet moves moves nothing below it */
+.rv-move { display: flex; align-items: center; gap: 12px; }
+.rv-k { width: 34px; height: 34px; border-radius: 50%; flex: none; display: flex; align-items: center; justify-content: center; color: #fff;
+  font-weight: 800; font-size: 14px; letter-spacing: -0.02em; text-shadow: 0 1px 1px rgba(0, 0, 0, 0.28); }
+.rv-move-text { display: flex; flex-direction: column; min-width: 0; }
+.rv-kind-label { font-weight: 700; font-size: 17px; line-height: 1.25; }
 .rv-who { font-size: 13.5px; color: var(--ink-2); }
 .rv-text { font-size: 15.5px; line-height: 1.5; margin: 0; }
 .rv-line { font-size: 14px; color: var(--ink-2); margin: 0; }
+.rv-playing { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; min-height: 1.5em; }
 .rv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .rv-actions:empty { display: none; }
-.rv-card .study { padding-top: 8px; }
-.rv-prog { margin: 6px 0 10px; }
+.v-review .btn.rv-try { background: var(--gold-wash); border-color: color-mix(in srgb, var(--gold-fill) 70%, transparent); color: var(--ink); }
+.v-review .btn.rv-try .ic { color: var(--gold); }
+.rv-card .study { padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line); }
 .rv-card .thinking { margin-left: 8px; vertical-align: middle; }
+.rv-done { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 17px; }
+.rv-done .ic { width: 26px; height: 26px; padding: 4px; border-radius: 50%; background: var(--green); color: #fff; }
+.rv-foot { display: flex; gap: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
+.rv-foot .rv-prev { width: 50px; min-height: 50px; flex: none; }
+.rv-foot .rv-prev[disabled] { opacity: 0.35; }
+.rv-foot .rv-next { flex: 1; min-height: 50px; font-size: 16.5px; gap: 8px; }
+.rv-foot .rv-next .ic { order: 2; }
+.rv-foot .rv-next .ic:first-child { order: 0; }
+/* on a phone, Next stays in reach at the bottom of the screen, however long the card gets */
+@media (max-width: 979px) {
+  .rv-foot { position: sticky; bottom: 0; z-index: 3; background: var(--surface); margin: 0 -16px -14px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
+    border-radius: 0 0 var(--radius) var(--radius); }
+}
+/* on a short phone the summary's picture of the final position steps back, so Start review is on screen */
+@media (max-width: 699px) and (max-height: 760px) { .rv-at-recap .board-col { width: 74%; margin: 0 auto; } }
+/* on the summary the board is a picture of the final position: its step buttons come with the walk through */
+.rv-at-recap .rv-controls { display: none; }
 
-/* the move list: chess marks after the move, colored by kind */
-.rv-movelist .mv { gap: 2px; }
+/* the move list: a table beside the board, a strip under it on a phone; chess marks after the move, colored by kind */
+.rv-movelist { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); align-items: center; row-gap: 2px; padding: 6px 4px; }
+.rv-movelist .n { color: var(--ink-3); text-align: right; padding-right: 8px; font-variant-numeric: tabular-nums; }
+.rv-movelist .mv { gap: 2px; justify-self: start; }
+@media (max-width: 979px) {
+  .rv-movelist { display: flex; align-items: center; gap: 2px; overflow-x: auto; overflow-y: hidden; max-height: none; padding: 4px; scrollbar-width: none; }
+  .rv-movelist::-webkit-scrollbar { display: none; }
+  .rv-movelist .n { padding: 0 0 0 8px; flex: none; }
+  .rv-movelist .mv { flex: none; white-space: nowrap; }
+  .rv-movelist .gap { display: none; }
+  .rv-walking .evalgraph { height: 64px; }
+}
 .rv-movelist .sym { font-weight: 800; font-size: 13px; letter-spacing: -0.02em; margin-left: 1px; }
 .sym.s-inaccuracy { color: var(--rv-ink-inaccuracy); }
 .sym.s-mistake { color: var(--rv-ink-mistake); }
@@ -92,6 +184,7 @@
 .evalgraph .eg-cur { stroke: var(--gold-fill); stroke-width: 2.5; vector-effect: non-scaling-stroke; }
 .rv-dot { position: absolute; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; box-shadow: 0 0 0 1.5px var(--rv-ring); pointer-events: none; }
 .rv-dot.k-blunder { width: 13px; height: 13px; margin: -6.5px 0 0 -6.5px; box-shadow: 0 0 0 2px var(--rv-ring); }
+.rv-dot.on { width: 15px; height: 15px; margin: -7.5px 0 0 -7.5px; box-shadow: 0 0 0 2.5px var(--rv-ring), 0 0 0 4.5px var(--gold-fill); z-index: 1; }
 .rv-key { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 7px 0 0; font-size: 12.5px; color: var(--ink-2); }
 .rv-key span { display: inline-flex; align-items: center; gap: 6px; }
 .rv-key .sw { width: 12px; height: 12px; border-radius: 3px; box-shadow: inset 0 0 0 1px var(--line); }
@@ -105,6 +198,6 @@
 /* big enough to tap */
 @media (pointer: coarse) {
   .v-review .rv-card .btn, .v-review .rv-controls .btn, .v-review .rv-pgn .btn { min-height: 44px; }
-  .v-review .rv-nav .btn { width: 44px; min-height: 44px; }
-  .v-review .rv-movelist .mv { min-height: 34px; }
+  .v-review .rv-foot .btn { min-height: 52px; }
+  .v-review .rv-movelist .mv { min-height: 36px; }
 }

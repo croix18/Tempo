@@ -657,12 +657,9 @@ body.focus .tabs { display: none; }
 .rv-rep { color: var(--ink-2); font-size: 14.5px; }
 .v-review .rv-opening .btn { min-height: 40px; }
 @media (pointer: coarse) { .v-review .rv-opening .btn { min-height: 44px; } }
-/* review summary: accuracy, then every kind of move with your count beside your opponent's */
-.rv-summary { display: flex; flex-direction: column; gap: 12px; padding: 14px 16px 12px; }
-.rv-acc-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.rv-acc-row .stat { min-width: 0; }
-.rv-acc-opp { align-items: flex-end; text-align: right; }
-.rv-opp-name { display: inline-block; max-width: 9em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
+/* review details: every kind of move with your count beside your opponent's */
+.rv-summary { display: flex; flex-direction: column; gap: 10px; padding: 14px 16px 12px; }
+.rv-sum-label { margin: 0; }
 .rv-kinds { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .rv-kind-col { display: flex; flex-direction: column; min-width: 0; }
 .rv-kind-head, .rv-kind { display: grid; grid-template-columns: minmax(0, 1fr) 26px 36px; align-items: center; column-gap: 2px; }
@@ -690,5 +687,4 @@ body.focus .tabs { display: none; }
 }
 /* the narrowest phones: one list, so no name is cut short */
 @media (max-width: 370px) { .rv-kinds { grid-template-columns: 1fr; } .rv-kind-col + .rv-kind-col .rv-kind-head { display: none; } }
-/* on a phone the move card stays right under the board, and the summary follows it */
-@media (max-width: 979px) { .rv-arena .panel > .rv-card { order: -1; } }
+

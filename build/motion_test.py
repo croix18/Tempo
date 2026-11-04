@@ -35,14 +35,14 @@ STEP = """(key) => new Promise(res => {
   })();
 })"""
 
-# when the summary appears, follow the move card and the summary's opacity for half a second
+# when the summary appears, follow the moves under it and the summary's opacity for half a second
 REVEAL = """() => new Promise(res => {
-  const s = document.querySelector('.rv-summary'), card = document.querySelector('.v-review .rv-card');
+  const s = document.querySelector('.rv-summary'), card = document.querySelector('.v-review .rv-moves'), fade = document.querySelector('.v-review .rv-extra');
   const ob = new MutationObserver(() => {
     if (s.hidden) return; ob.disconnect();
     const out = [], t0 = performance.now();
     (function f() {
-      out.push({ t: performance.now() - t0, top: Math.round(card.getBoundingClientRect().top), op: +getComputedStyle(s).opacity });
+      out.push({ t: performance.now() - t0, top: Math.round(card.getBoundingClientRect().top), op: +getComputedStyle(fade).opacity });
       if (performance.now() - t0 < 560) requestAnimationFrame(f); else res(out);
     })();
   });
@@ -131,9 +131,9 @@ async def test_review_reveal(browser):
         first, last = tops[0], tops[-1]
         if abs(last - first) > 4:
             mid = [t for t in tops if min(first, last) + 2 < t < max(first, last) - 2]
-            check(tag + ': the move card glides to its new place instead of jumping', len(mid) >= 6, 'from %d to %d, %d in-between frames' % (first, last, len(mid)))
+            check(tag + ': the moves glide to their new place instead of jumping', len(mid) >= 6, 'from %d to %d, %d in-between frames' % (first, last, len(mid)))
         else:
-            check(tag + ': the move card stays put while the summary arrives', all(abs(t - first) <= 1 for t in tops), tops[::4])
+            check(tag + ': the moves stay put while the summary arrives', all(abs(t - first) <= 1 for t in tops), tops[::4])
         heads = await pg.evaluate("[...document.querySelectorAll('.rv-kind-head')].map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
         check(tag + ': count columns are headed You and Them', heads and all(x == 'You Them' for x in heads), heads)
         check(tag + ': review reveal: no page errors', not errors, errors[:3])

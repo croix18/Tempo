@@ -121,10 +121,11 @@ var Explain = (function () {
     var pv = (reply && reply.pv) || [];
     var rm = pv.length ? after.parseMove(pv[0]) : 0;
     var replySan = rm ? after.san(rm) : null;
-    var r = { title: '', text: '', short: '', topic: 'position', reply: rm ? pv[0] : null };
+    // at: how far into the reply line the damage is done (the index of the capture, or of the checkmate)
+    var r = { title: '', text: '', short: '', topic: 'position', reply: rm ? pv[0] : null, at: 0 };
     // 1. checkmate
     if (reply && reply.mate != null && reply.mate > 0 && rm) {
-      r.topic = 'threats';
+      r.topic = 'threats'; r.at = reply.mate * 2 - 2;
       r.short = replySan + ' would have led to checkmate.';
       if (reply.mate === 1) {
         r.title = 'This allows checkmate';
@@ -159,6 +160,8 @@ var Explain = (function () {
         r.text = them.Subj + ' can answer ' + replySan + ', and the ' + PIECE_NAME[by] + ' attacks ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at the same time.';
         r.short = replySan + ' would have attacked ' + me.poss + ' ' + names[0] + ' and ' + names[1] + ' at once.';
         r.topic = 'fork';
+        var won = po.list.filter(function (x) { return x.i > 0 && x.i % 2 === 0 && x.cap && hits.some(function (t) { return t.sq === x.capSq; }); })[0];
+        r.at = won ? won.i : 2;
         r.ask = { prompt: 'After this move ' + them.subj + ' can attack two of ' + me.poss + ' pieces at once. Tap one of the two.', squares: hits.slice(0, 2).map(function (t) { return C.sqName(t.sq); }) };
         return r;
       }
@@ -168,7 +171,7 @@ var Explain = (function () {
       var x = lost[0];
       if (loss >= 2) lost.forEach(function (y) { if (PIECE_VAL[Math.abs(y.cap)] > PIECE_VAL[Math.abs(x.cap)]) x = y; });
       var nm = PIECE_NAME[Math.abs(x.cap)], sq = C.sqName(x.capSq), taker = 'the ' + PIECE_NAME[x.by] + ' on ' + C.sqName(x.from);
-      r.topic = 'safety'; r.piece = Math.abs(x.cap);
+      r.topic = 'safety'; r.piece = Math.abs(x.cap); r.at = x.i;
       if (x.i === 0) r.ask = { prompt: 'After this move one of ' + me.poss + ' pieces can be taken for free. Tap it.', squares: [sq] };
       r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This drops a pawn';
       r.short = x.san + ' would have won ' + me.poss + ' ' + nm + '.';
@@ -237,7 +240,7 @@ var Explain = (function () {
   function missed(before, best, bestLine) { return missedInfo(before, best, bestLine).text; }
   function missedInfo(before, best, bestLine, opts) {
     var g = gainOf(before, best, bestLine);
-    if (!g) return { text: '', topic: null, sentence: '' };
+    if (!g) return { text: '', topic: null, sentence: '', what: '' };
     var S = sides(opts), me = S.me, them = S.them, text, what;
     switch (g.kind) {
       case 'mate1': text = g.san + ' was checkmate.'; what = 'is checkmate'; break;
@@ -249,7 +252,8 @@ var Explain = (function () {
       default: text = g.san + ' was stronger.'; what = 'was much stronger';
     }
     var topic = g.kind === 'mate1' || g.kind === 'mate' ? 'mates' : g.kind === 'fork' ? 'fork' : g.kind === 'none' ? null : 'free';
-    return { text: text, topic: topic, sentence: me.Subj + ' missed ' + g.san + ', which ' + what + '.' };
+    // what: the gain without naming the move ("wins Pip’s knight"), for a summary that leaves the move for you to find
+    return { text: text, topic: topic, sentence: me.Subj + ' missed ' + g.san + ', which ' + what + '.', what: what };
   }
 
   /* a friendly piece that was hanging before the move and isn't after it */
@@ -405,6 +409,7 @@ var Review = (function () {
      job: { startFen, moves, map, mine(i), cancelled(), progress(positionsDone, moveIndex, deep) } */
   function analyseAll(job) {
     var moves = job.moves, n = moves.length, evals = new Array(n + 1), info = [], ints = [];
+    if (job.live) job.live(evals); // the screen draws the evals as they come in
     var p = new C.Pos(job.startFen);
     for (var k = 0; k <= n; k++) {
       var s = p.status();
@@ -604,6 +609,14 @@ var Review = (function () {
     root.appendChild(grid);
   }
 
+  /* The review of one game, in two steps:
+     1. The summary: the coach's verdict in a sentence, both accuracies, and one obvious thing to do next (Start review),
+        with Fix your mistakes beside it. The graph, the moves and the details follow.
+     2. The walk through the game: the coach card under the board explains each move, and Next goes to the next key
+        moment (where the book ended, your best and worst moves, and your opponent's blunders). For your mistakes the
+        better move stays hidden until you try (Find a better move) or ask (Show best move); Show the fork (or the
+        capture, the threat, the checkmate) plays out the reply that punishes the move.
+     Any move you open (the arrows, the moves, the graph, a count) starts the walk there. */
   function renderReview(root, src) {
     var startFen = src.startFen, moves = src.moves, sans = src.sans, you = src.color;
     var startPos = new C.Pos(startFen), startSide = startPos.side;
@@ -618,8 +631,9 @@ var Review = (function () {
     }
     App.focus(true);
     // token: bumped by every navigation, so an engine answer that arrives late is dropped instead of shown on the wrong move
+    // stage: 'recap' (the summary) or 'walk' (the coach card); practice: { idx } while fixing your mistakes one after another
     var st = { moves: moves, ply: moves.length, shown: moves.length, evals: null, res: null, cancelled: false, token: 0, mode: 'game', retry: null,
-      map: null, keyPlies: [], why: {}, pending: {}, details: false, progFrac: 0 };
+      map: null, keyPlies: [], moments: [], stage: 'recap', practice: null, why: {}, pending: {}, details: false, progFrac: 0, follow: true };
     R = st;
     var board = new Board({ orient: you, coords: Store.state.settings.coords !== false, movable: null, onMove: retryMove });
     var evalFill = h('i');
@@ -632,14 +646,18 @@ var Review = (function () {
       stepBtn('next', 'Next move', function () { goPly(st.shown + 1); }),
       stepBtn('last', 'End', function () { goPly(moves.length); }),
       h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); paintEval(); } }, U.icon('flip')));
-    var card = h('section', { class: 'card rv-card', 'aria-label': 'This move' });
+    var recapBox = h('section', { class: 'card rv-recap', 'aria-label': 'Summary' });
+    var card = h('section', { class: 'card rv-card', 'aria-label': 'This move', hidden: true });
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
     var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
-    var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Game summary', hidden: true });
+    var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Moves by kind', hidden: true });
     var patternBox = h('div', { class: 'rv-pattern' });
-    var panel = h('div', { class: 'panel' }, summaryBox, card, openingBox, patternBox, graphBox, movesBox, detailsBox);
-    root.appendChild(h('div', { class: 'arena rv-arena' },
-      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls), panel));
+    // under the summary only: the counts, your opening, what keeps going wrong, and the PGN
+    var moreBox = h('div', { class: 'rv-extra' }, summaryBox, openingBox, patternBox, detailsBox);
+    var panel = h('div', { class: 'panel' }, recapBox, card, graphBox, movesBox, moreBox);
+    var arena = h('div', { class: 'arena rv-arena rv-at-recap' },
+      h('div', { class: 'board-col' }, h('div', { class: 'with-eval' }, evalBar, board.el), controls), panel);
+    root.appendChild(arena);
 
     /* ---------- positions and moves ---------- */
     var ints = (function () { var p = new C.Pos(startFen); return moves.map(function (u) { var m = p.parseMove(u); p.make(m); return m; }); })();
@@ -657,10 +675,37 @@ var Review = (function () {
     function sanOf(pos, uci) { var m = uci && pos.parseMove(uci); return m ? pos.san(m) : null; }
     function arrow(uci, color) { return { from: uci.slice(0, 2), to: uci.slice(2, 4), color: color }; }
 
+    /* ---------- the two steps ---------- */
+    function setStage(s) {
+      if (st.stage === s) return;
+      st.stage = s;
+      recapBox.hidden = s !== 'recap' || !st.res;
+      card.hidden = s !== 'walk';
+      moreBox.hidden = s !== 'recap';
+      arena.classList.toggle('rv-at-recap', s === 'recap');
+      arena.classList.toggle('rv-walking', s === 'walk');
+    }
+    function startWalk() {
+      var first = st.moments[0];
+      goPly(first != null ? first : 1, { reveal: true });
+    }
+    function toRecap() {
+      st.practice = null;
+      setStage('recap');
+      goPly(moves.length, { stay: true });
+      revealBoard();
+    }
+    function nextMoment() { return st.moments.filter(function (p) { return p > st.ply; })[0]; }
+    function prevMoment() { return st.moments.filter(function (p) { return p < st.ply; }).pop(); }
+
     /* ---------- navigation ---------- */
+    // o.stay: keep the summary on screen (only the summary itself does this); o.reveal: bring the board into view
     function goPly(n, o) {
       n = Math.max(0, Math.min(moves.length, n));
-      st.token++; st.ply = n; st.shown = n; st.mode = 'game'; st.retry = null;
+      clearTimeout(st.lineT);
+      st.token++; st.ply = n; st.shown = n; st.mode = 'game'; st.retry = null; st.practice = null;
+      if (!(o && o.stay)) st.follow = false; // you took over the board from the engine's replay
+      if (st.res && !(o && o.stay)) setStage('walk');
       var a = posAt(n);
       board.setMovable(null);
       board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
@@ -713,7 +758,8 @@ var Review = (function () {
           if (!l || !l.pv || !l.pv.length) return;
           e1.line = { cp: l.cp, mate: l.mate, pv: l.pv }; e1.pv = l.pv;
           delete st.why[i];
-          if (st.mode === 'game' && st.ply === i + 1) { decorate(); renderCard(); }
+          if (st.stage === 'recap') renderRecap();
+          else if (st.mode === 'game' && st.ply === i + 1) { decorate(); renderCard(); }
         }, function () { /* no line: the move keeps its short explanation */ });
       }
       return null;
@@ -748,10 +794,15 @@ var Review = (function () {
       var a = posAt(i + 1).pos, o = st.map.get(epdOf(a));
       return o && o.name ? o.name.replace(/'/g, '’') : null;
     }
+    /* What the coach says about move i. Your own mistakes don't give the better move away: you can look for it
+       first (Find a better move) or ask for it (Show best move). */
     function moveText(i) {
       var k = st.res.cls[i], e0 = st.evals[i], mine = isMine(i), before;
       switch (k) {
-        case 'book': var nm = openingName(i); return { text: 'A standard opening move' + (nm ? ', part of the ' + nm : '') + '.' };
+        case 'book':
+          var nm = openingName(i);
+          if (i === st.bookEnd && i < moves.length - 1) return { text: 'The last move from the opening book' + (nm ? ' (the ' + nm + ')' : '') + '. After it, both sides were on their own.' };
+          return { text: 'A standard opening move' + (nm ? ', part of the ' + nm : '') + '.' };
         case 'best': return { text: 'The engine’s top choice.' };
         case 'excellent': return { text: 'Nearly as good as the best move.' };
         case 'good': return { text: ('A reasonable move. ' + bestSays(i, function (s) { return s + ' was a little better'; })).trim() };
@@ -762,12 +813,78 @@ var Review = (function () {
           var mi = Explain.missedInfo(before, e0.best, e0.line, { you: mine, name: oppShort });
           // a miss can also be a blunder in its own right (mate, a fork, a piece): say what it allows too
           var wm = why(i), real = wm && (wm.topic === 'threats' || wm.topic === 'fork' || (wm.topic === 'safety' && PIECE_VAL[wm.piece] >= 3));
-          return { text: (mi.sentence || 'This let a win slip away.') + (real ? ' ' + wm.text : ''), topic: real ? wm.topic : mi.topic };
+          var said = mine && mi.what ? 'You missed a move that ' + mi.what + '.' : (mi.sentence || 'This let a win slip away.');
+          return { text: said + (real ? ' ' + wm.text : ''), topic: real ? wm.topic : mi.topic };
         default:
           var w = why(i);
           var text = w ? w.text : (st.pending[i + 1] ? 'Looking at what this allows…' : '');
-          return { text: ((text ? text + ' ' : '') + bestWas(i)).trim(), topic: w && (k === 'mistake' || k === 'blunder') ? w.topic : null };
+          return { text: ((text ? text + ' ' : '') + (mine ? '' : bestWas(i))).trim(), topic: w && (k === 'mistake' || k === 'blunder') ? w.topic : null };
       }
+    }
+    /* the reply that punishes move i, when there's one to show: { label, line } */
+    var IDEA = { fork: 'Show the fork', safety: 'Show the capture', threats: 'Show the threat' };
+    function ideaOf(i) {
+      var k = st.res.cls[i]; if (FLAGGED.indexOf(k) < 0) return null;
+      var w = why(i); if (!w || !w.reply) return null;
+      var real = w.topic === 'threats' || w.topic === 'fork' || (w.topic === 'safety' && (k !== 'miss' || PIECE_VAL[w.piece] >= 3));
+      var l = replyLine(i);
+      if (!real || !l) return null;
+      return { label: w.topic === 'threats' && l.mate != null && l.mate > 0 ? 'Show the checkmate' : IDEA[w.topic], line: l };
+    }
+
+    /* ---------- the summary: the coach's verdict, both accuracies, Start review ---------- */
+    // "This allows a fork" -> "it allowed a fork"
+    function pastTense(title) {
+      return title.replace(/^This /, 'it ').replace(/^it allows\b/, 'it allowed').replace(/^it loses\b/, 'it lost').replace(/^it drops\b/, 'it dropped')
+        .replace(/^it makes\b/, 'it made').replace(/^it gives\b/, 'it gave').replace(/^it hands\b/, 'it handed');
+    }
+    /* what your costliest move cost, in a few words, without giving the better move away */
+    function costOf(i, k) {
+      var w = why(i);
+      if (k === 'miss') {
+        // a miss that also gives something away (a piece, a fork, a checkmate) is told by what it gave away
+        if (w && w.title && (w.topic === 'threats' || w.topic === 'fork' || (w.topic === 'safety' && PIECE_VAL[w.piece] >= 3))) return pastTense(w.title);
+        var e0 = st.evals[i], mi = e0 && e0.best ? Explain.missedInfo(posAt(i).pos, e0.best, e0.line, { you: true, name: oppShort }) : null;
+        return mi && mi.what ? 'you missed a move that ' + mi.what : 'you missed a win';
+      }
+      return w && w.title ? pastTense(w.title) : '';
+    }
+    /* One or two sentences: where it went wrong (or that it didn't), and your best moment. Each move named is a link to it. */
+    function coachSays() {
+      var worst = null, best = null;
+      st.res.cls.forEach(function (k, i) {
+        if (!isMine(i)) return;
+        var side = isWhiteMove(i) ? 1 : -1, wb = winFor(st.evals[i], side), wa = winFor(st.evals[i + 1], side);
+        if (SERIOUS.indexOf(k) >= 0 && (!worst || wb - wa > worst.drop)) worst = { i: i, k: k, drop: wb - wa, wb: wb, wa: wa };
+        if (k === 'brilliant' && (!best || best.k !== 'brilliant')) best = { i: i, k: k };
+        else if (k === 'great' && !best) best = { i: i, k: k };
+      });
+      function link(i) { return h('button', { class: 'rv-link', type: 'button', onclick: function () { jump(i + 1); } }, moveLabel(i)); }
+      var out = [], acc = st.res.acc[you];
+      if (worst) {
+        var cost = costOf(worst.i, worst.k);
+        if (cost && worst.wb >= 75 && worst.wa < 50) out.push('You were winning before ', link(worst.i), ', but ' + cost + '.');
+        else if (cost && worst.wb >= 55 && worst.wa < 45) out.push('You were ahead before ', link(worst.i), ', but ' + cost + '.');
+        else out.push('Your costliest move was ', link(worst.i), cost ? ': ' + cost + '.' : '.');
+      } else out.push(acc != null && acc >= 85 ? 'A clean game: no mistakes to fix.' : 'No big mistakes in this game.');
+      if (best) out.push(' Your best moment was ', link(best.i), best.k === 'brilliant' ? ', a brilliant sacrifice.' : ', the only good move there.');
+      return out;
+    }
+    function avatarFor(name, bot) { return bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm tone-you', 'aria-hidden': 'true' }, (name || '?').charAt(0).toUpperCase()); }
+    function renderRecap() {
+      U.clear(recapBox);
+      if (!st.res) return;
+      var them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
+      function accText(side) { return acc[side] == null ? 'No moves' : Math.round(acc[side]) + '%'; }
+      recapBox.appendChild(h('div', { class: 'rv-coach' }, h('span', { class: 'brand-mark rv-coach-mark', 'aria-hidden': 'true' }),
+        h('p', { class: 'rv-verdict' }, coachSays())));
+      recapBox.appendChild(h('div', { class: 'rv-acc-row', role: 'group', 'aria-label': 'Accuracy' },
+        h('div', { class: 'rv-acc' }, avatarFor('Y'), h('div', null, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, accText(you)))),
+        h('div', { class: 'rv-acc rv-acc-opp' }, avatarFor(oppShort, src.bot), h('div', null, h('span', { class: 'label rv-opp-name', title: opp }, opp), h('b', null, accText(them))))));
+      var n = st.keyPlies.length;
+      recapBox.appendChild(h('div', { class: 'rv-start' },
+        h('button', { class: 'btn primary rv-go', type: 'button', onclick: startWalk }, 'Start review', U.icon('next')),
+        n ? h('button', { class: 'btn rv-fix', type: 'button', onclick: function () { startPractice(0); } }, U.icon('refresh'), n === 1 ? 'Fix your mistake' : 'Fix your ' + n + ' mistakes') : null));
     }
 
     /* ---------- your opening: where the game left the line you learned ---------- */
@@ -792,61 +909,152 @@ var Review = (function () {
       openingBox.hidden = !info;
       if (!info) return;
       openingBox.appendChild(h('div', { class: 'label' }, 'Your opening'));
-      openingBox.appendChild(h('p', { class: 'rv-text' }, info.text + (info.kind === 'you' && st.repQueued ? ' It\u2019s first in your opening drills now.' : '')));
+      openingBox.appendChild(h('p', { class: 'rv-text' }, info.text + (info.kind === 'you' && st.repQueued ? ' It’s first in your opening drills now.' : '')));
       var row = h('div', { class: 'rv-actions' });
       if (info.ply != null) row.appendChild(btn('Show the move', function () { jump(info.ply + 1); }, 'quiet'));
       if (info.kind === 'you' || info.kind === 'start') row.appendChild(btn('Drill this line', function () { Openings.queueLine(st.rep.key); Openings.drillLine(st.rep.key); }, '', 'target'));
       if (row.children.length) openingBox.appendChild(row);
     }
 
-    /* ---------- the card under the board: mistake navigator, then this move ---------- */
-    function navigator() {
-      var keys = st.keyPlies, row = h('div', { class: 'rv-nav' });
-      if (!keys.length) { row.appendChild(h('span', { class: 'rv-nav-text' }, 'No mistakes to fix in this game.')); return row; }
-      var at = keys.indexOf(st.ply), prev = keys.filter(function (p) { return p < st.ply; }).pop(), next = nextKey(st.ply);
-      row.appendChild(h('button', { class: 'btn icon-only quiet', type: 'button', 'aria-label': 'Previous mistake', 'data-repeat': '', disabled: prev == null, onclick: function () { jump(prev); } }, U.icon('back')));
-      row.appendChild(h('span', { class: 'rv-nav-text' }, at >= 0 ? 'Mistake ' + (at + 1) + ' of ' + keys.length : U.plural(keys.length, 'mistake') + ' to fix'));
-      row.appendChild(h('button', { class: 'btn icon-only quiet', type: 'button', 'aria-label': 'Next mistake', 'data-repeat': '', disabled: next == null, onclick: function () { jump(next); } }, U.icon('next')));
-      return row;
-    }
+    /* ---------- the coach card: where you are, this move, and Next ---------- */
     // when the card grows or shrinks, whatever sits below it glides to its new place (not while the screen is first drawn)
     var still = false;
     function cardBody(fill) {
       function draw() {
         U.clear(card);
-        card.appendChild(navigator());
+        card.appendChild(cardTop());
         var body = h('div', { class: 'rv-body', 'aria-live': 'polite' });
         card.appendChild(body);
         fill(body);
+        card.appendChild(cardFoot());
       }
       if (still) draw(); else U.glide(panel, draw);
     }
+    function cardTop() {
+      var where = '';
+      if (st.practice) where = 'Mistake ' + (st.practice.idx + 1) + ' of ' + st.keyPlies.length;
+      else if (st.mode !== 'end') {
+        var at = st.moments.indexOf(st.ply);
+        where = at >= 0 ? 'Key moment ' + (at + 1) + ' of ' + st.moments.length : st.ply ? 'Move ' + moveNo(st.ply - 1) : 'The start';
+      }
+      return h('div', { class: 'rv-top' },
+        h('button', { class: 'btn quiet small rv-to-summary', type: 'button', onclick: toRecap }, U.icon('back'), 'Summary'),
+        where ? h('span', { class: 'rv-where' }, where) : null);
+    }
+    /* the one obvious next step: the next key moment (or, while fixing your mistakes, the next mistake) */
+    function cardFoot() {
+      var foot = h('div', { class: 'rv-foot' });
+      if (st.practice) {
+        var idx = st.practice.idx, more = idx + 1 < st.keyPlies.length;
+        foot.appendChild(h('button', { class: 'btn primary rv-next', type: 'button', onclick: function () { if (more) startPractice(idx + 1); else practiceDone(); } },
+          more ? 'Next mistake' : 'Finish', U.icon('next')));
+        return foot;
+      }
+      if (st.mode === 'end') {
+        foot.appendChild(h('button', { class: 'btn primary rv-next', type: 'button', onclick: toRecap }, U.icon('back'), 'Back to the summary'));
+        return foot;
+      }
+      var prev = prevMoment(), next = nextMoment();
+      foot.appendChild(h('button', { class: 'btn icon-only rv-prev', type: 'button', 'aria-label': 'Previous key moment', title: 'Previous key moment', disabled: prev == null,
+        onclick: function () { jump(prev); } }, U.icon('back')));
+      foot.appendChild(h('button', { class: 'btn primary rv-next', type: 'button', 'aria-label': next != null ? 'Next key moment' : 'Finish the review',
+        onclick: function () { if (next != null) jump(next); else endWalk(); } }, next != null ? 'Next' : 'Finish', U.icon('next')));
+      return foot;
+    }
     function moveHead(kind, label, sub) {
-      return h('div', { class: 'rv-move' }, h('span', { class: 'chip rv-chip' }, h('span', { class: 'dot-k k-' + kind }), label), sub ? h('span', { class: 'rv-who' }, sub) : null);
+      return h('div', { class: 'rv-move' }, h('span', { class: 'rv-k k-' + kind, 'aria-hidden': 'true' }, KINDS[kind] ? KINDS[kind].sym : ''),
+        h('div', { class: 'rv-move-text' }, h('div', { class: 'rv-kind-label' }, label), sub ? h('div', { class: 'rv-who' }, sub) : null));
     }
     function btn(label, fn, cls, icon) { return h('button', { class: 'btn small' + (cls ? ' ' + cls : ''), type: 'button', onclick: fn }, icon ? U.icon(icon) : null, label); }
-    function showBestBtn(i) { return btn('Show best move', function () { showBest(i); }, 'quiet', 'eye'); }
-    function backBtn(i) { return btn('Back to the game', function () { goPly(i + 1); }, 'quiet'); }
+    function showBestBtn(i) { return btn('Best move', function () { showBest(i); }, 'quiet', 'eye'); }
+    /* the lesson and the puzzles for the kind of mistake move i was (your own mistakes only) */
+    function studyFor(i) {
+      if (!isMine(i) || SERIOUS.indexOf(st.res.cls[i]) < 0) return null;
+      var t = moveText(i).topic;
+      return t ? Explain.studyRow(t) : null;
+    }
+    function backBtn(i) { return st.practice ? null : btn('Back to the game', function () { goPly(i + 1); }, 'quiet'); }
     function renderCard() {
-      if (!st.res) return;
+      if (!st.res || st.stage !== 'walk') return;
       cardBody(function (body) {
-        if (st.ply === 0) { body.appendChild(h('p', { class: 'rv-text' }, 'This is where the game started. Step through it with the arrows under the board.')); return; }
+        if (st.ply === 0) { body.appendChild(h('p', { class: 'rv-text' }, 'This is where the game started. Next takes you to the first key moment; the arrows under the board go one move at a time.')); return; }
         var i = st.ply - 1, k = st.res.cls[i], mine = isMine(i), t = moveText(i);
         body.appendChild(moveHead(k, KINDS[k].label, (mine ? 'You' : oppShort) + ' played ' + moveLabel(i)));
         if (t.text) body.appendChild(h('p', { class: 'rv-text' }, t.text));
+        // where you left the opening line you learned: what it plays, and a drill
         var ri = repInfo();
-        if (ri && ri.here && ri.ply === i) body.appendChild(h('p', { class: 'rv-text rv-rep' }, ri.here));
+        if (ri && ri.here && ri.ply === i) {
+          body.appendChild(h('p', { class: 'rv-text rv-rep' }, ri.here));
+          if (ri.kind === 'you') body.appendChild(h('div', { class: 'rv-actions' }, btn('Drill this line', function () { Openings.queueLine(st.rep.key); Openings.drillLine(st.rep.key); }, '', 'target')));
+        }
         if (FLAGGED.indexOf(k) < 0) return;
+        var idea = ideaOf(i);
         body.appendChild(h('div', { class: 'rv-actions' },
-          mine ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null,
+          mine ? btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh') : null,
+          idea ? btn(idea.label, function () { showLine(i); }, 'quiet', 'resume') : null,
           st.evals[i] && st.evals[i].best ? showBestBtn(i) : null));
-        if (mine && t.topic) { var sr = Explain.studyRow(t.topic); if (sr) body.appendChild(sr); }
       });
+    }
+    /* after the last key moment: what's left to do */
+    function endWalk() {
+      st.token++; st.mode = 'end'; st.practice = null;
+      var n = st.keyPlies.length, topic = commonTopic();
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'rv-done' }, U.icon('check'), h('span', null, 'That’s every key moment.')));
+        body.appendChild(h('p', { class: 'rv-text' }, n ? 'Want another go at the ' + (n === 1 ? 'move' : n + ' moves') + ' you’d like back? Find a better move for each, one after another.' : 'No mistakes to fix in this game.'));
+        if (n) body.appendChild(h('div', { class: 'rv-actions' }, btn(n === 1 ? 'Fix your mistake' : 'Fix your ' + n + ' mistakes', function () { startPractice(0); }, 'rv-try', 'refresh')));
+        if (topic) { var sr = Explain.studyRow(topic); if (sr) body.appendChild(sr); }
+      });
+    }
+    /* the kind of mistake you made most in this game (a fork, a piece left loose...), for a lesson and puzzles */
+    function commonTopic() {
+      var count = {}, top = null;
+      st.keyPlies.forEach(function (ply) { var w = why(ply - 1), t = w && w.topic; if (t && t !== 'position') { count[t] = (count[t] || 0) + 1; if (!top || count[t] > count[top]) top = t; } });
+      return top;
+    }
+
+    /* ---------- show the fork (or capture, threat, checkmate): the reply that punishes the move, played out ---------- */
+    function showLine(i) {
+      var idea = ideaOf(i); if (!idea) return;
+      var tok = ++st.token, a = posAt(i + 1), pv = idea.line.pv, seq = [], p = a.pos.clone(), w = why(i);
+      st.mode = 'line'; st.shown = i + 1; st.retry = null;
+      // as far as the damage: the piece taken, or the checkmate (eight moves at most, never past the end of the game)
+      for (var j = 0, lim = Math.min(pv.length, (w && w.at != null ? w.at : 3) + 1, 8); j < lim; j++) {
+        var m = p.parseMove(pv[j]); if (!m) break;
+        seq.push({ m: m });
+        p.make(m);
+        if (p.status().over) break;
+      }
+      if (!seq.length) return;
+      var line = h('p', { class: 'rv-line rv-playing' }), acts = h('div', { class: 'rv-actions' });
+      board.setMovable(null); board.setArrows([]); board.setBadge(null); board.setMarks([]);
+      board.setPosition(a.pos, { last: a.last, animate: false });
+      paintEval();
+      cardBody(function (body) {
+        body.appendChild(moveHead(st.res.cls[i], idea.label.replace(/^Show the /, 'The '), 'After ' + moveLabel(i)));
+        if (w && w.text) body.appendChild(h('p', { class: 'rv-text' }, w.text));
+        body.appendChild(line); body.appendChild(acts);
+      });
+      var at = 0, q = a.pos.clone();
+      (function step() {
+        if (tok !== st.token || R !== st || st.cancelled) return;
+        if (at >= seq.length) {
+          acts.appendChild(btn('Watch again', function () { showLine(i); }, 'quiet', 'refresh'));
+          acts.appendChild(btn('Back to the move', function () { goPly(i + 1); }, 'quiet'));
+          return;
+        }
+        q.make(seq[at].m);
+        board.setPosition(q.clone(), { last: seq[at].m, animate: true });
+        at++;
+        line.textContent = Explain.numberedLine(a.pos, pv, at);
+        st.lineT = setTimeout(step, 1050);
+      })();
     }
 
     /* ---------- show best move: the position before the move, the better move in green, and where it leads ---------- */
     function showBest(i) {
       var e0 = st.evals[i]; if (!e0 || !e0.best) return;
+      clearTimeout(st.lineT);
       st.token++; st.mode = 'best'; st.retry = null; st.shown = i;
       var a = posAt(i);
       board.setMovable(null);
@@ -858,7 +1066,8 @@ var Review = (function () {
       cardBody(function (body) {
         body.appendChild(moveHead('best', 'Best move', 'Instead of ' + moveLabel(i)));
         body.appendChild(text);
-        body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, '', 'refresh') : null, backBtn(i)));
+        body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh') : null, backBtn(i)));
+        var sr = studyFor(i); if (sr) body.appendChild(sr);
       });
       // a search cut short can leave no line to show: look a few moves past the best move, then add where it leads
       if (!bestLine(i)) {
@@ -877,8 +1086,29 @@ var Review = (function () {
     }
 
     /* ---------- find a better move ---------- */
-    function startRetry(i) {
+    /* Fix your mistakes: each of your mistakes in turn, straight into finding a better move */
+    function startPractice(idx) {
+      if (idx >= st.keyPlies.length) { practiceDone(); return; }
+      setStage('walk');
+      st.ply = st.keyPlies[idx];
+      startRetry(st.ply - 1, { idx: idx });
+      markMoves(); paintCursor();
+      revealBoard();
+    }
+    function practiceDone() {
+      var n = st.keyPlies.length, topic = commonTopic();
+      st.token++; st.practice = null; st.mode = 'end';
+      board.setMovable(null);
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'rv-done' }, U.icon('check'), h('span', null, n === 1 ? 'That was your mistake.' : 'That’s all ' + n + ' of your mistakes.')));
+        body.appendChild(h('p', { class: 'rv-text' }, 'Every one of them comes back in Practice, so they stick.'));
+        if (topic) { var sr = Explain.studyRow(topic); if (sr) body.appendChild(sr); }
+      });
+    }
+    function startRetry(i, practice) {
       var e0 = st.evals[i]; if (!e0) return;
+      clearTimeout(st.lineT);
+      if (practice) st.practice = practice;
       st.token++; st.mode = 'retry'; st.shown = i;
       st.retry = { ply: i, tries: st.retry && st.retry.ply === i ? st.retry.tries : 0 };
       var a = posAt(i);
@@ -887,8 +1117,8 @@ var Review = (function () {
       board.setMovable(a.pos.side === 1 ? 'w' : 'b');
       paintEval();
       cardBody(function (body) {
-        body.appendChild(h('div', { class: 'label' }, 'Your turn'));
-        body.appendChild(h('p', { class: 'rv-text' }, 'Find a better move than ' + moveLabel(i) + ' and play it on the board.'));
+        body.appendChild(moveHead(st.res.cls[i], 'Your turn', 'Find a better move than ' + moveLabel(i)));
+        body.appendChild(h('p', { class: 'rv-text' }, 'Play it on the board.' + (st.practice ? ' ' + (why(i) ? why(i).short || '' : '') : '')));
         body.appendChild(h('div', { class: 'rv-actions' }, showBestBtn(i), backBtn(i)));
       });
     }
@@ -920,6 +1150,7 @@ var Review = (function () {
         body.appendChild(h('div', { class: 'rv-actions' }, btn('Try again', function () { startRetry(i); }, 'primary'), showBestBtn(i)));
       });
     }
+    /* how good was your try? */
     function verdict(tok, i, m, uci, san, g) {
       if (tok !== st.token || R !== st || st.cancelled) return;
       var e0 = st.evals[i], before = posAt(i).pos;
@@ -967,33 +1198,33 @@ var Review = (function () {
       if (e0.best) arrows.push(arrow(e0.best, 'green'));
       board.setBadge(null); board.setArrows(arrows);
       paintEval();
-      var next = nextKey(i + 1);
       cardBody(function (body) {
         body.appendChild(h('div', { class: 'feedback ' + (tone === 'ok' ? 'ok' : 'info') }, msg));
         var line = bestLine(i);
         if (line || arrows.length > 1) body.appendChild(h('p', { class: 'rv-line' }, (arrows.length > 1 ? 'Your move is in blue and the best move in green. ' : '') + line));
         body.appendChild(h('div', { class: 'rv-actions' },
           tone === 'ok' ? null : btn('Try again', function () { startRetry(i); }),
-          next != null ? btn('Next mistake', function () { jump(next); }, 'primary') : null,
           backBtn(i)));
+        var sr = studyFor(i); if (sr) body.appendChild(sr);
       });
     }
 
-    /* ---------- moves list ---------- */
+    /* ---------- moves list: a table beside the board, a strip under it on a phone ---------- */
     function buildMoves() {
       U.clear(movesBox);
-      var box = h('div', { class: 'moves rv-movelist' }), tb = h('table'), row = null, num = startPos.full;
+      var box = h('div', { class: 'moves rv-movelist', 'aria-label': 'Moves' }), num = startPos.full;
       st.mvButtons = [];
       sans.forEach(function (san, i) {
         var white = isWhiteMove(i);
-        if (white || !row) { row = h('tr', null, h('td', { class: 'n' }, num + '.')); tb.appendChild(row); if (!white) row.appendChild(h('td')); num++; }
+        if (white) box.appendChild(h('span', { class: 'n' }, num + '.'));
+        else if (i === 0) { box.appendChild(h('span', { class: 'n' }, num + '...')); box.appendChild(h('span', { class: 'gap', 'aria-hidden': 'true' })); }
         var k = st.res ? st.res.cls[i] : null, sym = k && MARKED.indexOf(k) >= 0 ? KINDS[k].sym : '';
         var b = h('button', { class: 'mv', type: 'button', 'aria-label': san + (sym ? ', ' + KINDS[k].label : ''), onclick: function () { goPly(i + 1, { reveal: true }); } },
           san, sym ? h('span', { class: 'sym s-' + k, 'aria-hidden': 'true' }, sym) : null);
         st.mvButtons.push(b);
-        row.appendChild(h('td', null, b));
+        box.appendChild(b);
+        if (!white) num++;
       });
-      box.appendChild(tb);
       movesBox.appendChild(box);
       st.mvBox = box;
       markMoves();
@@ -1003,13 +1234,15 @@ var Review = (function () {
       st.mvButtons.forEach(function (b, i) { b.classList.toggle('on', st.ply === i + 1); });
       var on = st.mvButtons[st.ply - 1], box = st.mvBox;
       if (!box) return;
-      if (!on) { if (st.ply === 0) box.scrollTop = 0; return; }
+      var strip = box.scrollWidth > box.clientWidth + 1;
+      if (!on) { if (st.ply === 0) { box.scrollTop = 0; box.scrollLeft = 0; } return; }
       // scroll the list itself, never the page
       var br = box.getBoundingClientRect(), r = on.getBoundingClientRect();
-      if (r.top < br.top + 4 || r.bottom > br.bottom - 4) box.scrollTop += (r.top - br.top) - (box.clientHeight - r.height) / 2;
+      if (strip) { if (r.left < br.left + 4 || r.right > br.right - 4) box.scrollLeft += (r.left - br.left) - (box.clientWidth - r.width) / 2; }
+      else if (r.top < br.top + 4 || r.bottom > br.bottom - 4) box.scrollTop += (r.top - br.top) - (box.clientHeight - r.height) / 2;
     }
 
-    /* ---------- the evaluation graph ---------- */
+    /* ---------- the evaluation graph: a dot on each key moment ---------- */
     function renderGraph() {
       U.clear(graphBox);
       if (!st.evals) return;
@@ -1028,9 +1261,10 @@ var Review = (function () {
       svg.appendChild(cur);
       var plot = h('div', { class: 'rv-plot' }, svg);
       // markers sit on top as round dots, so stretching the graph doesn't squash them
-      st.res.cls.forEach(function (k, i) {
-        if (['mistake', 'blunder', 'miss', 'brilliant', 'great'].indexOf(k) < 0) return;
-        plot.appendChild(h('span', { class: 'rv-dot k-' + k, style: { left: (x(i + 1) / W * 100) + '%', top: (y(i + 1) / H * 100) + '%' } }));
+      st.moments.forEach(function (ply) {
+        var k = st.res.cls[ply - 1];
+        if (k === 'book') return;
+        plot.appendChild(h('span', { class: 'rv-dot k-' + k, 'data-ply': ply, style: { left: (x(ply) / W * 100) + '%', top: (y(ply) / H * 100) + '%' } }));
       });
       plot.addEventListener('click', function (e) {
         var rc = plot.getBoundingClientRect(), f = Math.max(0, Math.min(1, (e.clientX - rc.left) / rc.width));
@@ -1041,13 +1275,16 @@ var Review = (function () {
         h('span', null, h('i', { class: 'sw sw-white' }), 'White ahead'),
         h('span', null, h('i', { class: 'sw sw-black' }), 'Black ahead'),
         h('span', { class: 'rv-key-tip' }, U.touchWords('Click to jump to a move'))));
-      st.cur = cur; st.gx = x;
+      st.cur = cur; st.gx = x; st.plot = plot;
     }
-    function paintCursor() { if (st.cur) { var xx = st.gx(st.ply); st.cur.setAttribute('x1', xx); st.cur.setAttribute('x2', xx); } }
+    function paintCursor() {
+      if (!st.cur) return;
+      var xx = st.gx(st.ply); st.cur.setAttribute('x1', xx); st.cur.setAttribute('x2', xx);
+      [].forEach.call(st.plot.querySelectorAll('.rv-dot'), function (d) { d.classList.toggle('on', +d.getAttribute('data-ply') === st.ply && st.stage === 'walk'); });
+    }
 
-    /* ---------- details: accuracy, move counts and the PGN ---------- */
-    /* accuracy and how many moves of each kind, yours beside your opponent's, always in view.
-       Every kind is listed, so a game with no blunders says 0 rather than leaving the row out.
+    /* ---------- details: how many moves of each kind, yours beside your opponent's ---------- */
+    /* Every kind is listed, so a game with no blunders says 0 rather than leaving the row out.
        Tapping a kind steps through those moves, yours first. */
     var KIND_COLS = [['brilliant', 'great', 'best', 'excellent', 'good'], ['book', 'inaccuracy', 'mistake', 'miss', 'blunder']];
     var SHORT = { great: 'Great', best: 'Best' }; // the summary's narrow columns; the move card keeps the full names
@@ -1055,11 +1292,8 @@ var Review = (function () {
       U.clear(summaryBox);
       summaryBox.hidden = !st.res;
       if (!st.res) return;
-      var me = you, them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
-      function accText(side) { return acc[side] == null ? 'No moves' : Math.round(acc[side]) + '%'; }
-      summaryBox.appendChild(h('div', { class: 'rv-acc-row' },
-        h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, accText(me))),
-        h('div', { class: 'stat rv-acc-opp' }, h('span', { class: 'label rv-opp-name', title: opp }, opp), h('b', null, accText(them)))));
+      var me = you, them = you === 'w' ? 'b' : 'w';
+      summaryBox.appendChild(h('div', { class: 'label rv-sum-label' }, 'Moves by kind'));
       var grid = h('div', { class: 'rv-kinds', role: 'table', 'aria-label': 'Moves by kind' });
       KIND_COLS.forEach(function (col) {
         var group = h('div', { class: 'rv-kind-col', role: 'rowgroup' });
@@ -1100,13 +1334,43 @@ var Review = (function () {
       return C.pgnFromMoves({ Event: 'Tempo game' }, startFen, ms);
     }
 
-    /* ---------- progress while the engine works ---------- */
+    /* ---------- while the engine reads the game ----------
+       The board replays the game as the engine reads it, under a gold scanner, while the pieces hop about nervously;
+       the eval bar and the graph fill in as it goes; Tempo's mark spins; and silly lines keep you company. A move the
+       engine wants a closer look at gets a gold ring and a suspicious remark. Tap a move and the board is yours again.
+       With reduced motion: no scanner, no hopping, no spinning. */
+    var SILLY = ['Putting on its reading glasses…', 'Asking the knight why it moves like that…', 'Counting all 64 squares. Twice, to be safe.',
+      'Telling the bishops to stay in their lanes…', 'Checking under the board for extra queens…', 'Interviewing the pawns…',
+      'Doing chess math. Carry the knight…', 'Thinking 20 moves ahead. Okay, 19.', 'Reminding the knight it isn’t a horse…',
+      'Asking the queen to stop showing off…', 'Whispering to the king. He’s nervous.', 'Waking up the rooks in the corners…',
+      'Looking for brilliant moves. Staying positive.', 'Untangling a fork…', 'Polishing the crown…', 'Consulting the ancient scrolls of chess…',
+      'Making sure nobody castled twice…', 'Sharpening its pencil…', 'Pretending this is easy…', 'Asking the clock for a little more time…'];
     function renderProgress() {
-      U.clear(card);
-      card.appendChild(h('div', { class: 'label' }, 'Reviewing'));
-      st.progText = h('div', { id: 'rv-progress', class: 'muted rv-prog' }, 'Starting…');
+      U.clear(recapBox);
+      recapBox.hidden = false; moreBox.hidden = true;
+      arena.classList.add('rv-scanning');
+      st.beam = h('div', { class: 'rv-beam', 'aria-hidden': 'true' });
+      board.el.appendChild(st.beam);
+      st.sillyAt = Math.floor(Math.random() * SILLY.length);
+      st.silly = h('div', { class: 'rv-silly in' }, SILLY[st.sillyAt]);
+      recapBox.appendChild(h('div', { class: 'rv-coach' }, h('span', { class: 'brand-mark rv-coach-mark rv-thinking', 'aria-hidden': 'true' }),
+        h('div', { class: 'grow' }, h('div', { class: 'rv-verdict' }, 'Reviewing your game'), st.silly,
+          st.progText = h('div', { id: 'rv-progress', class: 'muted rv-prog' }, 'Starting…'))));
       st.progBar = UI.meter(0);
-      card.appendChild(st.progText); card.appendChild(st.progBar);
+      recapBox.appendChild(st.progBar);
+      st.sillyT = setInterval(function () { silly(); }, 2600);
+    }
+    /* the next silly line (or the one given), sliding in */
+    function silly(text) {
+      if (!st.silly || !st.silly.isConnected || st.cancelled) { clearInterval(st.sillyT); return; }
+      if (!text) { st.sillyAt = (st.sillyAt + 1) % SILLY.length; text = SILLY[st.sillyAt]; }
+      st.silly.classList.remove('in'); void st.silly.offsetWidth;
+      st.silly.textContent = text; st.silly.classList.add('in');
+    }
+    function stopScan() {
+      clearInterval(st.sillyT);
+      arena.classList.remove('rv-scanning');
+      if (st.beam) { st.beam.remove(); st.beam = null; }
     }
     function progress(done, j, deep) {
       if (st.cancelled || !st.progText || !st.progText.isConnected) return;
@@ -1115,6 +1379,45 @@ var Review = (function () {
       st.progText.textContent = (deep ? 'Double-checking move ' : 'Checking move ') + at + ' of ' + last + (Engines.strong ? '' : ' with the built-in engine');
       st.progFrac = Math.max(st.progFrac, ((st.progDone || 0) + (deep ? 0.5 : 0)) / total);
       var bar = st.progBar.querySelector('i'); if (bar) bar.style.width = Math.round(Math.min(1, st.progFrac) * 100) + '%';
+      // a move the engine wants a closer look at: a suspicious remark, once per move
+      if (deep && st.susp !== j) {
+        st.susp = j;
+        var mv = moveLabel(j);
+        silly(U.pick(['Hmm. ' + mv + ' looks suspicious…', 'Taking a closer look at ' + mv + '…', 'Wait. ' + mv + '? Checking that again…']));
+        clearInterval(st.sillyT); st.sillyT = setInterval(function () { silly(); }, 2600);
+      }
+      // the board follows the engine (the position it just read, or the one after the move it's double-checking)
+      if (st.follow) follow(deep ? j + 1 : done != null ? done - 1 : null, deep ? j : -1);
+      liveGraph();
+    }
+    function follow(k, ring) {
+      if (k == null || k < 0 || k > moves.length) return;
+      var a = posAt(k);
+      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
+      board.setMarks(ring >= 0 ? [{ sq: moves[ring].slice(2, 4), kind: 'ring' }] : []);
+      var e = st.liveEvals && st.liveEvals[k];
+      if (e) { var w = whiteWin(e), flip = board.orient !== 'w'; evalBar.classList.toggle('flip', flip); evalFill.style.height = (flip ? 100 - w : w) + '%'; }
+    }
+    /* the graph, drawn as far as the engine has read */
+    function liveGraph() {
+      var ev = st.liveEvals; if (!ev) return;
+      var W = 600, H = 110, n = moves.length + 1, NS = 'http://www.w3.org/2000/svg';
+      function el(tag, attrs) { var e = document.createElementNS(NS, tag); Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); }); return e; }
+      if (!st.live || !st.live.isConnected) {
+        var svg = el('svg', { viewBox: '0 0 ' + W + ' ' + H, preserveAspectRatio: 'none', class: 'evalgraph', 'aria-hidden': 'true' });
+        st.liveBg = el('rect', { width: 0, height: H, class: 'eg-black' });
+        st.livePath = el('path', { d: '', class: 'eg-white' });
+        svg.appendChild(st.liveBg); svg.appendChild(st.livePath);
+        svg.appendChild(el('line', { x1: 0, x2: W, y1: H / 2, y2: H / 2, class: 'eg-mid' }));
+        st.live = h('div', { class: 'rv-plot rv-live' }, svg);
+        U.clear(graphBox); graphBox.appendChild(st.live);
+      }
+      var x = function (i) { return n <= 1 ? 0 : W * i / (n - 1); }, pts = [];
+      for (var i = 0; i < n && ev[i]; i++) pts.push(x(i).toFixed(1) + ' ' + (H * (1 - whiteWin(ev[i]) / 100)).toFixed(1));
+      if (!pts.length) return;
+      var end = x(pts.length - 1).toFixed(1);
+      st.liveBg.setAttribute('width', end);
+      st.livePath.setAttribute('d', 'M0 ' + H + ' L' + pts.join(' L') + ' L' + end + ' ' + H + ' Z');
     }
 
     st.keydown = function (e) {
@@ -1127,21 +1430,39 @@ var Review = (function () {
     document.addEventListener('keydown', st.keydown);
 
     buildMoves();
-    goPly(moves.length);
+    goPly(moves.length, { stay: true });
 
-    /* fresh: the review has just finished while you watched, so the summary and graph ease in rather than shoving the panel down */
+    /* The key moments: the last move from the opening book (when the game went on), where you left the opening line you
+       learned, your brilliant, great and serious moves, and your opponent's brilliant moves, blunders and misses. keyPlies: your mistakes, for Fix your mistakes.
+       fresh: the review has just finished while you watched, so the summary eases in rather than shoving the panel down. */
+    var MOMENTS_MINE = ['brilliant', 'great', 'mistake', 'miss', 'blunder'], MOMENTS_THEIRS = ['brilliant', 'blunder', 'miss'];
     function done(fresh) {
-      st.keyPlies = [];
-      st.res.cls.forEach(function (k, i) { if (isMine(i) && SERIOUS.indexOf(k) >= 0) st.keyPlies.push(i + 1); });
+      st.keyPlies = []; st.moments = []; st.bookEnd = -1;
+      st.res.cls.forEach(function (k, i) {
+        if (k === 'book') st.bookEnd = i;
+        if (isMine(i) && SERIOUS.indexOf(k) >= 0) st.keyPlies.push(i + 1);
+        if ((isMine(i) ? MOMENTS_MINE : MOMENTS_THEIRS).indexOf(k) >= 0) st.moments.push(i + 1);
+      });
+      if (st.bookEnd >= 0 && st.bookEnd < moves.length - 1) st.moments.push(st.bookEnd + 1);
+      // and the move where you left the opening line you learned
+      var ri = repInfo();
+      if (ri && ri.kind === 'you' && st.moments.indexOf(ri.ply + 1) < 0) st.moments.push(ri.ply + 1);
+      st.moments.sort(function (a, b) { return a - b; });
       st.why = {};
+      stopScan();
       function show() {
-        buildMoves(); renderGraph(); renderSummary(); renderDetails(); renderOpening();
+        buildMoves(); renderGraph(); renderSummary(); renderDetails(); renderOpening(); renderRecap();
         U.clear(patternBox);
         if (src.gameId) { var pc = UI.patternCard({ label: 'Across your games', cls: 'rv-pattern-card' }); if (pc) patternBox.appendChild(pc); }
-        goPly(st.ply === moves.length ? (st.keyPlies[0] || moves.length) : st.ply);
+        st.stage = null; setStage('recap');
+        goPly(moves.length, { stay: true });
       }
-      if (fresh) U.glide(panel, show);
-      else { still = true; try { show(); } finally { still = false; } }
+      if (fresh) {
+        U.glide(panel, show);
+        // ta-da: every piece jumps once, and the summary slides in
+        recapBox.classList.add('rv-fresh'); arena.classList.add('rv-tada');
+        setTimeout(function () { arena.classList.remove('rv-tada'); recapBox.classList.remove('rv-fresh'); }, 900);
+      } else { still = true; try { show(); } finally { still = false; } }
     }
 
     // use a saved review if it was made the current way
@@ -1162,7 +1483,8 @@ var Review = (function () {
     Promise.all([Data.openings(), Engines.sfReady()]).then(function (res) {
       if (st.cancelled) return;
       st.map = res[0];
-      return analyseAll({ startFen: startFen, moves: moves, map: st.map, mine: isMine, cancelled: function () { return st.cancelled; }, progress: progress }).then(function (evals) {
+      return analyseAll({ startFen: startFen, moves: moves, map: st.map, mine: isMine, cancelled: function () { return st.cancelled; }, progress: progress,
+        live: function (ev) { st.liveEvals = ev; } }).then(function (evals) {
         if (!evals || st.cancelled) return;
         st.evals = evals;
         st.res = classify(startFen, moves, evals, st.map);
@@ -1173,6 +1495,7 @@ var Review = (function () {
       });
     }).catch(function (e) {
       if (st.cancelled) return;
+      stopScan();
       if (st.progText) st.progText.textContent = 'The review stopped: ' + (e && e.message ? e.message : 'something went wrong') + '.';
     });
 
@@ -1221,7 +1544,7 @@ var Review = (function () {
         if (C.validFen(fen)) { renderList(root); return; }
         var r = C.replay(fen, parsed.sans), bot = TempoBots.find(g.bot), bn = bot ? bot.short || bot.name : null;
         renderReview(root, { gameId: g.id, pgn: g.pgn, startFen: fen, moves: r.moves.map(C.uci), sans: sansOf(fen, r.moves), color: g.color,
-          label: resultPhrase(g, bn || 'opponent') + ', ' + U.dateShort(g.ts), oppName: bn || (g.opp || 'Opponent'), saved: g.rv, savedExtra: g.rvx });
+          label: resultPhrase(g, bn || 'opponent') + ', ' + U.dateShort(g.ts), oppName: bn || (g.opp || 'Opponent'), bot: bot || null, saved: g.rv, savedExtra: g.rvx });
       } else if (params && params.pgn) {
         var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN;
         if (C.validFen(fen2)) { renderList(root); return; }
@@ -1230,7 +1553,7 @@ var Review = (function () {
           oppName: params.color === 'b' ? (p2.headers.White || 'White') : (p2.headers.Black || 'Black') });
       } else renderList(root);
     },
-    leave: function () { if (R) { R.cancelled = true; R.token++; document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
+    leave: function () { if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
     busy: function () { return !!R; }
   });
   function sansOf(fen, ms) { var p = new C.Pos(fen), out = []; ms.forEach(function (m) { out.push(p.san(m)); p.make(m); }); return out; }
@@ -1238,7 +1561,8 @@ var Review = (function () {
   /* for tests: what the review screen is showing */
   function testState() {
     if (!R) return null;
-    return { ply: R.ply, mode: R.mode, done: !!R.res, token: R.token, keyPlies: R.keyPlies.slice(), moves: R.moves.slice(), cls: R.res ? R.res.cls.slice() : null,
+    return { ply: R.ply, mode: R.mode, stage: R.stage, practice: R.practice ? R.practice.idx : null, moments: R.moments.slice(), shown: R.shown,
+      done: !!R.res, token: R.token, keyPlies: R.keyPlies.slice(), moves: R.moves.slice(), cls: R.res ? R.res.cls.slice() : null,
       evals: R.evals ? R.evals.map(function (e) { return e ? { cp: e.cp, mate: e.mate, best: e.best, deep: !!e.deep, pv: (e.pv || []).slice(0, 8) } : null; }) : null };
   }
 
