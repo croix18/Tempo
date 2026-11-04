@@ -3,6 +3,7 @@ var Play = (function () {
   'use strict';
   var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS, TIERS = TempoBots.TIERS;
   var G = null, view = null, openTiers = {}; // tiers you opened or folded stay the way you left them
+  var ended = null; // { id, rec }: the result of the game that just finished, for its view if it's drawn again
 
   /* ---------- the tiers ---------- */
   function renderTiers(root) {
@@ -215,8 +216,10 @@ var Play = (function () {
     var coach = h('div', { class: 'coach', hidden: true });
     var movesBox = h('div');
     var controls = h('div', { class: 'controls' });
+    // when the game is over: who won and how, which stays put after the result sheet is closed (a tap opens it again)
+    var resultBox = h('div', { class: 'result-slot', hidden: true });
     var boardCol = h('div', { class: 'board-col' }, oppBar, board.el, youBar);
-    var panel = h('div', { class: 'panel' }, controls, coach, movesBox);
+    var panel = h('div', { class: 'panel' }, resultBox, controls, coach, movesBox);
     var arena = h('div', { class: 'arena' }, boardCol, panel);
     root.appendChild(arena);
     /* the name strip next to each side's pieces follows the board when it flips */
@@ -296,6 +299,7 @@ var Play = (function () {
       else board.setMovable(null);
       board.setPosition(p, { last: last, animate: false, clearLast: !last });
       if (n == null) markHanging(true); else board.setMarks([]);
+      if (G.result) board.setBadge(n == null ? endBadges(G.result, G.reason) : null);
       renderMoves(); bars();
     }
 
@@ -738,13 +742,41 @@ var Play = (function () {
       U.sound.end();
       bars(); renderControls(); renderMoves(); board.setMarks([]);
       say(null);
-      endSheet(record);
+      /* the end is shown on the board first: a crown on the winner's king, a mark on the loser's (# for checkmate, a
+         flag for resigning, a clock for time), a half on both for a draw, and the result under the board. The result
+         sheet follows a moment later, so the final move is seen, and so the tap that ended the game can't close it. */
+      ended = { id: G.id, rec: record };
+      board.setBadge(endBadges(result, reason));
+      showResult(record);
+      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100);
+    }
+    function endBadges(result, reason) {
+      var p = st.pos;
+      if (result === '1/2-1/2') return [{ sq: p.wk, kind: 'end-draw', text: '\u00bd' }, { sq: p.bk, kind: 'end-draw', text: '\u00bd' }];
+      var whiteWon = result === '1-0', mark = reason === 'checkmate' ? { text: '#' } : reason === 'resignation' ? { icon: 'flag' } : /time/.test(reason) ? { icon: 'clock' } : { text: '0' };
+      return [{ sq: whiteWon ? p.wk : p.bk, kind: 'end-win', icon: 'crown' }, Object.assign({ sq: whiteWon ? p.bk : p.wk, kind: 'end-lose' }, mark)];
+    }
+    function resultWords(rec) {
+      return { title: rec.score === 1 ? 'You won' : rec.score === 0.5 ? 'Draw' : 'You lost',
+        why: { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
+          'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
+          'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason };
+    }
+    function showResult(rec) {
+      var w = resultWords(rec), d = rec.rated ? rec.after - rec.before : null;
+      U.clear(resultBox);
+      // the same mark as on the board: a crown when you won, how you lost (# checkmate, a flag, a clock), a half for a draw
+      var mark = rec.score === 1 ? U.icon('crown', 'i-crown') : rec.score === 0.5 ? '\u00bd' : rec.reason === 'checkmate' ? '#' : rec.reason === 'resignation' ? U.icon('flag', 'i-flag') : /time/.test(rec.reason) ? U.icon('clock', 'i-clock') : '0';
+      resultBox.appendChild(h('button', { class: 'game-result ' + (rec.score === 1 ? 'won' : rec.score === 0.5 ? 'drew' : 'lost'), type: 'button', role: 'status',
+        'aria-label': w.title + ' ' + w.why + '. Show the result.', onclick: function () { clearTimeout(st.endT); endSheet(rec); } },
+        h('span', { class: 'gr-mark' }, mark),
+        h('span', { class: 'gr-title' }, w.title),
+        h('span', { class: 'gr-why' }, w.why, d != null ? h('span', { class: 'gr-rating' }, ' \u00b7 Rating ' + rec.after + ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)) : null),
+        U.icon('next', 'gr-more')));
+      resultBox.hidden = false;
     }
     function endSheet(rec) {
-      var won = rec.score === 1, drew = rec.score === 0.5;
-      var why = { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
-        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
-        'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason;
+      var won = rec.score === 1, drew = rec.score === 0.5, why = resultWords(rec).why;
       App.sheet(function (box, api) {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),
@@ -796,7 +828,11 @@ var Play = (function () {
     if (G.result) { finishView(); }
     else if (myTurn()) startMyTurn();
     else botTurn();
-    function finishView() { board.setMovable(null); renderControls(); }
+    function finishView() {
+      board.setMovable(null); renderControls();
+      board.setBadge(endBadges(G.result, G.reason));
+      if (ended && ended.id === G.id) showResult(ended.rec);
+    }
   }
 
   /* the character's previous move in the game in progress, so it can tell when it repeats itself */
@@ -924,7 +960,7 @@ var Play = (function () {
       else { G = null; renderTiers(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
+      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }

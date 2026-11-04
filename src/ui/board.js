@@ -168,6 +168,7 @@ var Board = (function () {
   B.setArrows = function (list) { this.arrows = list || []; this.paintArrows(); };
   B.setMarks = function (list) { this.marks = list || []; this.paint(); };
   B.setPicked = function (list) { this.picked = list || []; this.paint(); };
+  /* a badge in the corner of a square (or a list of them): { sq, kind, text } or { sq, kind, icon } */
   B.setBadge = function (b) { this.badge = b; this.paint(); };
   B.clearDecor = function () { this.arrows = []; this.marks = []; this.picked = []; this.badge = null; this.paint(); this.paintArrows(); };
 
@@ -223,14 +224,16 @@ var Board = (function () {
     }
     if (this.hover >= 0 && this.drag && this.drag.started) L.appendChild(sqDiv(this, this.hover, 'hover'));
     if (this.kbd && this.cursor >= 0) L.appendChild(sqDiv(this, this.cursor, 'cursor'));
-    if (this.badge) {
-      var bs = typeof this.badge.sq === 'string' ? C.sqIndex(this.badge.sq) : this.badge.sq;
-      if (bs >= 0) {
-        var wrap = sqDiv(this, bs, 'badge-wrap');
-        wrap.appendChild(h('span', { class: 'badge k-' + this.badge.kind }, this.badge.text || ''));
-        L.appendChild(wrap);
-      }
-    }
+    (Array.isArray(this.badge) ? this.badge : this.badge ? [this.badge] : []).forEach(function (b) {
+      var bs = typeof b.sq === 'string' ? C.sqIndex(b.sq) : b.sq;
+      if (!(bs >= 0)) return;
+      var wrap = sqDiv(self, bs, 'badge-wrap');
+      wrap.setAttribute('data-sq', bs);
+      // on the board's right column or top row, the badge tucks inside the square (the board clips its edges)
+      var at = self.xy(bs), edge = (at.x === 7 ? ' edge-r' : '') + (at.y === 0 ? ' edge-t' : '');
+      wrap.appendChild(h('span', { class: 'badge k-' + b.kind + edge }, b.icon ? U.icon(b.icon, 'i-' + b.icon) : (b.text || '')));
+      L.appendChild(wrap);
+    });
   };
 
   B.paintArrows = function () {
@@ -379,11 +382,14 @@ var Board = (function () {
     var self = this, color = this.pos.side === 1 ? 'w' : 'b', p = this.xy(to);
     this.promoOpen = true;
     var col = h('div', { class: 'promo', style: { left: (p.x * 12.5) + '%' } });
-    var down = p.y === 0;
+    var down = p.y === 0, armed = 0;
+    // A piece is chosen by a press that starts on it (or by the keyboard). On a phone, the tap that opened the menu is
+    // followed by a click that lands on whatever is now under the finger, the queen, and must not choose for you.
     [5, 2, 4, 3].forEach(function (pt, i) {
       var btn = h('button', { class: 'promo-btn', type: 'button', 'aria-label': ['Queen', 'Knight', 'Rook', 'Bishop'][i],
         style: { top: ((down ? p.y + i : p.y - i) * 12.5) + '%' },
-        onclick: function (e) { e.stopPropagation(); close(pt); } },
+        onpointerdown: function (e) { e.stopPropagation(); armed = pt; },
+        onclick: function (e) { e.stopPropagation(); if (e.detail === 0 || armed === pt) close(pt); } },
         h('span', { class: 'pc ' + color + CODES.charAt(pt) }));
       col.appendChild(btn);
     });

@@ -295,6 +295,16 @@ button.list-row:hover { background: var(--surface-2); }
 .hl.mark.ring::after { content: ""; position: absolute; inset: 7%; border-radius: 50%; box-shadow: inset 0 0 0 4px rgba(212, 175, 55, 0.95); }
 .hl.picked::after { content: ""; position: absolute; inset: 6%; border-radius: 22%; box-shadow: inset 0 0 0 4px var(--gold-fill); background: rgba(212, 175, 55, 0.22); }
 .hl.badge-wrap { z-index: 3; }
+.badge.edge-r { right: 2%; } .badge.edge-t { top: 2%; }
+/* the end of a game, on the board: a crown on the winner's king, a mark on the loser's (# checkmate, a flag, a clock), a half on both kings for a draw */
+.badge .ic { width: 66%; height: 66%; }
+.badge .ic svg { stroke-width: 2.4; }
+.badge.k-end-win, .badge.k-end-lose, .badge.k-end-draw { width: 54%; height: 54%; min-width: 22px; min-height: 22px; font-size: clamp(12px, 2.7vmin, 20px); animation: end-pop 0.45s cubic-bezier(.2, 1.5, .45, 1) both; }
+.badge.k-end-win { background: var(--gold-fill); color: var(--navy); }
+.badge.k-end-lose { background: var(--coral); }
+.badge.k-end-draw { background: var(--navy-2); color: var(--on-navy); }
+@keyframes end-pop { from { transform: scale(0.3); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .badge.k-end-win, .badge.k-end-lose, .badge.k-end-draw, .game-result { animation: none; } }
 .badge { position: absolute; top: -10%; right: -10%; width: 44%; height: 44%; min-width: 18px; min-height: 18px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: clamp(9px, 1.9vmin, 13px); color: #fff; box-shadow: 0 2px 6px rgba(0,0,0,0.35); border: 2px solid rgba(255,255,255,0.9); }
 .pc { position: absolute; left: 0; top: 0; width: 12.5%; height: 12.5%; background-size: 100% 100%; background-repeat: no-repeat; will-change: transform; z-index: 1; }
 .board.anim .pc { transition: transform 0.21s cubic-bezier(.25, .8, .3, 1), opacity 0.18s ease; }
@@ -357,6 +367,23 @@ button.list-row:hover { background: var(--surface-2); }
 .thinking i { width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); animation: blink 1.2s infinite; }
 .thinking i:nth-child(2) { animation-delay: 0.2s; } .thinking i:nth-child(3) { animation-delay: 0.4s; }
 @keyframes blink { 0%, 80%, 100% { opacity: 0.25; } 40% { opacity: 1; } }
+/* the result, at the top of the panel once a game is over; a tap opens the result sheet again */
+.result-slot[hidden] { display: none; }
+.game-result { width: 100%; display: grid; grid-template-columns: auto 1fr auto; align-items: center; column-gap: 14px; padding: 14px 16px; text-align: left;
+  border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); color: var(--ink); font: inherit; cursor: pointer; box-shadow: var(--shadow);
+  animation: result-in 0.4s ease both; }
+.game-result .gr-mark { grid-row: 1 / span 2; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+  background: var(--navy-2); color: var(--on-navy); font-weight: 800; font-size: 18px; }
+.game-result .gr-mark .ic { width: 22px; height: 22px; }
+.game-result .gr-mark .ic svg { stroke-width: 2.2; }
+.game-result.won .gr-mark { background: var(--gold-fill); color: var(--navy); }
+/* a crown and a flag read better solid at these sizes */
+.badge .ic.i-crown path, .badge .ic.i-flag path, .gr-mark .ic.i-crown path, .gr-mark .ic.i-flag path { fill: currentColor; }
+.game-result .gr-title { font-family: var(--serif); font-size: 26px; line-height: 1.1; }
+.game-result .gr-why { grid-column: 2; color: var(--ink-2); font-size: 15px; margin-top: 3px; }
+.game-result .gr-more { grid-column: 3; grid-row: 1 / span 2; color: var(--ink-3); }
+.game-result:hover { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+@keyframes result-in { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .controls { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
 .controls .btn { min-width: 0; padding: 0 12px; }
 .controls .btn.tool { flex-direction: column; gap: 3px; min-height: 58px; padding: 7px 4px 6px; font-size: 13px; font-weight: 600; }
@@ -6010,6 +6037,7 @@ var Board = (function () {
   B.setArrows = function (list) { this.arrows = list || []; this.paintArrows(); };
   B.setMarks = function (list) { this.marks = list || []; this.paint(); };
   B.setPicked = function (list) { this.picked = list || []; this.paint(); };
+  /* a badge in the corner of a square (or a list of them): { sq, kind, text } or { sq, kind, icon } */
   B.setBadge = function (b) { this.badge = b; this.paint(); };
   B.clearDecor = function () { this.arrows = []; this.marks = []; this.picked = []; this.badge = null; this.paint(); this.paintArrows(); };
 
@@ -6065,14 +6093,16 @@ var Board = (function () {
     }
     if (this.hover >= 0 && this.drag && this.drag.started) L.appendChild(sqDiv(this, this.hover, 'hover'));
     if (this.kbd && this.cursor >= 0) L.appendChild(sqDiv(this, this.cursor, 'cursor'));
-    if (this.badge) {
-      var bs = typeof this.badge.sq === 'string' ? C.sqIndex(this.badge.sq) : this.badge.sq;
-      if (bs >= 0) {
-        var wrap = sqDiv(this, bs, 'badge-wrap');
-        wrap.appendChild(h('span', { class: 'badge k-' + this.badge.kind }, this.badge.text || ''));
-        L.appendChild(wrap);
-      }
-    }
+    (Array.isArray(this.badge) ? this.badge : this.badge ? [this.badge] : []).forEach(function (b) {
+      var bs = typeof b.sq === 'string' ? C.sqIndex(b.sq) : b.sq;
+      if (!(bs >= 0)) return;
+      var wrap = sqDiv(self, bs, 'badge-wrap');
+      wrap.setAttribute('data-sq', bs);
+      // on the board's right column or top row, the badge tucks inside the square (the board clips its edges)
+      var at = self.xy(bs), edge = (at.x === 7 ? ' edge-r' : '') + (at.y === 0 ? ' edge-t' : '');
+      wrap.appendChild(h('span', { class: 'badge k-' + b.kind + edge }, b.icon ? U.icon(b.icon, 'i-' + b.icon) : (b.text || '')));
+      L.appendChild(wrap);
+    });
   };
 
   B.paintArrows = function () {
@@ -6221,11 +6251,14 @@ var Board = (function () {
     var self = this, color = this.pos.side === 1 ? 'w' : 'b', p = this.xy(to);
     this.promoOpen = true;
     var col = h('div', { class: 'promo', style: { left: (p.x * 12.5) + '%' } });
-    var down = p.y === 0;
+    var down = p.y === 0, armed = 0;
+    // A piece is chosen by a press that starts on it (or by the keyboard). On a phone, the tap that opened the menu is
+    // followed by a click that lands on whatever is now under the finger, the queen, and must not choose for you.
     [5, 2, 4, 3].forEach(function (pt, i) {
       var btn = h('button', { class: 'promo-btn', type: 'button', 'aria-label': ['Queen', 'Knight', 'Rook', 'Bishop'][i],
         style: { top: ((down ? p.y + i : p.y - i) * 12.5) + '%' },
-        onclick: function (e) { e.stopPropagation(); close(pt); } },
+        onpointerdown: function (e) { e.stopPropagation(); armed = pt; },
+        onclick: function (e) { e.stopPropagation(); if (e.detail === 0 || armed === pt) close(pt); } },
         h('span', { class: 'pc ' + color + CODES.charAt(pt) }));
       col.appendChild(btn);
     });
@@ -6393,7 +6426,9 @@ var App = (function () {
   function sheet(build, opts) {
     closeSheet();
     opts = opts || {};
-    var scrim = h('div', { class: 'scrim', onclick: function () { if (!opts.modal) close(); } });
+    // a tap on the shade closes the sheet, but not the phone's follow-up click from the tap that opened it
+    var openedAt = performance.now();
+    var scrim = h('div', { class: 'scrim', onclick: function () { if (!opts.modal && performance.now() - openedAt > 450) close(); } });
     var box = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' });
     if (!opts.modal) box.appendChild(h('button', { class: 'btn quiet small icon-only close-x', type: 'button', 'aria-label': 'Close', onclick: function () { close(); } }, U.icon('close')));
     var api = { close: close, box: box }, opener = document.activeElement;
@@ -8248,6 +8283,7 @@ var Play = (function () {
   'use strict';
   var h = U.h, C = TempoCore, BOTS = TempoBots.BOTS, TIERS = TempoBots.TIERS;
   var G = null, view = null, openTiers = {}; // tiers you opened or folded stay the way you left them
+  var ended = null; // { id, rec }: the result of the game that just finished, for its view if it's drawn again
 
   /* ---------- the tiers ---------- */
   function renderTiers(root) {
@@ -8460,8 +8496,10 @@ var Play = (function () {
     var coach = h('div', { class: 'coach', hidden: true });
     var movesBox = h('div');
     var controls = h('div', { class: 'controls' });
+    // when the game is over: who won and how, which stays put after the result sheet is closed (a tap opens it again)
+    var resultBox = h('div', { class: 'result-slot', hidden: true });
     var boardCol = h('div', { class: 'board-col' }, oppBar, board.el, youBar);
-    var panel = h('div', { class: 'panel' }, controls, coach, movesBox);
+    var panel = h('div', { class: 'panel' }, resultBox, controls, coach, movesBox);
     var arena = h('div', { class: 'arena' }, boardCol, panel);
     root.appendChild(arena);
     /* the name strip next to each side's pieces follows the board when it flips */
@@ -8541,6 +8579,7 @@ var Play = (function () {
       else board.setMovable(null);
       board.setPosition(p, { last: last, animate: false, clearLast: !last });
       if (n == null) markHanging(true); else board.setMarks([]);
+      if (G.result) board.setBadge(n == null ? endBadges(G.result, G.reason) : null);
       renderMoves(); bars();
     }
 
@@ -8983,13 +9022,41 @@ var Play = (function () {
       U.sound.end();
       bars(); renderControls(); renderMoves(); board.setMarks([]);
       say(null);
-      endSheet(record);
+      /* the end is shown on the board first: a crown on the winner's king, a mark on the loser's (# for checkmate, a
+         flag for resigning, a clock for time), a half on both for a draw, and the result under the board. The result
+         sheet follows a moment later, so the final move is seen, and so the tap that ended the game can't close it. */
+      ended = { id: G.id, rec: record };
+      board.setBadge(endBadges(result, reason));
+      showResult(record);
+      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100);
+    }
+    function endBadges(result, reason) {
+      var p = st.pos;
+      if (result === '1/2-1/2') return [{ sq: p.wk, kind: 'end-draw', text: '\u00bd' }, { sq: p.bk, kind: 'end-draw', text: '\u00bd' }];
+      var whiteWon = result === '1-0', mark = reason === 'checkmate' ? { text: '#' } : reason === 'resignation' ? { icon: 'flag' } : /time/.test(reason) ? { icon: 'clock' } : { text: '0' };
+      return [{ sq: whiteWon ? p.wk : p.bk, kind: 'end-win', icon: 'crown' }, Object.assign({ sq: whiteWon ? p.bk : p.wk, kind: 'end-lose' }, mark)];
+    }
+    function resultWords(rec) {
+      return { title: rec.score === 1 ? 'You won' : rec.score === 0.5 ? 'Draw' : 'You lost',
+        why: { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
+          'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
+          'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason };
+    }
+    function showResult(rec) {
+      var w = resultWords(rec), d = rec.rated ? rec.after - rec.before : null;
+      U.clear(resultBox);
+      // the same mark as on the board: a crown when you won, how you lost (# checkmate, a flag, a clock), a half for a draw
+      var mark = rec.score === 1 ? U.icon('crown', 'i-crown') : rec.score === 0.5 ? '\u00bd' : rec.reason === 'checkmate' ? '#' : rec.reason === 'resignation' ? U.icon('flag', 'i-flag') : /time/.test(rec.reason) ? U.icon('clock', 'i-clock') : '0';
+      resultBox.appendChild(h('button', { class: 'game-result ' + (rec.score === 1 ? 'won' : rec.score === 0.5 ? 'drew' : 'lost'), type: 'button', role: 'status',
+        'aria-label': w.title + ' ' + w.why + '. Show the result.', onclick: function () { clearTimeout(st.endT); endSheet(rec); } },
+        h('span', { class: 'gr-mark' }, mark),
+        h('span', { class: 'gr-title' }, w.title),
+        h('span', { class: 'gr-why' }, w.why, d != null ? h('span', { class: 'gr-rating' }, ' \u00b7 Rating ' + rec.after + ' ', h('span', { class: 'delta ' + (d >= 0 ? 'up' : 'down') }, (d >= 0 ? '+' : '') + d)) : null),
+        U.icon('next', 'gr-more')));
+      resultBox.hidden = false;
     }
     function endSheet(rec) {
-      var won = rec.score === 1, drew = rec.score === 0.5;
-      var why = { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
-        'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
-        'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason;
+      var won = rec.score === 1, drew = rec.score === 0.5, why = resultWords(rec).why;
       App.sheet(function (box, api) {
         box.appendChild(h('div', { class: 'result-hero' },
           h('div', { class: 'big' }, won ? 'You won' : drew ? 'Draw' : 'You lost'),
@@ -9041,7 +9108,11 @@ var Play = (function () {
     if (G.result) { finishView(); }
     else if (myTurn()) startMyTurn();
     else botTurn();
-    function finishView() { board.setMovable(null); renderControls(); }
+    function finishView() {
+      board.setMovable(null); renderControls();
+      board.setBadge(endBadges(G.result, G.reason));
+      if (ended && ended.id === G.id) showResult(ended.rec);
+    }
   }
 
   /* the character's previous move in the game in progress, so it can tell when it repeats itself */
@@ -9169,7 +9240,7 @@ var Play = (function () {
       else { G = null; renderTiers(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
+      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }

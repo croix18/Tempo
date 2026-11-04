@@ -149,7 +149,9 @@ var App = (function () {
   function sheet(build, opts) {
     closeSheet();
     opts = opts || {};
-    var scrim = h('div', { class: 'scrim', onclick: function () { if (!opts.modal) close(); } });
+    // a tap on the shade closes the sheet, but not the phone's follow-up click from the tap that opened it
+    var openedAt = performance.now();
+    var scrim = h('div', { class: 'scrim', onclick: function () { if (!opts.modal && performance.now() - openedAt > 450) close(); } });
     var box = h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' });
     if (!opts.modal) box.appendChild(h('button', { class: 'btn quiet small icon-only close-x', type: 'button', 'aria-label': 'Close', onclick: function () { close(); } }, U.icon('close')));
     var api = { close: close, box: box }, opener = document.activeElement;
