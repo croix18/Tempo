@@ -8186,7 +8186,8 @@ var Review = (function () {
       if (!P.auto && P.pos.side === P.you) { board.setMovable(P.you === 1 ? 'w' : 'b'); playStatus(); return; }
       P.thinking = true; playStatus();
       var started = performance.now(), tok = P.tok;
-      var opts = P.skip ? { depth: Engines.strong ? 8 : 3, movetime: 60 } : { depth: Engines.strong ? 12 : 6, movetime: 350 };
+      // skipping: quicker searches, still deep enough not to wander into a repetition from a winning position
+      var opts = P.skip ? { depth: Engines.strong ? 10 : 4, movetime: 90 } : { depth: Engines.strong ? 12 : 6, movetime: 350 };
       Engines.analyse(Object.assign({ fen: startFen, moves: moves.slice(0, P.base).concat(P.line.map(function (x) { return x.uci; })) }, opts)).then(function (r) {
         if (tok !== st.token || st.mode !== 'play' || R !== st || st.cancelled) return;
         P.thinking = false;
