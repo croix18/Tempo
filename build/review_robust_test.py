@@ -127,9 +127,9 @@ async def test_phone(browser):
     check('summary: both accuracies', 'Your accuracy' in recap and recap.count('%') >= 2, recap[:200])
     gb = await pg.locator('.rv-go').bounding_box()
     check('summary: Start review is on screen without scrolling', gb and gb['y'] >= 0 and gb['y'] + gb['height'] <= 844, gb)
-    fix = await pg.locator('.rv-fix').inner_text()
-    check('summary: Fix your mistakes counts them', ('Fix your %d mistakes' % len(keys)) in fix, fix)
-    check('summary: the board’s step buttons wait for the walk through', not await pg.locator('.rv-controls').is_visible())
+    fix = await pg.locator('.rv-fix').get_attribute('aria-label')
+    check('summary: Fix your mistakes counts them', ('Fix your %d mistakes' % len(keys)) == fix, fix)
+    ctl = await pg.locator('.rv-controls').bounding_box()
 
     # a move named in the verdict opens it
     await pg.locator('.rv-verdict .rv-link').first.click(); await pg.wait_for_timeout(900)
@@ -142,11 +142,21 @@ async def test_phone(browser):
     await pg.locator('.rv-go').click(); await pg.wait_for_timeout(1000)
     s = await pg.evaluate("Review._state()")
     check('start review: the first key moment', s['stage'] == 'walk' and s['ply'] == moments[0], (s['stage'], s['ply'], moments))
+    ctl2 = await pg.locator('.rv-controls').bounding_box()
+    check('the step buttons under the board stay put from the summary to the walk through', ctl and ctl2 and abs(ctl['y'] - ctl2['y']) < 2, (ctl, ctl2))
     check('start review: "Key moment 1 of N"', ('Key moment 1 of %d' % len(moments)) in await card_text(pg), (await card_text(pg))[:60])
     await pg.evaluate("window.scrollTo(0, document.documentElement.scrollHeight)"); await pg.wait_for_timeout(400)
-    await pg.locator('.rv-next').click(); await pg.wait_for_timeout(1200)
+    # the board never teleports: on the way to the next key moment it passes through the moves in between
+    watch = asyncio.ensure_future(pg.evaluate("""() => new Promise(res => { const seen = [], t0 = performance.now(); (function f() {
+      const a = Review._state().at; if (seen[seen.length - 1] !== a) seen.push(a); if (performance.now() - t0 < 1800) setTimeout(f, 30); else res(seen); })(); })"""))
+    await asyncio.sleep(0.05)
+    await pg.locator('.rv-next').click()
+    seen = await watch
     s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
     check('next: the second key moment', s['ply'] == moments[1], (s['ply'], moments))
+    gap = moments[1] - moments[0]
+    check('next: the board plays the moves on the way there', seen[-1] == moments[1] and (gap < 2 or len(seen) >= min(gap, 5)), (seen, moments[:2]))
+    check('next: the move’s mark lands with it', b['badge'] and b['badge']['sq'] == PIP[moments[1] - 1][2:4], b['badge'])
     check('next: the board is in view after the jump', board_in_view(b), b)
     check('next: the counter follows', ('Key moment 2 of %d' % len(moments)) in await card_text(pg))
     nb = await pg.locator('.rv-next').bounding_box()
@@ -171,9 +181,9 @@ async def test_phone(browser):
     check('your blunder: the coach doesn’t give the better move away', 'Best was' not in txt and 'Find a better move' in txt and 'Best move' in txt, txt[:220])
 
     # tap targets on a touch screen
-    sizes = await pg.evaluate("""() => Array.from(document.querySelectorAll('.rv-foot button, .rv-controls button, .rv-card .rv-actions button')).map(e => { const r = e.getBoundingClientRect(); return [e.innerText || e.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; })""")
+    sizes = await pg.evaluate("""() => Array.from(document.querySelectorAll('.rv-card .rv-foot button, .rv-controls button, .rv-card .rv-actions button')).map(e => { const r = e.getBoundingClientRect(); return [e.innerText || e.getAttribute('aria-label'), Math.round(r.width), Math.round(r.height)]; })""")
     small = [x for x in sizes if x[2] < 44 or x[1] < 44]
-    check('touch: Next, the step arrows, Find a better move, Show the capture and Best move are at least 44px', not small and len(sizes) >= 9, small or sizes)
+    check('touch: Next, the step arrows, Find a better move, Show the capture, Best move and Play it out are at least 44px', not small and len(sizes) >= 10, small or sizes)
 
     # Show the capture: the reply that takes the bishop, played on the board
     idea = pg.locator('.rv-card .rv-actions button', has_text='Show the')
@@ -243,6 +253,33 @@ async def test_phone(browser):
     await pg.wait_for_timeout(4000)
     s = await pg.evaluate("Review._state()"); txt = await card_text(pg)
     check('race: next-move tap before the verdict lands on the next move', s['ply'] == BG5 and s['mode'] == 'game' and not re.search(r'Yes, |is safe, but|doesn’t work', txt), (s['ply'], s['mode'], txt[:80]))
+
+    # Play it out: from before 4.Bg5, a different move (the best one), the engine answers, then it plays out to the end
+    await go(pg, BG5)
+    await pg.locator('.rv-card .rv-tools button', has_text='Play it out').click(); await pg.wait_for_timeout(800)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('play it out: from the position before the move, your move to make', s['mode'] == 'play' and s['play']['base'] == BG5 - 1 and b['fen'] == await pg.evaluate(FEN_AT, BG5 - 1) and b['movable'] == 'w', (s['mode'], s['play'], b['movable']))
+    await pg.locator('.rv-card button', has_text='Play the best move').click()
+    await pg.wait_for_function("() => { const p = Review._state().play; return p && p.line.length >= 2; }", timeout=30000)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('play it out: the best move, then the engine answers, and it’s your move again', s['play']['line'][0] == best and len(s['play']['line']) == 2 and b['movable'] == 'w', (s['play'], b['movable']))
+    await play(pg, 'b1c3') if (await pg.evaluate("(u) => !!new TempoCore.Pos(document.querySelector('.v-review .board').__board.pos.fen()).parseMove(u)", 'b1c3')) else None
+    await pg.wait_for_timeout(2500)
+    s = await pg.evaluate("Review._state()")
+    check('play it out: you keep playing, the engine keeps answering', len(s['play']['line']) >= 3, s['play'])
+    await pg.locator('.rv-card button', has_text='Play it to the end').click(); await pg.wait_for_timeout(2500)
+    s = await pg.evaluate("Review._state()")
+    check('play it out: Play it to the end plays both sides', s['play']['auto'] and len(s['play']['line']) >= 5, s['play'])
+    await pg.locator('.rv-card button', has_text='Skip to the end').click()
+    await pg.wait_for_function("() => { const p = Review._state().play; return p && p.over; }", timeout=300000, polling=500)
+    s = await pg.evaluate("Review._state()"); txt = await card_text(pg); b = await pg.evaluate(BOARD)
+    end_ok = s['play']['over'] in ('checkmate', 'stalemate', 'insufficient material', 'fifty-move rule', 'threefold repetition', 'cap')
+    check('play it out: it plays to the end of the game and says how it ended', end_ok and re.search(r'wins by checkmate|A draw|Stopped after', txt), (s['play']['over'], len(s['play']['line']), txt[-160:]))
+    if s['play']['over'] == 'checkmate':
+        check('play it out: a checkmate gets the crown and the # on the kings', b['badge'] and sorted(x['kind'] for x in b['badge']) == ['end-lose', 'end-win'], b['badge'])
+    await pg.locator('.rv-card button', has_text='Back to the review').click(); await pg.wait_for_timeout(1500)
+    s = await pg.evaluate("Review._state()"); b = await pg.evaluate(BOARD)
+    check('play it out: Back to the review returns to the move', s['mode'] == 'game' and s['ply'] == BG5 and b['fen'] == await pg.evaluate(FEN_AT, BG5) and not b['movable'], (s['mode'], s['ply'], b['movable']))
 
     # Fix your mistakes: from the summary, straight into finding a better move for each, in order
     await pg.locator('.rv-to-summary').click(); await pg.wait_for_timeout(700)

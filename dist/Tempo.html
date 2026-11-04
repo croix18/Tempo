@@ -945,7 +945,7 @@ textarea.tr-input { min-height: 74px; font-size: 13px; line-height: 1.4; }
 .v-review .rv-evalbar.flip i { background: var(--rv-black); }
 
 /* ---------- the summary: the coach's verdict, both accuracies, and Start review ---------- */
-.rv-recap { display: flex; flex-direction: column; gap: 16px; padding: 18px 18px 18px; }
+.rv-recap { display: flex; flex-direction: column; gap: 16px; padding: 16px 16px 14px; }
 .rv-recap[hidden], .rv-card[hidden], .rv-extra[hidden] { display: none; }
 .rv-coach { display: flex; gap: 14px; align-items: flex-start; }
 .rv-coach-mark { width: 34px; height: 34px; border-radius: 10px; margin-top: 1px; }
@@ -961,11 +961,10 @@ div.rv-verdict { font-weight: 600; }
 .rv-acc b { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.1; color: var(--ink); }
 .rv-acc-opp { flex-direction: row-reverse; text-align: right; }
 .rv-acc .avatar { flex: none; }
-.rv-start { display: flex; flex-direction: column; gap: 10px; }
-.rv-start .btn { width: 100%; }
-.rv-go { min-height: 54px; font-size: 17px; gap: 8px; }
-.rv-go .ic { order: 2; }
-.rv-fix { min-height: 48px; }
+/* the summary's bottom bar: Fix your mistakes beside Start review, where Next sits in the walk through */
+.rv-start .rv-go { flex: 1; min-height: 50px; font-size: 16.5px; gap: 8px; }
+.rv-start .rv-go .ic { order: 2; }
+.rv-start .rv-fix { flex: none; min-height: 50px; padding: 0 14px; gap: 6px; }
 .rv-fix .ic { color: var(--gold); }
 .rv-prog { margin-top: 4px; }
 .rv-recap .meter { margin-top: 2px; }
@@ -977,13 +976,14 @@ div.rv-verdict { font-weight: 600; }
   background: linear-gradient(to bottom, rgba(212, 175, 55, 0) 0%, rgba(212, 175, 55, 0.22) 62%, rgba(255, 232, 160, 0.95) 95%, rgba(212, 175, 55, 0) 100%);
   animation: rv-beam 1.9s cubic-bezier(.45, 0, .55, 1) infinite; }
 @keyframes rv-beam { from { top: -18%; } to { top: 100%; } }
-/* the pieces hop about nervously while they're judged (translate, so it never fights the board's own moves) */
-.rv-scanning .b-pcs .pc { animation: rv-hop 1.15s ease-in-out infinite; }
-.rv-scanning .b-pcs .pc:nth-child(2n) { animation-delay: -0.35s; }
-.rv-scanning .b-pcs .pc:nth-child(3n) { animation-delay: -0.7s; }
-.rv-scanning .b-pcs .pc:nth-child(5n) { animation-delay: -0.95s; animation-duration: 0.95s; }
-.rv-scanning .b-pcs .pc:nth-child(7n) { animation-delay: -0.2s; animation-duration: 1.35s; }
-@keyframes rv-hop { 0%, 55%, 100% { translate: 0 0; } 25% { translate: 0 -9%; } 40% { translate: 0 1.5%; } }
+/* the pieces fidget nervously while they're judged: a few at a time hop, then wait their turn (translate, so it never
+   fights the board's own moves) */
+.rv-scanning .b-pcs .pc { animation: rv-hop 2.2s ease-in-out infinite; }
+.rv-scanning .b-pcs .pc:nth-child(2n) { animation-delay: -0.55s; }
+.rv-scanning .b-pcs .pc:nth-child(3n) { animation-delay: -1.1s; }
+.rv-scanning .b-pcs .pc:nth-child(5n) { animation-delay: -1.65s; animation-duration: 1.9s; }
+.rv-scanning .b-pcs .pc:nth-child(7n) { animation-delay: -0.3s; animation-duration: 2.6s; }
+@keyframes rv-hop { 0%, 20%, 100% { translate: 0 0; } 8% { translate: 0 -8%; } 14% { translate: 0 1%; } }
 /* when it's done, everyone jumps at once: ta-da */
 .rv-tada .b-pcs .pc { animation: rv-tada 0.7s cubic-bezier(.3, 1.5, .5, 1) both; }
 @keyframes rv-tada { 0% { translate: 0 0; } 40% { translate: 0 -20%; } 100% { translate: 0 0; } }
@@ -1023,6 +1023,19 @@ div.rv-verdict { font-weight: 600; }
 .rv-playing { font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; min-height: 1.5em; }
 .rv-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .rv-actions:empty { display: none; }
+/* the quieter tools for a move (show the fork, the best move, play it out), tight enough to share a row on a phone */
+.rv-tools { gap: 2px 4px; margin: -4px 0 0 -10px; }
+.rv-tools .btn { padding: 0 9px; gap: 5px; }
+.rv-tools .btn .ic { width: 18px; height: 18px; }
+@media (max-width: 420px) { .rv-tools .btn { padding: 0 8px; } .rv-tools .btn .ic { display: none; } } /* the words alone, so all three fit one row */
+/* play it out */
+.rv-k-play { background: var(--navy-2); color: var(--on-navy); }
+.rv-k-play .ic { width: 18px; height: 18px; }
+.rv-k-play .ic path:first-child { fill: currentColor; }
+.rv-playline { font-weight: 600; color: var(--ink); max-height: 4.6em; overflow-y: auto; overflow-wrap: normal; word-break: normal; }
+.rv-playline[hidden] { display: none; }
+.rv-playstatus { color: var(--ink-2); }
+.rv-playstatus.rv-over { color: var(--ink); font-weight: 700; font-size: 17px; }
 .v-review .btn.rv-try { background: var(--gold-wash); border-color: color-mix(in srgb, var(--gold-fill) 70%, transparent); color: var(--ink); }
 .v-review .btn.rv-try .ic { color: var(--gold); }
 .rv-card .study { padding-top: 10px; margin-top: 2px; border-top: 1px solid var(--line); }
@@ -1035,15 +1048,16 @@ div.rv-verdict { font-weight: 600; }
 .rv-foot .rv-next { flex: 1; min-height: 50px; font-size: 16.5px; gap: 8px; }
 .rv-foot .rv-next .ic { order: 2; }
 .rv-foot .rv-next .ic:first-child { order: 0; }
-/* on a phone, Next stays in reach at the bottom of the screen, however long the card gets */
+/* On a phone the bar with Next (Start review on the summary) is fixed to the bottom of the screen: the same place for
+   your thumb on every move, however long the card is. */
 @media (max-width: 979px) {
-  .rv-foot { position: sticky; bottom: 0; z-index: 3; background: var(--surface); margin: 0 -16px -14px; padding: 12px 16px calc(14px + env(safe-area-inset-bottom, 0px));
-    border-radius: 0 0 var(--radius) var(--radius); }
+  .v-review .rv-foot { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; margin: 0; border-radius: 0;
+    padding: 10px max(16px, calc((100vw - 600px) / 2)) calc(10px + env(safe-area-inset-bottom, 0px));
+    background: color-mix(in srgb, var(--surface) 94%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+    border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(22, 34, 61, 0.07); }
+  .v-review .rv-arena { padding-bottom: 84px; } /* room for the bar */
+  .rv-card { padding-bottom: 16px; }
 }
-/* on a short phone the summary's picture of the final position steps back, so Start review is on screen */
-@media (max-width: 699px) and (max-height: 760px) { .rv-at-recap .board-col { width: 74%; margin: 0 auto; } }
-/* on the summary the board is a picture of the final position: its step buttons come with the walk through */
-.rv-at-recap .rv-controls { display: none; }
 
 /* the move list: a table beside the board, a strip under it on a phone; chess marks after the move, colored by kind */
 .rv-movelist { display: grid; grid-template-columns: 40px minmax(0, 1fr) minmax(0, 1fr); align-items: center; row-gap: 2px; padding: 6px 4px; }
@@ -4114,6 +4128,7 @@ var U = (function () {
     clock: '<circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/>',
     pause: '<path d="M9 6v12M15 6v12"/>',
     resume: '<path d="M8 5.5v13l10.5-6.5z"/>',
+    'play-out': '<path d="M5 6v12l8-6z"/><path d="M16 6v12M19.5 6v12"/>',
     fire: '<path d="M12 21c-4 0-6.5-2.6-6.5-6 0-4 3.5-6 3.5-10 2.5 1.5 4 4 4 6 1-1 1.5-2.2 1.5-3.5 2.4 1.6 4 4.5 4 7.5 0 3.4-2.5 6-6.5 6z"/>',
     target: '<circle cx="12" cy="12" r="7.5"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/>',
     eye: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>',
@@ -7679,16 +7694,17 @@ var Review = (function () {
     var st = { moves: moves, ply: moves.length, shown: moves.length, evals: null, res: null, cancelled: false, token: 0, mode: 'game', retry: null,
       map: null, keyPlies: [], moments: [], stage: 'recap', practice: null, why: {}, pending: {}, details: false, progFrac: 0, follow: true };
     R = st;
-    var board = new Board({ orient: you, coords: Store.state.settings.coords !== false, movable: null, onMove: retryMove });
+    var board = new Board({ orient: you, coords: Store.state.settings.coords !== false, movable: null,
+      onMove: function (uci, m) { if (st.mode === 'play') playYours(uci, m); else retryMove(uci, m); } });
     var evalFill = h('i');
     var evalBar = h('div', { class: 'evalbar rv-evalbar', 'aria-hidden': 'true' }, evalFill);
     function stepBtn(icon, label, fn) { return h('button', { class: 'btn icon-only', type: 'button', 'aria-label': label, 'data-repeat': '', onclick: fn }, U.icon(icon)); }
     var controls = h('div', { class: 'controls rv-controls' },
-      stepBtn('first', 'Start', function () { goPly(0); }),
+      stepBtn('first', 'Start', function () { goPly(0, { jump: true }); }),
       // step from the position on the board (Show best move and Find a better move show the one before the move)
       stepBtn('back', 'Previous move', function () { goPly(st.shown - 1); }),
       stepBtn('next', 'Next move', function () { goPly(st.shown + 1); }),
-      stepBtn('last', 'End', function () { goPly(moves.length); }),
+      stepBtn('last', 'End', function () { goPly(moves.length, { jump: true }); }),
       h('button', { class: 'btn icon-only', type: 'button', 'aria-label': 'Flip board', onclick: function () { board.flip(); paintEval(); } }, U.icon('flip')));
     var recapBox = h('section', { class: 'card rv-recap', 'aria-label': 'Summary' });
     var card = h('section', { class: 'card rv-card', 'aria-label': 'This move', hidden: true });
@@ -7743,18 +7759,44 @@ var Review = (function () {
     function prevMoment() { return st.moments.filter(function (p) { return p < st.ply; }).pop(); }
 
     /* ---------- navigation ---------- */
-    // o.stay: keep the summary on screen (only the summary itself does this); o.reveal: bring the board into view
+    // o.stay: keep the summary on screen (only the summary itself does this); o.reveal: bring the board into view;
+    // o.jump: straight there (Start and End), without playing the moves on the way
     function goPly(n, o) {
       n = Math.max(0, Math.min(moves.length, n));
-      clearTimeout(st.lineT);
-      st.token++; st.ply = n; st.shown = n; st.mode = 'game'; st.retry = null; st.practice = null;
+      clearTimeout(st.lineT); clearTimeout(st.travelT); clearTimeout(st.playT);
+      st.token++; st.ply = n; st.shown = n; st.mode = 'game'; st.retry = null; st.practice = null; st.play = null;
       if (!(o && o.stay)) st.follow = false; // you took over the board from the engine's replay
       if (st.res && !(o && o.stay)) setStage('walk');
-      var a = posAt(n);
-      board.setMovable(null);
-      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
-      decorate(); renderCard(); markMoves(); paintEval(); paintCursor();
+      board.setMovable(null); board.setArrows([]); board.setBadge(null); board.setMarks([]);
+      var tok = st.token;
+      travel(n, function () { if (tok === st.token) decorate(); }, !!(o && o.jump));
+      renderCard(); markMoves(); paintEval(); paintCursor();
       if (o && o.reveal) revealBoard();
+    }
+    /* Getting the board to position n without losing you on the way (st.at: the game position the board shows, or null
+       when it shows something off the game). One move: it plays, forward or back. A few moves ahead: they play quickly,
+       and the last one at its own pace. Further ahead, or back: the board fades to a few moves (or one move) before,
+       then the moves play, so you always see the move you're looking at being made. */
+    function put(k, animate) { var a = posAt(k); board.setPosition(a.pos, { last: a.last, animate: animate, clearLast: !a.last }); st.at = k; }
+    function travel(n, landed, jumpTo) {
+      var from = st.at, tok = st.token, d = from == null ? null : n - from;
+      if (d === 0) { landed(); return; }
+      if (d == null || Math.abs(d) === 1 || U.calm()) { put(n, d != null && !U.calm()); landed(); return; }
+      var k = from, wait = 0;
+      if (jumpTo || n === 0 || d < 0 || d > 10) {
+        // the board cross-fades the squares that change (or slides the few pieces that move)
+        k = jumpTo || n === 0 ? n : d < 0 ? n - 1 : n - 4;
+        put(k, true);
+        if (k === n) { landed(); return; }
+        wait = 300;
+      }
+      function step() {
+        if (tok !== st.token) return;
+        put(++k, true);
+        if (k >= n) { landed(); return; }
+        st.travelT = setTimeout(step, k === n - 1 ? 340 : 150);
+      }
+      st.travelT = setTimeout(step, wait);
     }
     /* keep the board on screen after a jump (on a phone the panel sits below it) */
     function revealBoard() {
@@ -7925,10 +7967,12 @@ var Review = (function () {
       recapBox.appendChild(h('div', { class: 'rv-acc-row', role: 'group', 'aria-label': 'Accuracy' },
         h('div', { class: 'rv-acc' }, avatarFor('Y'), h('div', null, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, accText(you)))),
         h('div', { class: 'rv-acc rv-acc-opp' }, avatarFor(oppShort, src.bot), h('div', null, h('span', { class: 'label rv-opp-name', title: opp }, opp), h('b', null, accText(them))))));
+      // the same bar at the bottom as the walk through: what to do next, in the same place
       var n = st.keyPlies.length;
-      recapBox.appendChild(h('div', { class: 'rv-start' },
-        h('button', { class: 'btn primary rv-go', type: 'button', onclick: startWalk }, 'Start review', U.icon('next')),
-        n ? h('button', { class: 'btn rv-fix', type: 'button', onclick: function () { startPractice(0); } }, U.icon('refresh'), n === 1 ? 'Fix your mistake' : 'Fix your ' + n + ' mistakes') : null));
+      recapBox.appendChild(h('div', { class: 'rv-foot rv-start' },
+        n ? h('button', { class: 'btn rv-fix', type: 'button', 'aria-label': n === 1 ? 'Fix your mistake' : 'Fix your ' + n + ' mistakes', onclick: function () { startPractice(0); } },
+          U.icon('refresh'), n === 1 ? 'Fix 1 mistake' : 'Fix ' + n + ' mistakes') : null,
+        h('button', { class: 'btn primary rv-go', type: 'button', onclick: startWalk }, 'Start review', U.icon('next'))));
     }
 
     /* ---------- your opening: where the game left the line you learned ---------- */
@@ -7977,6 +8021,7 @@ var Review = (function () {
     function cardTop() {
       var where = '';
       if (st.practice) where = 'Mistake ' + (st.practice.idx + 1) + ' of ' + st.keyPlies.length;
+      else if (st.mode === 'play') where = 'Playing it out';
       else if (st.mode !== 'end') {
         var at = st.moments.indexOf(st.ply);
         where = at >= 0 ? 'Key moment ' + (at + 1) + ' of ' + st.moments.length : st.ply ? 'Move ' + moveNo(st.ply - 1) : 'The start';
@@ -8018,10 +8063,16 @@ var Review = (function () {
       return t ? Explain.studyRow(t) : null;
     }
     function backBtn(i) { return st.practice ? null : btn('Back to the game', function () { goPly(i + 1); }, 'quiet'); }
+    /* Play it out from before move i (first: a move to start with, such as the best move or your try) */
+    function playBtn(i, first) { return btn('Play it out', function () { startPlay(i, first); }, 'quiet', 'play-out'); }
     function renderCard() {
       if (!st.res || st.stage !== 'walk') return;
       cardBody(function (body) {
-        if (st.ply === 0) { body.appendChild(h('p', { class: 'rv-text' }, 'This is where the game started. Next takes you to the first key moment; the arrows under the board go one move at a time.')); return; }
+        if (st.ply === 0) {
+          body.appendChild(h('p', { class: 'rv-text' }, 'This is where the game started. Next takes you to the first key moment; the arrows under the board go one move at a time.'));
+          body.appendChild(h('div', { class: 'rv-actions rv-tools' }, playBtn(0)));
+          return;
+        }
         var i = st.ply - 1, k = st.res.cls[i], mine = isMine(i), t = moveText(i);
         body.appendChild(moveHead(k, KINDS[k].label, (mine ? 'You' : oppShort) + ' played ' + moveLabel(i)));
         if (t.text) body.appendChild(h('p', { class: 'rv-text' }, t.text));
@@ -8031,12 +8082,13 @@ var Review = (function () {
           body.appendChild(h('p', { class: 'rv-text rv-rep' }, ri.here));
           if (ri.kind === 'you') body.appendChild(h('div', { class: 'rv-actions' }, btn('Drill this line', function () { Openings.queueLine(st.rep.key); Openings.drillLine(st.rep.key); }, '', 'target')));
         }
-        if (FLAGGED.indexOf(k) < 0) return;
+        if (FLAGGED.indexOf(k) < 0) { body.appendChild(h('div', { class: 'rv-actions rv-tools' }, playBtn(i))); return; }
         var idea = ideaOf(i);
-        body.appendChild(h('div', { class: 'rv-actions' },
-          mine ? btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh') : null,
+        if (mine) body.appendChild(h('div', { class: 'rv-actions' }, btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh')));
+        body.appendChild(h('div', { class: 'rv-actions rv-tools' },
           idea ? btn(idea.label, function () { showLine(i); }, 'quiet', 'resume') : null,
-          st.evals[i] && st.evals[i].best ? showBestBtn(i) : null));
+          st.evals[i] && st.evals[i].best ? showBestBtn(i) : null,
+          playBtn(i)));
       });
     }
     /* after the last key moment: what's left to do */
@@ -8061,7 +8113,7 @@ var Review = (function () {
     function showLine(i) {
       var idea = ideaOf(i); if (!idea) return;
       var tok = ++st.token, a = posAt(i + 1), pv = idea.line.pv, seq = [], p = a.pos.clone(), w = why(i);
-      st.mode = 'line'; st.shown = i + 1; st.retry = null;
+      st.mode = 'line'; st.shown = i + 1; st.retry = null; st.at = null;
       // as far as the damage: the piece taken, or the checkmate (eight moves at most, never past the end of the game)
       for (var j = 0, lim = Math.min(pv.length, (w && w.at != null ? w.at : 3) + 1, 8); j < lim; j++) {
         var m = p.parseMove(pv[j]); if (!m) break;
@@ -8095,11 +8147,138 @@ var Review = (function () {
       })();
     }
 
+    /* ---------- play it out: from any point, any move, and the engine plays on (to the end, if you like) ----------
+       The board starts before the move on screen, so you can play something else there (or the same move). You play the
+       side to move; the engine answers for the other side. Play it to the end lets the engine play both sides until the
+       game is over (checkmate, stalemate or a draw); Skip to the end gets there at once. */
+    var PLAY_CAP = 300; // plies: a game played out further than this stops there
+    function startPlay(base, first) {
+      clearTimeout(st.lineT); clearTimeout(st.travelT); clearTimeout(st.playT);
+      st.token++; st.mode = 'play'; st.retry = null; st.practice = null; st.shown = base;
+      var a = posAt(base);
+      st.play = { base: base, pos: a.pos, line: [], you: a.pos.side, auto: false, skip: false, thinking: false, over: null, tok: st.token, ev: st.evals && st.evals[base] };
+      board.setArrows([]); board.setBadge(null); board.setMarks([]);
+      if (st.at !== base) put(base, st.at != null && Math.abs(st.at - base) === 1);
+      st.at = null;
+      paintPlayEval();
+      var m = first && a.pos.parseMove(first);
+      if (m) playAdd(m);
+      renderPlay();
+      playNext();
+      revealBoard();
+    }
+    function playAdd(m) {
+      var P = st.play, san = P.pos.san(m);
+      P.pos.make(m);
+      P.line.push({ m: m, san: san, uci: C.uci(m) });
+      board.setPosition(P.pos.clone(), { last: m, animate: !P.skip });
+      var s = P.pos.status();
+      if (s.over) P.over = s;
+      else if (P.line.length >= PLAY_CAP) P.over = { over: true, reason: 'cap' };
+      if (P.over) playEnd();
+    }
+    /* who moves next: you (the board is yours), or the engine (its turn, or it's playing it out) */
+    function playNext() {
+      var P = st.play;
+      if (!P || st.mode !== 'play' || P.tok !== st.token || P.thinking) return;
+      board.setMovable(null);
+      if (P.over) { renderPlay(); return; }
+      if (!P.auto && P.pos.side === P.you) { board.setMovable(P.you === 1 ? 'w' : 'b'); playStatus(); return; }
+      P.thinking = true; playStatus();
+      var started = performance.now(), tok = P.tok;
+      var opts = P.skip ? { depth: Engines.strong ? 8 : 3, movetime: 60 } : { depth: Engines.strong ? 12 : 6, movetime: 350 };
+      Engines.analyse(Object.assign({ fen: startFen, moves: moves.slice(0, P.base).concat(P.line.map(function (x) { return x.uci; })) }, opts)).then(function (r) {
+        if (tok !== st.token || st.mode !== 'play' || R !== st || st.cancelled) return;
+        P.thinking = false;
+        var u = r && (r.best || (r.lines && r.lines[0] && r.lines[0].pv && r.lines[0].pv[0])), m = u && P.pos.parseMove(u);
+        if (!m) { P.over = { over: true, reason: 'stuck' }; renderPlay(); return; }
+        if (r.lines && r.lines.length) P.ev = record(r, P.pos.side);
+        playAdd(m);
+        paintPlayEval(); playLine();
+        // your turn: the board is yours at once. Played out: each move gets a moment on the board (none when skipping)
+        if (!P.auto && !P.over && P.pos.side === P.you) playNext();
+        else st.playT = setTimeout(playNext, P.skip ? 0 : Math.max(120, 700 - (performance.now() - started)));
+      }, function () {
+        if (tok !== st.token) return;
+        P.thinking = false; P.over = { over: true, reason: 'stuck' }; renderPlay();
+      });
+    }
+    /* the next move now, whoever's it is (no waiting on the pause between moves) */
+    function kick() { clearTimeout(st.playT); playNext(); }
+    function playYours(uci, m) {
+      var P = st.play; if (!P || P.thinking || P.over || P.pos.side !== P.you) return;
+      board.setMovable(null);
+      playAdd(m);
+      if (P.line.length === 1) renderPlay(); else { playLine(); playStatus(); }
+      playNext();
+    }
+    /* the end of the game played out: the marks on the kings, as at the end of a game */
+    function playEnd() {
+      var P = st.play, o = P.over, p = P.pos;
+      board.setMovable(null);
+      if (o.reason === 'checkmate') board.setBadge([{ sq: o.winner === 1 ? p.wk : p.bk, kind: 'end-win', icon: 'crown' }, { sq: o.winner === 1 ? p.bk : p.wk, kind: 'end-lose', text: '#' }]);
+      else if (o.result === '1/2-1/2') board.setBadge([{ sq: p.wk, kind: 'end-draw', text: '½' }, { sq: p.bk, kind: 'end-draw', text: '½' }]);
+      P.ev = o.reason === 'checkmate' ? { mate: 0, mateWinner: o.winner } : o.result === '1/2-1/2' ? { cp: 0, mate: null } : P.ev;
+      paintPlayEval();
+    }
+    function paintPlayEval() {
+      var e = st.play && st.play.ev, w = e ? whiteWin(e) : 50, flip = board.orient !== 'w';
+      evalBar.classList.toggle('flip', flip);
+      evalFill.style.height = (flip ? 100 - w : w) + '%';
+    }
+    function sideName(side) { return side === 1 ? 'White' : 'Black'; }
+    function playStatus() {
+      var P = st.play, el = st.playStatusEl; if (!P || !el) return;
+      var o = P.over, text;
+      if (o) {
+        var n = Math.ceil(P.line.length / 2);
+        var later = ', ' + U.plural(n, 'move') + ' later.';
+        text = o.reason === 'checkmate' ? sideName(o.winner) + ' wins by checkmate' + later
+          : o.reason === 'stalemate' ? 'A draw by stalemate' + later : o.reason === 'insufficient material' ? 'A draw' + later + ' There isn’t enough left to checkmate.'
+          : o.reason === 'fifty-move rule' ? 'A draw by the fifty-move rule' + later : o.reason === 'threefold repetition' ? 'A draw' + later + ' The same position came up three times.'
+          : o.reason === 'cap' ? 'Stopped after ' + n + ' moves. Still going!' : 'The engine couldn’t go on from here.';
+      } else if (P.auto) text = P.skip ? 'Skipping to the end…' : 'Playing it out to the end…';
+      else if (P.thinking) text = sideName(P.pos.side) + ' is thinking…';
+      else if (!P.line.length) text = 'Play any move for ' + sideName(P.you) + ' (the game’s move or a different one). The engine answers, and you can keep going or let it play out to the end.';
+      else text = 'Your move (' + sideName(P.you) + '). Or let it play out.';
+      el.textContent = text;
+      el.classList.toggle('rv-over', !!o);
+    }
+    function playLine() {
+      var P = st.play, el = st.playLineEl; if (!P || !el) return;
+      el.hidden = !P.line.length;
+      el.textContent = Explain.numberedLine(posAt(P.base).pos, P.line.map(function (x) { return x.uci; }), P.line.length);
+      el.scrollTop = el.scrollHeight;
+    }
+    function renderPlay() {
+      var P = st.play; if (!P) return;
+      cardBody(function (body) {
+        body.appendChild(h('div', { class: 'rv-move' }, h('span', { class: 'rv-k rv-k-play', 'aria-hidden': 'true' }, U.icon('play-out')),
+          h('div', { class: 'rv-move-text' }, h('div', { class: 'rv-kind-label' }, 'Play it out'),
+            h('div', { class: 'rv-who' }, P.base < moves.length ? 'From before ' + moveLabel(P.base) : 'From the end of the game'))));
+        body.appendChild(st.playLineEl = h('p', { class: 'rv-line rv-playline' }));
+        body.appendChild(st.playStatusEl = h('p', { class: 'rv-text rv-playstatus', 'aria-live': 'polite' }));
+        playLine(); playStatus();
+        var acts = h('div', { class: 'rv-actions' });
+        if (P.over) acts.appendChild(btn('Play it out again', function () { startPlay(P.base); }, 'rv-try', 'refresh'));
+        else if (P.auto) {
+          acts.appendChild(btn('Pause', function () { P.auto = false; P.skip = false; renderPlay(); kick(); }, 'quiet', 'pause'));
+          if (!P.skip) acts.appendChild(btn('Skip to the end', function () { P.skip = true; renderPlay(); }, 'quiet', 'last'));
+        } else {
+          var e0 = st.evals && st.evals[P.base];
+          if (!P.line.length && e0 && e0.best) acts.appendChild(btn('Play the best move', function () { var m = P.pos.parseMove(e0.best); if (m && !P.thinking && P.pos.side === P.you) { playAdd(m); renderPlay(); kick(); } }, 'quiet', 'star'));
+          acts.appendChild(btn('Play it to the end', function () { P.auto = true; renderPlay(); kick(); }, 'rv-try', 'resume'));
+        }
+        acts.appendChild(btn('Back to the review', function () { goPly(Math.min(moves.length, P.base + 1)); }, 'quiet'));
+        body.appendChild(acts);
+      });
+    }
+
     /* ---------- show best move: the position before the move, the better move in green, and where it leads ---------- */
     function showBest(i) {
       var e0 = st.evals[i]; if (!e0 || !e0.best) return;
       clearTimeout(st.lineT);
-      st.token++; st.mode = 'best'; st.retry = null; st.shown = i;
+      st.token++; st.mode = 'best'; st.retry = null; st.shown = i; st.at = i;
       var a = posAt(i);
       board.setMovable(null);
       board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
@@ -8110,7 +8289,7 @@ var Review = (function () {
       cardBody(function (body) {
         body.appendChild(moveHead('best', 'Best move', 'Instead of ' + moveLabel(i)));
         body.appendChild(text);
-        body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh') : null, backBtn(i)));
+        body.appendChild(h('div', { class: 'rv-actions' }, isMine(i) ? btn('Find a better move', function () { startRetry(i); }, 'rv-try', 'refresh') : null, playBtn(i, e0.best), backBtn(i)));
         var sr = studyFor(i); if (sr) body.appendChild(sr);
       });
       // a search cut short can leave no line to show: look a few moves past the best move, then add where it leads
@@ -8153,7 +8332,7 @@ var Review = (function () {
       var e0 = st.evals[i]; if (!e0) return;
       clearTimeout(st.lineT);
       if (practice) st.practice = practice;
-      st.token++; st.mode = 'retry'; st.shown = i;
+      st.token++; st.mode = 'retry'; st.shown = i; st.at = i;
       st.retry = { ply: i, tries: st.retry && st.retry.ply === i ? st.retry.tries : 0 };
       var a = posAt(i);
       board.setArrows([]); board.setBadge(null); board.setMarks([]);
@@ -8172,7 +8351,7 @@ var Review = (function () {
       var before = posAt(i).pos, after = before.clone(); after.make(m);
       var san = before.san(m);
       board.setMovable(null);
-      board.setPosition(after, { last: m, animate: true });
+      board.setPosition(after, { last: m, animate: true }); st.at = null;
       cardBody(function (body) { body.appendChild(h('p', { class: 'rv-text' }, 'Checking ' + san, h('span', { class: 'thinking', 'aria-hidden': 'true' }, h('i'), h('i'), h('i')))); });
       if (uci === moves[i]) return sameMove(i);
       var stx = after.status();
@@ -8235,7 +8414,7 @@ var Review = (function () {
     /* after a try that's good enough: the position before the move, the try in blue and the best move in green */
     function answer(i, uci, tone, msg) {
       var e0 = st.evals[i], a = posAt(i), arrows = [];
-      st.mode = 'answer'; st.shown = i;
+      st.mode = 'answer'; st.shown = i; st.at = i;
       board.setMovable(null);
       board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
       if (uci !== e0.best) arrows.push(arrow(uci, 'blue'));
@@ -8248,7 +8427,7 @@ var Review = (function () {
         if (line || arrows.length > 1) body.appendChild(h('p', { class: 'rv-line' }, (arrows.length > 1 ? 'Your move is in blue and the best move in green. ' : '') + line));
         body.appendChild(h('div', { class: 'rv-actions' },
           tone === 'ok' ? null : btn('Try again', function () { startRetry(i); }),
-          backBtn(i)));
+          playBtn(i, uci), backBtn(i)));
         var sr = studyFor(i); if (sr) body.appendChild(sr);
       });
     }
@@ -8430,15 +8609,15 @@ var Review = (function () {
         silly(U.pick(['Hmm. ' + mv + ' looks suspicious…', 'Taking a closer look at ' + mv + '…', 'Wait. ' + mv + '? Checking that again…']));
         clearInterval(st.sillyT); st.sillyT = setInterval(function () { silly(); }, 2600);
       }
-      // the board follows the engine (the position it just read, or the one after the move it's double-checking)
-      if (st.follow) follow(deep ? j + 1 : done != null ? done - 1 : null, deep ? j : -1);
+      // the board follows the engine forward through the game; a move it double-checks gets a ring if it's on the board
+      if (st.follow && !deep && done != null) follow(done - 1);
+      else if (st.follow && deep && st.at === j + 1) board.setMarks([{ sq: moves[j].slice(2, 4), kind: 'ring' }]);
       liveGraph();
     }
-    function follow(k, ring) {
-      if (k == null || k < 0 || k > moves.length) return;
-      var a = posAt(k);
-      board.setPosition(a.pos, { last: a.last, animate: true, clearLast: !a.last });
-      board.setMarks(ring >= 0 ? [{ sq: moves[ring].slice(2, 4), kind: 'ring' }] : []);
+    function follow(k) {
+      if (k == null || k < 0 || k > moves.length || (st.at != null && k <= st.at)) return;
+      put(k, true);
+      board.setMarks([]);
       var e = st.liveEvals && st.liveEvals[k];
       if (e) { var w = whiteWin(e), flip = board.orient !== 'w'; evalBar.classList.toggle('flip', flip); evalFill.style.height = (flip ? 100 - w : w) + '%'; }
     }
@@ -8468,8 +8647,8 @@ var Review = (function () {
       if (e.target && /input|textarea|select/i.test(e.target.tagName)) return;
       if (e.key === 'ArrowLeft') goPly(st.shown - 1);
       else if (e.key === 'ArrowRight') goPly(st.shown + 1);
-      else if (e.key === 'Home') goPly(0);
-      else if (e.key === 'End') goPly(moves.length);
+      else if (e.key === 'Home') goPly(0, { jump: true });
+      else if (e.key === 'End') goPly(moves.length, { jump: true });
     };
     document.addEventListener('keydown', st.keydown);
 
@@ -8597,7 +8776,7 @@ var Review = (function () {
           oppName: params.color === 'b' ? (p2.headers.White || 'White') : (p2.headers.Black || 'Black') });
       } else renderList(root);
     },
-    leave: function () { if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
+    leave: function () { if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); clearTimeout(R.travelT); clearTimeout(R.playT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
     busy: function () { return !!R; }
   });
   function sansOf(fen, ms) { var p = new C.Pos(fen), out = []; ms.forEach(function (m) { out.push(p.san(m)); p.make(m); }); return out; }
@@ -8605,7 +8784,8 @@ var Review = (function () {
   /* for tests: what the review screen is showing */
   function testState() {
     if (!R) return null;
-    return { ply: R.ply, mode: R.mode, stage: R.stage, practice: R.practice ? R.practice.idx : null, moments: R.moments.slice(), shown: R.shown,
+    return { ply: R.ply, mode: R.mode, stage: R.stage, practice: R.practice ? R.practice.idx : null, moments: R.moments.slice(), shown: R.shown, at: R.at,
+      play: R.play ? { base: R.play.base, line: R.play.line.map(function (x) { return x.uci; }), auto: R.play.auto, over: R.play.over ? R.play.over.reason : null, you: R.play.you } : null,
       done: !!R.res, token: R.token, keyPlies: R.keyPlies.slice(), moves: R.moves.slice(), cls: R.res ? R.res.cls.slice() : null,
       evals: R.evals ? R.evals.map(function (e) { return e ? { cp: e.cp, mate: e.mate, best: e.best, deep: !!e.deep, pv: (e.pv || []).slice(0, 8) } : null; }) : null };
   }
