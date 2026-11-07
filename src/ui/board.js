@@ -105,9 +105,17 @@ var Board = (function () {
     this.el.setAttribute('aria-label', this.movable ? KEY_LABEL : 'Chess board');
   };
 
-  /* Show a position. o: { last: move int or {from,to}, animate } */
+  /* Show a position. o: { last: move int or {from,to}, animate, natural, landed }
+     natural: a move by the other side (a character, a puzzle's reply, the engine). Instead of the quick glide used for
+     your own moves, the piece is lifted a little, carried at an easy pace (longer moves take a little longer) and set
+     down; a piece it takes fades as it arrives. landed: called when the piece is down (at once when nothing glides),
+     so the move's sound comes as the piece lands. Returns how long the glide takes, in ms (0 when there's none). */
   B.setPosition = function (pos, o) {
     o = o || {};
+    // a glide still under way from the last move: its piece is put down now, and its sound plays now
+    if (this.landT) { clearTimeout(this.landT); this.landT = null; var fn = this.landFn; this.landFn = null; if (fn) fn(); }
+    (this.natEls || []).forEach(function (e) { e.style.transition = ''; });
+    this.natEls = [];
     this.pos = pos;
     this.legal = this.canMove() ? pos.legalMoves() : [];
     this.sel = -1;
@@ -131,6 +139,13 @@ var Board = (function () {
       for (k in want) if (!old[k]) changed++;
       glide = changed <= 6;
     }
+    // the natural pace: 0.3 s for a step to about 0.55 s across the board, easing in and out like a hand
+    var dur = 0;
+    if (glide && o.natural && this.last && !Board.calm()) {
+      var dx = (this.last.from & 7) - (this.last.to & 7), dy = (this.last.from >> 4) - (this.last.to >> 4);
+      dur = Math.round(Math.min(560, 260 + 42 * Math.sqrt(dx * dx + dy * dy)));
+    }
+    var self = this;
     for (k in old) {
       if (want[k] && old[k].dataset.code === want[k]) { next[k] = old[k]; delete want[k]; }
       else freeOld.push(+k);
@@ -147,6 +162,12 @@ var Board = (function () {
       }
       if (best >= 0 && glide) {
         var el = old[freeOld[best]]; freeOld[best] = -1;
+        if (dur) {
+          el.style.transition = 'transform ' + dur + 'ms cubic-bezier(.45, .05, .25, 1)';
+          this.natEls.push(el);
+          // lifted, carried, set down
+          try { el.animate([{ scale: 1, filter: 'none' }, { scale: 1.1, filter: 'drop-shadow(0 6px 5px rgba(0,0,0,0.22))', offset: 0.4 }, { scale: 1, filter: 'none' }], { duration: dur, easing: 'ease-in-out' }); } catch (e) { /* no lift */ }
+        }
         this.place(el, sq); next[sq] = el;
       } else {
         var ne = h('div', { class: 'pc ' + code + (animate ? ' fade-in' : ''), dataset: { code: code } });
@@ -158,11 +179,24 @@ var Board = (function () {
     freeOld.forEach(function (os) {
       if (os < 0) return;
       var gone = old[os];
-      if (animate) { gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, 180); }
+      if (dur) {
+        // a piece being taken waits for the piece taking it
+        var at = Math.round(dur * 0.72);
+        gone.style.transition = 'opacity 0.16s ease ' + at + 'ms';
+        gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, at + 200);
+      } else if (animate) { gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, 180); }
       else gone.remove();
     });
     this.pieces = next;
     this.paint();
+    if (o.landed) {
+      if (dur) { this.landFn = o.landed; this.landT = setTimeout(function () { self.landT = null; var f = self.landFn; self.landFn = null; if (f) f(); }, dur); }
+      else o.landed();
+    }
+    // back to the usual glide once it's down (unless another natural move has started since)
+    var mine = this.natEls;
+    if (dur) setTimeout(function () { if (self.natEls === mine) mine.forEach(function (e) { e.style.transition = ''; }); }, dur + 60);
+    return dur;
   };
 
   B.setArrows = function (list) { this.arrows = list || []; this.paintArrows(); };
@@ -402,5 +436,6 @@ var Board = (function () {
   };
 
   Board.animate = true; Board.dots = true; Board.autoQueen = false;
+  Board.calm = function () { return !Board.animate || !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
   return Board;
 })();

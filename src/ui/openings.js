@@ -91,8 +91,9 @@ var Openings = (function () {
     root.appendChild(h('div', { class: 'arena' }, h('div', { class: 'board-col' }, board.el),
       h('div', { class: 'panel' }, h('div', { class: 'card stack' }, movesLine, noteBox, fbBox, actions))));
 
-    function paint(last) {
-      board.setPosition(st.pos, { last: last || null, animate: true, clearLast: !last });
+    // landed: a move by the other side (or a walkthrough's), carried across naturally; its sound as the piece lands
+    function paint(last, landed) {
+      board.setPosition(st.pos, { last: last || null, animate: true, clearLast: !last, natural: !!landed, landed: landed });
       movesLine.textContent = movesText(moves.slice(0, st.ply)) || 'Starting position';
     }
     function note(ply) {
@@ -115,7 +116,7 @@ var Openings = (function () {
           var m = st.pos.parseMove(moves[st.ply]);
           if (!m) return finished();
           st.pos.make(m); st.ply++;
-          sound(m); paint(m);
+          paint(m, function () { sound(m); });
           if (mode !== 'drill') note(st.ply - 1);
           step();
         }, mode === 'drill' ? 450 : 700);
@@ -218,8 +219,7 @@ var Openings = (function () {
         st.pos = new C.Pos(); var last = null;
         for (var i = 0; i < n; i++) { last = st.pos.parseMove(moves[i]); st.pos.make(last); }
         st.ply = n;
-        if (last) sound(last);
-        paint(last);
+        paint(last, last ? function () { sound(last); } : null);
         prevB.disabled = n === 0;
         nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
         if (passing) return; // moves on the way to the next note go by without one
@@ -246,7 +246,7 @@ var Openings = (function () {
         if (st.ply >= key) { board.setMovable(side); fb('info', 'Your move. Don\u2019t fall for it.'); return; }
         setTimeout(function () {
           if (tok !== st.token) return;
-          var m = st.pos.parseMove(moves[st.ply]); st.pos.make(m); st.ply++; sound(m); paint(m); auto();
+          var m = st.pos.parseMove(moves[st.ply]); st.pos.make(m); st.ply++; paint(m, function () { sound(m); }); auto();
         }, 520);
       })();
     }
@@ -267,7 +267,7 @@ var Openings = (function () {
           }
           setTimeout(function () {
             if (tok !== st.token) return;
-            var mm = st.pos.parseMove(moves[st.ply]); st.pos.make(mm); st.ply++; sound(mm); paint(mm); note(st.ply - 1); rest();
+            var mm = st.pos.parseMove(moves[st.ply]); st.pos.make(mm); st.ply++; paint(mm, function () { sound(mm); }); note(st.ply - 1); rest();
           }, 900);
         })();
         return;

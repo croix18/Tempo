@@ -471,20 +471,20 @@ var Play = (function () {
       });
     }
 
-    function sync(last, animate) {
+    // natural: the character's move, carried across at an easy pace (see Board.setPosition); landed: when it's down.
+    // Returns how long the glide takes.
+    function sync(last, animate, natural, landed) {
       st.last = last || null; // the move highlighted on the board, kept for when a checked move is taken back
       board.setMovable(myTurn() ? G.color : null);
-      board.setPosition(st.pos, { last: last, animate: animate });
+      var dur = board.setPosition(st.pos, { last: last, animate: animate, natural: natural, landed: landed });
       board.setArrows([]);
       markHanging(); bars(); renderMoves(); renderControls(); updateOpening();
+      return dur;
     }
 
-    function playSound(m, p) {
+    function soundOf(m, p) {
       var fl = m >>> 17;
-      if (p.inCheck()) U.sound.check();
-      else if (fl & 4) U.sound.castle();
-      else if (fl & 1) U.sound.capture();
-      else U.sound.move();
+      return p.inCheck() ? 'check' : fl & 4 ? 'castle' : fl & 1 ? 'capture' : 'move';
     }
 
     function commit(uci, by) {
@@ -500,10 +500,12 @@ var Play = (function () {
       }
       st.lastTick = performance.now();
       Store.touch();
-      playSound(m, st.pos);
-      sync(m, true);
+      // your move: its sound at once. The character's move: carried across naturally, its sound as the piece lands
+      var theirs = by !== G.color, snd = soundOf(m, st.pos), dur = 0;
+      if (theirs) dur = sync(m, true, true, function () { U.sound[snd](); });
+      else { U.sound[snd](); sync(m, true); }
       var status = st.pos.status();
-      if (status.over) finish(status.result, status.reason);
+      if (status.over) finish(status.result, status.reason, dur);
       return true;
     }
 
@@ -730,7 +732,8 @@ var Play = (function () {
     if (G.times) { st.lastTick = performance.now(); st.clockT = setInterval(tick, 200); }
 
     /* ---------- the end ---------- */
-    function finish(result, reason) {
+    // wait: the final move is still gliding into place; the end marks and the end sound come once it's down
+    function finish(result, reason, wait) {
       if (G.result) return;
       st.token++; st.thinking = false; st.ended = true;
       if (st.deciding || st.checking) { st.deciding = false; st.checking = false; board.opts.onSquare = null; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
@@ -739,16 +742,21 @@ var Play = (function () {
       var record = Play.record(G, bot);
       Store.state.current = null; Store.touch();
       board.setMovable(null);
-      U.sound.end();
       bars(); renderControls(); renderMoves(); board.setMarks([]);
       say(null);
       /* the end is shown on the board first: a crown on the winner's king, a mark on the loser's (# for checkmate, a
          flag for resigning, a clock for time), a half on both for a draw, and the result under the board. The result
          sheet follows a moment later, so the final move is seen, and so the tap that ended the game can't close it. */
       ended = { id: G.id, rec: record };
-      board.setBadge(endBadges(result, reason));
-      showResult(record);
-      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100);
+      function marks() {
+        if (view !== st) return;
+        U.sound.end();
+        board.setBadge(endBadges(result, reason));
+        showResult(record);
+      }
+      wait = wait ? wait + 120 : 0;
+      if (wait) st.marksT = setTimeout(marks, wait); else marks();
+      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100 + wait);
     }
     function endBadges(result, reason) {
       var p = st.pos;
@@ -960,7 +968,7 @@ var Play = (function () {
       else { G = null; renderTiers(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
+      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.marksT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }

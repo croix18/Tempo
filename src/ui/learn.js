@@ -146,8 +146,8 @@ var Learn = (function () {
         setTimeout(function () {
           if (tok !== st.token) return;
           var m = p.parseMove(s.play[k++]); if (!m) return;
-          p.make(m); U.sound.move();
-          board.setPosition(p, { last: m, animate: true });
+          p.make(m);
+          board.setPosition(p, { last: m, animate: true, natural: true, landed: function () { U.sound.move(); } });
           if (s.box) board.setMarks(boxMarks(s, p));
           stepAnim();
         }, k === 0 ? 600 : 850);
@@ -199,8 +199,8 @@ var Learn = (function () {
         if (tok2 !== st.token) return;
         var r = st.pos.parseMove(s.line[st.ply]);
         st.pos.make(r); st.ply++;
-        if (st.pos.inCheck()) U.sound.check(); else U.sound.move();
-        board.setPosition(st.pos, { last: r, animate: true });
+        var chk = st.pos.inCheck();
+        board.setPosition(st.pos, { last: r, animate: true, natural: true, landed: function () { if (chk) U.sound.check(); else U.sound.move(); } });
         board.setMovable(st.pos.side === 1 ? 'w' : 'b');
         U.clear(feedback);
       }, 550);
@@ -299,8 +299,8 @@ var Learn = (function () {
         if (!r.best) return;
         var em = st.pos.parseMove(r.best);
         st.pos.make(em); st.history.push(r.best);
-        if (st.pos.inCheck()) U.sound.check(); else if ((em >>> 17) & 1) U.sound.capture(); else U.sound.move();
-        board.setPosition(st.pos, { last: em, animate: true });
+        var snd = st.pos.inCheck() ? 'check' : (em >>> 17) & 1 ? 'capture' : 'move';
+        board.setPosition(st.pos, { last: em, animate: true, natural: true, landed: function () { U.sound[snd](); } });
         if (s.box) board.setMarks(boxMarks(s, st.pos));
         var st2 = st.pos.status();
         if (st2.over) return judge(st2);

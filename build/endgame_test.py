@@ -34,6 +34,24 @@ STATE = """() => ({ sheet: !!document.querySelector('.sheet'), big: (document.qu
       piece: (B.pos.b[+sq.dataset.sq] || 0) }; }),
   buttons: [...document.querySelectorAll('.controls .btn')].map(b => b.textContent) })"""
 
+# every frame for 5 s: when each piece moves on screen, when the end marks appear, and when sounds play
+GLIDE = """() => new Promise(res => {
+  const t0 = performance.now(), moves = [], sounds = [], ids = new WeakMap(); let prev = {}, marks = null, n = 0;
+  const id = e => { if (!ids.has(e)) ids.set(e, ++n); return ids.get(e); };
+  for (const k of ['move', 'capture', 'check', 'castle', 'end']) { const f = U.sound[k]; U.sound[k] = function () { sounds.push([k, Math.round(performance.now() - t0)]); return f.apply(this, arguments); }; }
+  (function frame() {
+    const now = Math.round(performance.now() - t0);
+    for (const e of document.querySelectorAll('.v-play .b-pcs .pc')) {
+      const r = e.getBoundingClientRect(), code = e.dataset.code, at = Math.round(r.left + r.width / 2) + ',' + Math.round(r.top + r.height / 2);
+      if (prev[id(e)] !== undefined && prev[id(e)] !== at) moves.push([now, code]);
+      prev[id(e)] = at;
+    }
+    if (marks === null && document.querySelector('.v-play .badge.k-end-win')) marks = now;
+    if (now < 5000) requestAnimationFrame(frame); else res({ moves, sounds, marks });
+  })();
+})"""
+
+
 async def xy(pg, sq):
     o = await pg.evaluate("document.querySelector('.board').__board.orient")
     box = await pg.locator('.board').first.bounding_box()
@@ -118,6 +136,25 @@ async def main():
             check(n + 'a mark in the corner of the board isn’t cut off', all(m['inside'] for m in s['marks']), s['marks'])
             check(n + 'stalemate: ½ on both kings, "Draw by stalemate"', [m['mark'] for m in s['marks']] == ['½', '½'] and s['card'] == 'Draw' and s['why'] == 'by stalemate', s)
             await pg.wait_for_timeout(1500); await pg.keyboard.press('Escape'); await pg.wait_for_timeout(500)
+
+            # the character's move is carried across at an easy pace (its sound as it lands); your own move stays quick;
+            # a mate by the character lands before the end marks and the end sound
+            if name == 'desk':
+                await pg.evaluate(game('4r1k1/5ppp/8/8/8/8/5PPP/R5K1 w - - 0 1').replace("'patrick-star'", "'homer-simpson'")); await pg.wait_for_timeout(1500)
+                watch = asyncio.ensure_future(pg.evaluate(GLIDE))
+                await asyncio.sleep(0.15)
+                await move(pg, 'a1', 'a2', touch)
+                g = await watch
+                def span(code):
+                    ts = [t for t, c in g['moves'] if c == code]
+                    return (ts[0], ts[-1]) if ts else (None, None)
+                ws, we = span('wr'); bs, be = span('br')
+                snd = dict((k, t) for k, t in g['sounds'])
+                check(n + 'your move glides quickly', ws is not None and we - ws <= 260, (ws, we))
+                check(n + 'the character’s move is carried across at an easy pace (0.3 to 0.6 s)', bs is not None and 280 <= be - bs <= 620, (bs, be))
+                check(n + 'its sound comes as the piece lands', 'check' in snd and be is not None and abs(snd['check'] - be) <= 120, (snd, be))
+                check(n + 'then the end: the marks and the end sound once the piece is down', g['marks'] is not None and be is not None and g['marks'] >= be and snd.get('end', 0) >= be, (g['marks'], snd, be))
+                await pg.wait_for_timeout(1500); await pg.keyboard.press('Escape'); await pg.wait_for_timeout(500)
 
             # resigning: a flag on your king, the crown on theirs
             await pg.evaluate(game('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1', 'b')); await pg.wait_for_timeout(1300)

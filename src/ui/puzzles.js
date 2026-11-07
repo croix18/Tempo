@@ -334,8 +334,8 @@ var Puzzles = (function () {
         if (tok !== st.token || !live()) return;
         var m = st.pos.parseMove(p.moves[0]);
         st.pos.make(m); st.idx = 1; st.last = m;
-        U.sound.move();
-        board.setPosition(st.pos, { last: m, animate: true });
+        var at = st.pos.clone();
+        board.setPosition(st.pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setMovable(st.userSide === 1 ? 'w' : 'b');
         renderStatus('turn');
       }, 550);
@@ -365,8 +365,8 @@ var Puzzles = (function () {
           if (tok !== st.token || !live()) return;
           var r = st.pos.parseMove(p.moves[st.idx]);
           st.pos.make(r); st.idx++; st.last = r;
-          sound(st.pos, r);
-          board.setPosition(st.pos, { last: r, animate: true });
+          var at = st.pos.clone();
+          board.setPosition(st.pos, { last: r, animate: true, natural: true, landed: function () { sound(at, r); } });
           board.setMovable(st.userSide === 1 ? 'w' : 'b');
           renderStatus('turn');
         }, 420);
@@ -486,8 +486,8 @@ var Puzzles = (function () {
         }
         var user = st.idx % 2 === 1, m = st.pos.parseMove(p.moves[st.idx]);
         st.pos.make(m); st.idx++; st.last = m;
-        sound(st.pos, m);
-        board.setPosition(st.pos, { last: m, animate: true });
+        var at = st.pos.clone();
+        board.setPosition(st.pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setArrows(user ? [{ from: C.sqName(m & 127), to: C.sqName((m >> 7) & 127), color: 'green' }] : []);
         setTimeout(step, 700);
       })();
@@ -499,15 +499,15 @@ var Puzzles = (function () {
       var pos = new C.Pos(p.fen), m0 = pos.parseMove(p.moves[0]);
       pos.make(m0);
       board.setMovable(null); board.setArrows([]); board.setMarks([]);
-      board.setPosition(pos, { last: m0, animate: true });
+      board.setPosition(pos, { last: m0, animate: true, natural: true });
       var i = 1;
       setTimeout(function step() {
         if (tok !== st.token || P !== st || i >= p.moves.length) return;
         var m = pos.parseMove(p.moves[i]); if (!m) return;
         var user = i % 2 === 1;
         pos.make(m); i++;
-        sound(pos, m);
-        board.setPosition(pos, { last: m, animate: true });
+        var at = pos.clone();
+        board.setPosition(pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setArrows(user ? [{ from: C.sqName(m & 127), to: C.sqName((m >> 7) & 127), color: 'green' }] : []);
         setTimeout(step, 900);
       }, 700);

@@ -1081,7 +1081,7 @@ var Review = (function () {
           return;
         }
         q.make(seq[at].m);
-        board.setPosition(q.clone(), { last: seq[at].m, animate: true });
+        board.setPosition(q.clone(), { last: seq[at].m, animate: true, natural: true });
         at++;
         line.textContent = Explain.numberedLine(a.pos, pv, at);
         st.lineT = setTimeout(step, 1050);
@@ -1108,11 +1108,12 @@ var Review = (function () {
       playNext();
       revealBoard();
     }
-    function playAdd(m) {
+    // engine: the engine's move (carried across naturally, unless skipping to the end)
+    function playAdd(m, engine) {
       var P = st.play, san = P.pos.san(m);
       P.pos.make(m);
       P.line.push({ m: m, san: san, uci: C.uci(m) });
-      board.setPosition(P.pos.clone(), { last: m, animate: !P.skip });
+      board.setPosition(P.pos.clone(), { last: m, animate: !P.skip, natural: !!engine && !P.skip });
       var s = P.pos.status();
       if (s.over) P.over = s;
       else if (P.line.length >= PLAY_CAP) P.over = { over: true, reason: 'cap' };
@@ -1135,7 +1136,7 @@ var Review = (function () {
         var u = r && (r.best || (r.lines && r.lines[0] && r.lines[0].pv && r.lines[0].pv[0])), m = u && P.pos.parseMove(u);
         if (!m) { P.over = { over: true, reason: 'stuck' }; renderPlay(); return; }
         if (r.lines && r.lines.length) P.ev = record(r, P.pos.side);
-        playAdd(m);
+        playAdd(m, true);
         paintPlayEval(); playLine();
         // your turn: the board is yours at once. Played out: each move gets a moment on the board (none when skipping)
         if (!P.auto && !P.over && P.pos.side === P.you) playNext();

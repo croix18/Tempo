@@ -6078,9 +6078,17 @@ var Board = (function () {
     this.el.setAttribute('aria-label', this.movable ? KEY_LABEL : 'Chess board');
   };
 
-  /* Show a position. o: { last: move int or {from,to}, animate } */
+  /* Show a position. o: { last: move int or {from,to}, animate, natural, landed }
+     natural: a move by the other side (a character, a puzzle's reply, the engine). Instead of the quick glide used for
+     your own moves, the piece is lifted a little, carried at an easy pace (longer moves take a little longer) and set
+     down; a piece it takes fades as it arrives. landed: called when the piece is down (at once when nothing glides),
+     so the move's sound comes as the piece lands. Returns how long the glide takes, in ms (0 when there's none). */
   B.setPosition = function (pos, o) {
     o = o || {};
+    // a glide still under way from the last move: its piece is put down now, and its sound plays now
+    if (this.landT) { clearTimeout(this.landT); this.landT = null; var fn = this.landFn; this.landFn = null; if (fn) fn(); }
+    (this.natEls || []).forEach(function (e) { e.style.transition = ''; });
+    this.natEls = [];
     this.pos = pos;
     this.legal = this.canMove() ? pos.legalMoves() : [];
     this.sel = -1;
@@ -6104,6 +6112,13 @@ var Board = (function () {
       for (k in want) if (!old[k]) changed++;
       glide = changed <= 6;
     }
+    // the natural pace: 0.3 s for a step to about 0.55 s across the board, easing in and out like a hand
+    var dur = 0;
+    if (glide && o.natural && this.last && !Board.calm()) {
+      var dx = (this.last.from & 7) - (this.last.to & 7), dy = (this.last.from >> 4) - (this.last.to >> 4);
+      dur = Math.round(Math.min(560, 260 + 42 * Math.sqrt(dx * dx + dy * dy)));
+    }
+    var self = this;
     for (k in old) {
       if (want[k] && old[k].dataset.code === want[k]) { next[k] = old[k]; delete want[k]; }
       else freeOld.push(+k);
@@ -6120,6 +6135,12 @@ var Board = (function () {
       }
       if (best >= 0 && glide) {
         var el = old[freeOld[best]]; freeOld[best] = -1;
+        if (dur) {
+          el.style.transition = 'transform ' + dur + 'ms cubic-bezier(.45, .05, .25, 1)';
+          this.natEls.push(el);
+          // lifted, carried, set down
+          try { el.animate([{ scale: 1, filter: 'none' }, { scale: 1.1, filter: 'drop-shadow(0 6px 5px rgba(0,0,0,0.22))', offset: 0.4 }, { scale: 1, filter: 'none' }], { duration: dur, easing: 'ease-in-out' }); } catch (e) { /* no lift */ }
+        }
         this.place(el, sq); next[sq] = el;
       } else {
         var ne = h('div', { class: 'pc ' + code + (animate ? ' fade-in' : ''), dataset: { code: code } });
@@ -6131,11 +6152,24 @@ var Board = (function () {
     freeOld.forEach(function (os) {
       if (os < 0) return;
       var gone = old[os];
-      if (animate) { gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, 180); }
+      if (dur) {
+        // a piece being taken waits for the piece taking it
+        var at = Math.round(dur * 0.72);
+        gone.style.transition = 'opacity 0.16s ease ' + at + 'ms';
+        gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, at + 200);
+      } else if (animate) { gone.classList.add('fade-out'); setTimeout(function () { gone.remove(); }, 180); }
       else gone.remove();
     });
     this.pieces = next;
     this.paint();
+    if (o.landed) {
+      if (dur) { this.landFn = o.landed; this.landT = setTimeout(function () { self.landT = null; var f = self.landFn; self.landFn = null; if (f) f(); }, dur); }
+      else o.landed();
+    }
+    // back to the usual glide once it's down (unless another natural move has started since)
+    var mine = this.natEls;
+    if (dur) setTimeout(function () { if (self.natEls === mine) mine.forEach(function (e) { e.style.transition = ''; }); }, dur + 60);
+    return dur;
   };
 
   B.setArrows = function (list) { this.arrows = list || []; this.paintArrows(); };
@@ -6375,6 +6409,7 @@ var Board = (function () {
   };
 
   Board.animate = true; Board.dots = true; Board.autoQueen = false;
+  Board.calm = function () { return !Board.animate || !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
   return Board;
 })();
 
@@ -8140,7 +8175,7 @@ var Review = (function () {
           return;
         }
         q.make(seq[at].m);
-        board.setPosition(q.clone(), { last: seq[at].m, animate: true });
+        board.setPosition(q.clone(), { last: seq[at].m, animate: true, natural: true });
         at++;
         line.textContent = Explain.numberedLine(a.pos, pv, at);
         st.lineT = setTimeout(step, 1050);
@@ -8167,11 +8202,12 @@ var Review = (function () {
       playNext();
       revealBoard();
     }
-    function playAdd(m) {
+    // engine: the engine's move (carried across naturally, unless skipping to the end)
+    function playAdd(m, engine) {
       var P = st.play, san = P.pos.san(m);
       P.pos.make(m);
       P.line.push({ m: m, san: san, uci: C.uci(m) });
-      board.setPosition(P.pos.clone(), { last: m, animate: !P.skip });
+      board.setPosition(P.pos.clone(), { last: m, animate: !P.skip, natural: !!engine && !P.skip });
       var s = P.pos.status();
       if (s.over) P.over = s;
       else if (P.line.length >= PLAY_CAP) P.over = { over: true, reason: 'cap' };
@@ -8194,7 +8230,7 @@ var Review = (function () {
         var u = r && (r.best || (r.lines && r.lines[0] && r.lines[0].pv && r.lines[0].pv[0])), m = u && P.pos.parseMove(u);
         if (!m) { P.over = { over: true, reason: 'stuck' }; renderPlay(); return; }
         if (r.lines && r.lines.length) P.ev = record(r, P.pos.side);
-        playAdd(m);
+        playAdd(m, true);
         paintPlayEval(); playLine();
         // your turn: the board is yours at once. Played out: each move gets a moment on the board (none when skipping)
         if (!P.auto && !P.over && P.pos.side === P.you) playNext();
@@ -9345,20 +9381,20 @@ var Play = (function () {
       });
     }
 
-    function sync(last, animate) {
+    // natural: the character's move, carried across at an easy pace (see Board.setPosition); landed: when it's down.
+    // Returns how long the glide takes.
+    function sync(last, animate, natural, landed) {
       st.last = last || null; // the move highlighted on the board, kept for when a checked move is taken back
       board.setMovable(myTurn() ? G.color : null);
-      board.setPosition(st.pos, { last: last, animate: animate });
+      var dur = board.setPosition(st.pos, { last: last, animate: animate, natural: natural, landed: landed });
       board.setArrows([]);
       markHanging(); bars(); renderMoves(); renderControls(); updateOpening();
+      return dur;
     }
 
-    function playSound(m, p) {
+    function soundOf(m, p) {
       var fl = m >>> 17;
-      if (p.inCheck()) U.sound.check();
-      else if (fl & 4) U.sound.castle();
-      else if (fl & 1) U.sound.capture();
-      else U.sound.move();
+      return p.inCheck() ? 'check' : fl & 4 ? 'castle' : fl & 1 ? 'capture' : 'move';
     }
 
     function commit(uci, by) {
@@ -9374,10 +9410,12 @@ var Play = (function () {
       }
       st.lastTick = performance.now();
       Store.touch();
-      playSound(m, st.pos);
-      sync(m, true);
+      // your move: its sound at once. The character's move: carried across naturally, its sound as the piece lands
+      var theirs = by !== G.color, snd = soundOf(m, st.pos), dur = 0;
+      if (theirs) dur = sync(m, true, true, function () { U.sound[snd](); });
+      else { U.sound[snd](); sync(m, true); }
       var status = st.pos.status();
-      if (status.over) finish(status.result, status.reason);
+      if (status.over) finish(status.result, status.reason, dur);
       return true;
     }
 
@@ -9604,7 +9642,8 @@ var Play = (function () {
     if (G.times) { st.lastTick = performance.now(); st.clockT = setInterval(tick, 200); }
 
     /* ---------- the end ---------- */
-    function finish(result, reason) {
+    // wait: the final move is still gliding into place; the end marks and the end sound come once it's down
+    function finish(result, reason, wait) {
       if (G.result) return;
       st.token++; st.thinking = false; st.ended = true;
       if (st.deciding || st.checking) { st.deciding = false; st.checking = false; board.opts.onSquare = null; say(null); board.setArrows([]); board.setPosition(st.pos, { animate: false }); }
@@ -9613,16 +9652,21 @@ var Play = (function () {
       var record = Play.record(G, bot);
       Store.state.current = null; Store.touch();
       board.setMovable(null);
-      U.sound.end();
       bars(); renderControls(); renderMoves(); board.setMarks([]);
       say(null);
       /* the end is shown on the board first: a crown on the winner's king, a mark on the loser's (# for checkmate, a
          flag for resigning, a clock for time), a half on both for a draw, and the result under the board. The result
          sheet follows a moment later, so the final move is seen, and so the tap that ended the game can't close it. */
       ended = { id: G.id, rec: record };
-      board.setBadge(endBadges(result, reason));
-      showResult(record);
-      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100);
+      function marks() {
+        if (view !== st) return;
+        U.sound.end();
+        board.setBadge(endBadges(result, reason));
+        showResult(record);
+      }
+      wait = wait ? wait + 120 : 0;
+      if (wait) st.marksT = setTimeout(marks, wait); else marks();
+      st.endT = setTimeout(function () { if (view === st) endSheet(record); }, 1100 + wait);
     }
     function endBadges(result, reason) {
       var p = st.pos;
@@ -9834,7 +9878,7 @@ var Play = (function () {
       else { G = null; renderTiers(root); }
     },
     leave: function () {
-      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
+      if (view) { clearInterval(view.clockT); clearTimeout(view.sayT); clearTimeout(view.endT); clearTimeout(view.marksT); clearTimeout(view.bubbleT); document.removeEventListener('keydown', view.keys); if (view.unlisten) view.unlisten(); view.token++; view.deciding = false; view = null; }
       Engines.stopAll();
     },
     busy: function () { return !!view; }
@@ -10568,8 +10612,8 @@ var Puzzles = (function () {
         if (tok !== st.token || !live()) return;
         var m = st.pos.parseMove(p.moves[0]);
         st.pos.make(m); st.idx = 1; st.last = m;
-        U.sound.move();
-        board.setPosition(st.pos, { last: m, animate: true });
+        var at = st.pos.clone();
+        board.setPosition(st.pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setMovable(st.userSide === 1 ? 'w' : 'b');
         renderStatus('turn');
       }, 550);
@@ -10599,8 +10643,8 @@ var Puzzles = (function () {
           if (tok !== st.token || !live()) return;
           var r = st.pos.parseMove(p.moves[st.idx]);
           st.pos.make(r); st.idx++; st.last = r;
-          sound(st.pos, r);
-          board.setPosition(st.pos, { last: r, animate: true });
+          var at = st.pos.clone();
+          board.setPosition(st.pos, { last: r, animate: true, natural: true, landed: function () { sound(at, r); } });
           board.setMovable(st.userSide === 1 ? 'w' : 'b');
           renderStatus('turn');
         }, 420);
@@ -10720,8 +10764,8 @@ var Puzzles = (function () {
         }
         var user = st.idx % 2 === 1, m = st.pos.parseMove(p.moves[st.idx]);
         st.pos.make(m); st.idx++; st.last = m;
-        sound(st.pos, m);
-        board.setPosition(st.pos, { last: m, animate: true });
+        var at = st.pos.clone();
+        board.setPosition(st.pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setArrows(user ? [{ from: C.sqName(m & 127), to: C.sqName((m >> 7) & 127), color: 'green' }] : []);
         setTimeout(step, 700);
       })();
@@ -10733,15 +10777,15 @@ var Puzzles = (function () {
       var pos = new C.Pos(p.fen), m0 = pos.parseMove(p.moves[0]);
       pos.make(m0);
       board.setMovable(null); board.setArrows([]); board.setMarks([]);
-      board.setPosition(pos, { last: m0, animate: true });
+      board.setPosition(pos, { last: m0, animate: true, natural: true });
       var i = 1;
       setTimeout(function step() {
         if (tok !== st.token || P !== st || i >= p.moves.length) return;
         var m = pos.parseMove(p.moves[i]); if (!m) return;
         var user = i % 2 === 1;
         pos.make(m); i++;
-        sound(pos, m);
-        board.setPosition(pos, { last: m, animate: true });
+        var at = pos.clone();
+        board.setPosition(pos, { last: m, animate: true, natural: true, landed: function () { sound(at, m); } });
         board.setArrows(user ? [{ from: C.sqName(m & 127), to: C.sqName((m >> 7) & 127), color: 'green' }] : []);
         setTimeout(step, 900);
       }, 700);
@@ -11132,8 +11176,8 @@ var Learn = (function () {
         setTimeout(function () {
           if (tok !== st.token) return;
           var m = p.parseMove(s.play[k++]); if (!m) return;
-          p.make(m); U.sound.move();
-          board.setPosition(p, { last: m, animate: true });
+          p.make(m);
+          board.setPosition(p, { last: m, animate: true, natural: true, landed: function () { U.sound.move(); } });
           if (s.box) board.setMarks(boxMarks(s, p));
           stepAnim();
         }, k === 0 ? 600 : 850);
@@ -11185,8 +11229,8 @@ var Learn = (function () {
         if (tok2 !== st.token) return;
         var r = st.pos.parseMove(s.line[st.ply]);
         st.pos.make(r); st.ply++;
-        if (st.pos.inCheck()) U.sound.check(); else U.sound.move();
-        board.setPosition(st.pos, { last: r, animate: true });
+        var chk = st.pos.inCheck();
+        board.setPosition(st.pos, { last: r, animate: true, natural: true, landed: function () { if (chk) U.sound.check(); else U.sound.move(); } });
         board.setMovable(st.pos.side === 1 ? 'w' : 'b');
         U.clear(feedback);
       }, 550);
@@ -11285,8 +11329,8 @@ var Learn = (function () {
         if (!r.best) return;
         var em = st.pos.parseMove(r.best);
         st.pos.make(em); st.history.push(r.best);
-        if (st.pos.inCheck()) U.sound.check(); else if ((em >>> 17) & 1) U.sound.capture(); else U.sound.move();
-        board.setPosition(st.pos, { last: em, animate: true });
+        var snd = st.pos.inCheck() ? 'check' : (em >>> 17) & 1 ? 'capture' : 'move';
+        board.setPosition(st.pos, { last: em, animate: true, natural: true, landed: function () { U.sound[snd](); } });
         if (s.box) board.setMarks(boxMarks(s, st.pos));
         var st2 = st.pos.status();
         if (st2.over) return judge(st2);
@@ -11545,8 +11589,9 @@ var Openings = (function () {
     root.appendChild(h('div', { class: 'arena' }, h('div', { class: 'board-col' }, board.el),
       h('div', { class: 'panel' }, h('div', { class: 'card stack' }, movesLine, noteBox, fbBox, actions))));
 
-    function paint(last) {
-      board.setPosition(st.pos, { last: last || null, animate: true, clearLast: !last });
+    // landed: a move by the other side (or a walkthrough's), carried across naturally; its sound as the piece lands
+    function paint(last, landed) {
+      board.setPosition(st.pos, { last: last || null, animate: true, clearLast: !last, natural: !!landed, landed: landed });
       movesLine.textContent = movesText(moves.slice(0, st.ply)) || 'Starting position';
     }
     function note(ply) {
@@ -11569,7 +11614,7 @@ var Openings = (function () {
           var m = st.pos.parseMove(moves[st.ply]);
           if (!m) return finished();
           st.pos.make(m); st.ply++;
-          sound(m); paint(m);
+          paint(m, function () { sound(m); });
           if (mode !== 'drill') note(st.ply - 1);
           step();
         }, mode === 'drill' ? 450 : 700);
@@ -11672,8 +11717,7 @@ var Openings = (function () {
         st.pos = new C.Pos(); var last = null;
         for (var i = 0; i < n; i++) { last = st.pos.parseMove(moves[i]); st.pos.make(last); }
         st.ply = n;
-        if (last) sound(last);
-        paint(last);
+        paint(last, last ? function () { sound(last); } : null);
         prevB.disabled = n === 0;
         nextB.firstChild.textContent = n >= moves.length ? 'Finish' : 'Next';
         if (passing) return; // moves on the way to the next note go by without one
@@ -11700,7 +11744,7 @@ var Openings = (function () {
         if (st.ply >= key) { board.setMovable(side); fb('info', 'Your move. Don\u2019t fall for it.'); return; }
         setTimeout(function () {
           if (tok !== st.token) return;
-          var m = st.pos.parseMove(moves[st.ply]); st.pos.make(m); st.ply++; sound(m); paint(m); auto();
+          var m = st.pos.parseMove(moves[st.ply]); st.pos.make(m); st.ply++; paint(m, function () { sound(m); }); auto();
         }, 520);
       })();
     }
@@ -11721,7 +11765,7 @@ var Openings = (function () {
           }
           setTimeout(function () {
             if (tok !== st.token) return;
-            var mm = st.pos.parseMove(moves[st.ply]); st.pos.make(mm); st.ply++; sound(mm); paint(mm); note(st.ply - 1); rest();
+            var mm = st.pos.parseMove(moves[st.ply]); st.pos.make(mm); st.ply++; paint(mm, function () { sound(mm); }); note(st.ply - 1); rest();
           }, 900);
         })();
         return;
