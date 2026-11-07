@@ -599,8 +599,9 @@ var Play = (function () {
       if (G.result) return;
       st.thinking = true; bars(); renderControls();
       var tok = ++st.token, t0 = performance.now(), ps = st.ps;
-      // the weaker characters take a moment, like a person would
+      // the weaker characters take a moment, like a person would; a thoughtful one stops to think
       var minDelay = bot.rating < 1000 ? 450 + Math.random() * 700 : 250;
+      if (bot.pace === 'thoughtful') minDelay = Math.max(minDelay, thinkTime());
       if (bot.surge) { if (ps.surge > 0) ps.surge--; else if (Math.random() < bot.surge.chance) { ps.surge = bot.surge.len; ps.surgeStart = true; } }
       var decided = Engines.botDecide(bot, { fen: G.startFen, moves: G.moves.slice(), sans: G.sans.slice() }, { last: ps.last, surge: ps.surge });
       refAt(G.moves.length); // asked for already, after your move: the referee's look comes before its search in the queue
@@ -618,6 +619,25 @@ var Play = (function () {
           if (!G.result) startMyTurn();
         }, wait);
       });
+    }
+
+    /* A thoughtful character's moment of thought before it moves: one to two seconds, a little longer when there's tension
+       (it's in check, something can be taken) and now and then a longer look; hardly any for a forced move, a recapture
+       or its opening. On a clock it never spends more than a small share of what it has left. */
+    function thinkTime() {
+      var p = st.pos, legal = p.legalMoves(), last = st.last, t;
+      if (legal.length <= 1) return 250;
+      var took = last && ((last >>> 17) & 1), to = last ? (last >> 7) & 127 : -1;
+      if (took && legal.some(function (m) { return ((m >> 7) & 127) === to; })) t = 450 + Math.random() * 300; // a recapture
+      else if (p.full <= 4) t = 350 + Math.random() * 350;                                                   // the opening
+      else {
+        t = 750 + Math.random() * 600;
+        if (p.inCheck()) t += 250;
+        if (legal.some(function (m) { return (m >>> 17) & 1; })) t += 200;
+        if (Math.random() < 0.12) t += 500 + Math.random() * 500;
+      }
+      if (G.times) t = Math.min(t, Math.max(150, G.times[G.color === 'w' ? 'b' : 'w'] / 45));
+      return Math.min(t, 2300);
     }
 
     function startMyTurn() {

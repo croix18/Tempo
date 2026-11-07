@@ -315,6 +315,7 @@ PROFILES.profiles.forEach(function (p) {
   var theory = (p.behavior_traits_0_to_100 || {}).opening_preparation || 50, cap = BOOK_CAP[p.tier];
   var bot = {
     id: p.id, name: p.name, short: p.short || p.name, from: p.from || null, rating: r, tone: TONE[p.tier], tier: p.tier, tierIdx: ti,
+    pace: p.pace || null, // 'thoughtful': stops to think before a move (see play.js thinkTime)
     boss: !!p.boss, bonus: !!p.bonus, mono: p.mono, arche: p.archetype, bio: p.subtitle,
     plan: (p.shown && p.shown.strategic_plan) || p.strategic_plan, weakness: (p.shown && p.shown.exploitable_weakness) || p.exploitable_weakness,
     signature: p.signature_event, tactics: p.tactical_preferences, openings: p.openings, traits: p.behavior_traits_0_to_100,

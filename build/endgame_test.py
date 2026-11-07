@@ -36,7 +36,7 @@ STATE = """() => ({ sheet: !!document.querySelector('.sheet'), big: (document.qu
 
 # every frame for 5 s: when each piece moves on screen, when the end marks appear, and when sounds play
 GLIDE = """() => new Promise(res => {
-  const t0 = performance.now(), moves = [], sounds = [], ids = new WeakMap(); let prev = {}, marks = null, n = 0;
+  const t0 = performance.now(), moves = [], sounds = [], path = [], ids = new WeakMap(); let prev = {}, marks = null, n = 0;
   const id = e => { if (!ids.has(e)) ids.set(e, ++n); return ids.get(e); };
   for (const k of ['move', 'capture', 'check', 'castle', 'end']) { const f = U.sound[k]; U.sound[k] = function () { sounds.push([k, Math.round(performance.now() - t0)]); return f.apply(this, arguments); }; }
   (function frame() {
@@ -45,9 +45,10 @@ GLIDE = """() => new Promise(res => {
       const r = e.getBoundingClientRect(), code = e.dataset.code, at = Math.round(r.left + r.width / 2) + ',' + Math.round(r.top + r.height / 2);
       if (prev[id(e)] !== undefined && prev[id(e)] !== at) moves.push([now, code]);
       prev[id(e)] = at;
+      if (code === 'br') path.push([r.left + r.width / 2, r.top + r.height / 2]);
     }
     if (marks === null && document.querySelector('.v-play .badge.k-end-win')) marks = now;
-    if (now < 5000) requestAnimationFrame(frame); else res({ moves, sounds, marks });
+    if (now < 5000) requestAnimationFrame(frame); else res({ moves, sounds, marks, path });
   })();
 })"""
 
@@ -154,7 +155,24 @@ async def main():
                 check(n + 'the character’s move is carried across at an easy pace (0.3 to 0.6 s)', bs is not None and 280 <= be - bs <= 620, (bs, be))
                 check(n + 'its sound comes as the piece lands', 'check' in snd and be is not None and abs(snd['check'] - be) <= 120, (snd, be))
                 check(n + 'then the end: the marks and the end sound once the piece is down', g['marks'] is not None and be is not None and g['marks'] >= be and snd.get('end', 0) >= be, (g['marks'], snd, be))
+                # in a straight line to its square: no swinging round it as it lands, no going past it
+                pa, pz = g['path'][0], g['path'][-1]; dx, dy = pz[0] - pa[0], pz[1] - pa[1]; L = (dx * dx + dy * dy) ** 0.5
+                off = max(abs((q[0] - pa[0]) * dy - (q[1] - pa[1]) * dx) / L for q in g['path']) if L else 99
+                along = [((q[0] - pa[0]) * dx + (q[1] - pa[1]) * dy) / (L * L) for q in g['path']] if L else [0]
+                check(n + 'the piece goes straight to its square and stops there', off < 1.5 and max(along) <= 1.002 and all(b2 >= a2 - 0.002 for a2, b2 in zip(along, along[1:])), (round(off, 2), round(max(along), 3)))
                 await pg.wait_for_timeout(1500); await pg.keyboard.press('Escape'); await pg.wait_for_timeout(500)
+
+            # a thoughtful character stops to think for a moment before it moves; a quick one doesn't
+            if name == 'desk':
+                async def answer_ms(bot_id):
+                    await pg.evaluate(game('r1bq1rk1/pp2bppp/2n1pn2/3p4/3P4/2NBPN2/PP3PPP/R1BQ1RK1 w - - 0 9').replace("'patrick-star'", "'" + bot_id + "'")); await pg.wait_for_timeout(1200)
+                    t = await pg.evaluate("""() => new Promise(res => { const b = document.querySelector('.v-play .board').__board, t0 = performance.now();
+                      const u = 'h2h3', m = b.pos.parseMove(u); b.opts.onMove(u, m);
+                      (function wait() { if (Store.state.current && Store.state.current.moves.length >= 2) res(Math.round(performance.now() - t0)); else setTimeout(wait, 10); })(); })""")
+                    await pg.wait_for_timeout(900)
+                    return t
+                quick, slow = await answer_ms('mario'), await answer_ms('sherlock-holmes')
+                check(n + 'a thoughtful character (Sherlock) takes a moment before moving; a quick one (Mario) doesn’t', quick < 700 and 700 <= slow <= 2800, (quick, slow))
 
             # resigning: a flag on your king, the crown on theirs
             await pg.evaluate(game('rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq - 0 1', 'b')); await pg.wait_for_timeout(1300)

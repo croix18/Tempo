@@ -114,8 +114,9 @@ var Board = (function () {
     o = o || {};
     // a glide still under way from the last move: its piece is put down now, and its sound plays now
     if (this.landT) { clearTimeout(this.landT); this.landT = null; var fn = this.landFn; this.landFn = null; if (fn) fn(); }
+    (this.natAnims || []).forEach(function (a) { try { a.cancel(); } catch (e) { /* gone */ } });
     (this.natEls || []).forEach(function (e) { e.style.transition = ''; });
-    this.natEls = [];
+    this.natEls = []; this.natAnims = [];
     this.pos = pos;
     this.legal = this.canMove() ? pos.legalMoves() : [];
     this.sel = -1;
@@ -161,14 +162,24 @@ var Board = (function () {
         if (d < bestD) { bestD = d; best = i; }
       }
       if (best >= 0 && glide) {
-        var el = old[freeOld[best]]; freeOld[best] = -1;
+        var from = freeOld[best], el = old[from]; freeOld[best] = -1;
         if (dur) {
-          el.style.transition = 'transform ' + dur + 'ms cubic-bezier(.45, .05, .25, 1)';
+          /* Lifted, carried in a straight line, set down: one animation of the piece's own transform, its lift (a slight
+             scale) about the piece's own centre. (Scaling with the separate scale property also scaled the piece's
+             distance from the board's corner, so it swung round its square as it landed.) */
+          var A = this.xy(from), Z = this.xy(sq);
+          var at = function (x, y, k) { return 'translate(' + (x * 100) + '%,' + (y * 100) + '%) scale(' + k + ')'; };
+          el.style.transition = 'none';
           this.natEls.push(el);
-          // lifted, carried, set down
-          try { el.animate([{ scale: 1, filter: 'none' }, { scale: 1.1, filter: 'drop-shadow(0 6px 5px rgba(0,0,0,0.22))', offset: 0.4 }, { scale: 1, filter: 'none' }], { duration: dur, easing: 'ease-in-out' }); } catch (e) { /* no lift */ }
-        }
-        this.place(el, sq); next[sq] = el;
+          this.place(el, sq);
+          try {
+            this.natAnims.push(el.animate([
+              { transform: at(A.x, A.y, 1), filter: 'none' },
+              { transform: at((A.x + Z.x) / 2, (A.y + Z.y) / 2, 1.08), filter: 'drop-shadow(0 6px 5px rgba(0,0,0,0.22))' },
+              { transform: at(Z.x, Z.y, 1), filter: 'none' }], { duration: dur, easing: 'cubic-bezier(.45, .05, .25, 1)' }));
+          } catch (e) { /* no animation here: the piece is simply on its square */ }
+        } else this.place(el, sq);
+        next[sq] = el;
       } else {
         var ne = h('div', { class: 'pc ' + code + (animate ? ' fade-in' : ''), dataset: { code: code } });
         this.place(ne, sq);

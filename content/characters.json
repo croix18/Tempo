@@ -539,6 +539,7 @@
    "name": "Forky",
    "tier": "F",
    "tempo_elo": 450,
+   "pace": "thoughtful",
    "archetype": "retreater",
    "subtitle": "The reluctant competitor",
    "openings": {
@@ -1256,6 +1257,7 @@
    "name": "Luigi",
    "tier": "D",
    "tempo_elo": 750,
+   "pace": "thoughtful",
    "archetype": "defender",
    "subtitle": "The cautious challenger",
    "openings": {
@@ -1817,6 +1819,7 @@
    "name": "Velma Dinkley",
    "tier": "C",
    "tempo_elo": 1000,
+   "pace": "thoughtful",
    "archetype": "investigator",
    "subtitle": "The tactical detective",
    "openings": {
@@ -2006,6 +2009,7 @@
    "name": "Lisa Simpson",
    "tier": "C",
    "tempo_elo": 1100,
+   "pace": "thoughtful",
    "archetype": "theorist",
    "subtitle": "The studious fundamentals player",
    "openings": {
@@ -2437,6 +2441,7 @@
    "name": "Judy Hopps",
    "tier": "C",
    "tempo_elo": 1350,
+   "pace": "thoughtful",
    "archetype": "investigator",
    "subtitle": "The persistent investigator",
    "openings": {
@@ -2533,6 +2538,7 @@
    "name": "Elsa",
    "tier": "C",
    "tempo_elo": 1400,
+   "pace": "thoughtful",
    "archetype": "defender",
    "subtitle": "The patient controller",
    "openings": {
@@ -2819,6 +2825,7 @@
    "name": "Sheldon Cooper",
    "tier": "B",
    "tempo_elo": 1550,
+   "pace": "thoughtful",
    "archetype": "theorist",
    "subtitle": "The rigid theoretician",
    "openings": {
@@ -3006,6 +3013,7 @@
    "name": "Hermione Granger",
    "tier": "B",
    "tempo_elo": 1650,
+   "pace": "thoughtful",
    "archetype": "theorist",
    "subtitle": "The meticulous scholar",
    "openings": {
@@ -3102,6 +3110,7 @@
    "name": "Wednesday Addams",
    "tier": "B",
    "tempo_elo": 1700,
+   "pace": "thoughtful",
    "archetype": "trapper",
    "subtitle": "The cold-blooded trap setter",
    "openings": {
@@ -3300,6 +3309,7 @@
    "name": "Tails",
    "tier": "B",
    "tempo_elo": 1800,
+   "pace": "thoughtful",
    "archetype": "calculator",
    "subtitle": "The careful inventor",
    "openings": {
@@ -3677,6 +3687,7 @@
    "name": "Batman",
    "tier": "A",
    "tempo_elo": 2000,
+   "pace": "thoughtful",
    "archetype": "defender",
    "subtitle": "The prepared counterattacker",
    "openings": {
@@ -3773,6 +3784,7 @@
    "name": "Sherlock Holmes",
    "tier": "A",
    "tempo_elo": 2050,
+   "pace": "thoughtful",
    "archetype": "investigator",
    "subtitle": "The forensic tactician",
    "openings": {
@@ -3870,6 +3882,7 @@
    "name": "Yoda",
    "tier": "A",
    "tempo_elo": 2100,
+   "pace": "thoughtful",
    "archetype": "positional",
    "subtitle": "The patient positional master",
    "openings": {
@@ -4060,6 +4073,7 @@
    "name": "Doctor Strange",
    "tier": "A",
    "tempo_elo": 2200,
+   "pace": "thoughtful",
    "archetype": "calculator",
    "subtitle": "The variation explorer",
    "openings": {
@@ -4245,6 +4259,7 @@
    "name": "Darth Vader",
    "tier": "A",
    "tempo_elo": 2300,
+   "pace": "thoughtful",
    "archetype": "positional",
    "subtitle": "The suffocating strategist",
    "openings": {
@@ -4431,6 +4446,7 @@
    "name": "Dumbledore",
    "tier": "A",
    "tempo_elo": 2400,
+   "pace": "thoughtful",
    "archetype": "positional",
    "subtitle": "The strategic teacher",
    "openings": {
@@ -4620,6 +4636,7 @@
    "name": "Beth Harmon",
    "tier": "S",
    "tempo_elo": 2500,
+   "pace": "thoughtful",
    "archetype": "technician",
    "subtitle": "The tournament virtuoso",
    "openings": {
@@ -4717,6 +4734,7 @@
    "name": "Spock",
    "tier": "S",
    "tempo_elo": 2575,
+   "pace": "thoughtful",
    "archetype": "calculator",
    "subtitle": "The unemotional analyst",
    "openings": {
@@ -4910,6 +4928,7 @@
    "name": "Professor X",
    "tier": "S",
    "tempo_elo": 2700,
+   "pace": "thoughtful",
    "archetype": "positional",
    "subtitle": "The anticipation specialist",
    "openings": {
@@ -5002,6 +5021,7 @@
    "name": "Magneto",
    "tier": "S",
    "tempo_elo": 2750,
+   "pace": "thoughtful",
    "archetype": "positional",
    "subtitle": "The irresistible controller",
    "openings": {
@@ -5100,6 +5120,7 @@
    "name": "Thanos",
    "tier": "S",
    "tempo_elo": 2800,
+   "pace": "thoughtful",
    "archetype": "technician",
    "subtitle": "The inevitable converter",
    "openings": {
@@ -5194,6 +5215,7 @@
    "name": "Mewtwo",
    "tier": "S",
    "tempo_elo": 2850,
+   "pace": "thoughtful",
    "archetype": "calculator",
    "subtitle": "The uncanny tactician",
    "openings": {
@@ -5385,6 +5407,7 @@
    "name": "Emperor Palpatine",
    "tier": "S",
    "tempo_elo": 2950,
+   "pace": "thoughtful",
    "archetype": "trapper",
    "subtitle": "The patient manipulator",
    "openings": {
