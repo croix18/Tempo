@@ -124,7 +124,8 @@ async def test_phone(browser):
     check('summary: the review opens on the summary, at the final position', s['stage'] == 'recap' and s['ply'] == len(PIP), (s['stage'], s['ply']))
     recap = (await pg.evaluate("(document.querySelector('.rv-recap:not([hidden])') || {}).innerText || ''")).replace('\n', ' ')
     check('summary: the coach counts the key moments and your mistakes, and names no "costliest move"', re.search(r'\d+ key moments to look at, \d+ of them mistakes of yours\.', recap) and 'costliest' not in recap, recap[:200])
-    check('summary: both accuracies', 'Your accuracy' in recap and recap.count('%') >= 2, recap[:200])
+    boxes = await pg.evaluate("[...document.querySelectorAll('.rv-summary:not([hidden]) .rv-sc-acc .rv-sc-box')].map(e => e.innerText.trim())")
+    check('summary: both accuracies, side by side in the table', len(boxes) == 2 and all(x.endswith('%') for x in boxes), boxes)
     gb = await pg.locator('.rv-go').bounding_box()
     check('summary: Start review is on screen without scrolling', gb and gb['y'] >= 0 and gb['y'] + gb['height'] <= 844, gb)
     fix = await pg.locator('.rv-fix').get_attribute('aria-label')
@@ -370,7 +371,7 @@ async def test_long_names(browser):
     await wait_review(pg)
     recap = await pg.evaluate("(document.querySelector('.rv-recap:not([hidden])') || {}).innerText || ''")
     summary = await pg.evaluate("(() => { const s = document.querySelector('.rv-summary'); return s && !s.hidden ? s.innerText : ''; })()")
-    check('summary: accuracy, and every kind of move (blunders included), are on screen', 'Your accuracy' in recap and 'Blunder' in summary and 'Book' in summary and 'Brilliant' in summary, (recap[:80], summary[:160]))
+    check('summary: the coach, then accuracy and every kind of move (blunders included) in one table', recap.strip() != '' and 'Accuracy' in summary and '%' in summary and 'Blunder' in summary and 'Book' in summary and 'Brilliant' in summary, (recap[:80], summary[:160]))
     for p in range(1, 8):
         await go(pg, p)
         sw = await pg.evaluate("[document.documentElement.scrollWidth, innerWidth]")

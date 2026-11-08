@@ -651,7 +651,7 @@ var Review = (function () {
     var card = h('section', { class: 'card rv-card', 'aria-label': 'This move', hidden: true });
     var graphBox = h('div', { class: 'rv-graph' }), movesBox = h('div', { class: 'rv-moves' }), detailsBox = h('div', { class: 'rv-more' });
     var openingBox = h('section', { class: 'card rv-opening', 'aria-label': 'Your opening', hidden: true });
-    var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Moves by kind', hidden: true });
+    var summaryBox = h('section', { class: 'card rv-summary', 'aria-label': 'Accuracy and moves by kind', hidden: true });
     var patternBox = h('div', { class: 'rv-pattern' });
     // under the summary only: the counts, your opening, what keeps going wrong, and the PGN
     var moreBox = h('div', { class: 'rv-extra' }, summaryBox, openingBox, patternBox, detailsBox);
@@ -882,13 +882,8 @@ var Review = (function () {
     function renderRecap() {
       U.clear(recapBox);
       if (!st.res) return;
-      var them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
-      function accText(side) { return acc[side] == null ? 'No moves' : Math.round(acc[side]) + '%'; }
       recapBox.appendChild(h('div', { class: 'rv-coach' }, h('span', { class: 'brand-mark rv-coach-mark', 'aria-hidden': 'true' }),
         h('p', { class: 'rv-verdict' }, coachSays())));
-      recapBox.appendChild(h('div', { class: 'rv-acc-row', role: 'group', 'aria-label': 'Accuracy' },
-        h('div', { class: 'rv-acc' }, avatarFor('Y'), h('div', null, h('span', { class: 'label' }, 'Your accuracy'), h('b', null, accText(you)))),
-        h('div', { class: 'rv-acc rv-acc-opp' }, avatarFor(oppShort, src.bot), h('div', null, h('span', { class: 'label rv-opp-name', title: opp }, opp), h('b', null, accText(them))))));
       // the same bar at the bottom as the walk through: what to do next, in the same place
       var n = st.keyPlies.length;
       recapBox.appendChild(h('div', { class: 'rv-foot rv-start' },
@@ -1430,33 +1425,41 @@ var Review = (function () {
       [].forEach.call(st.plot.querySelectorAll('.rv-dot'), function (d) { d.classList.toggle('on', +d.getAttribute('data-ply') === st.ply && st.stage === 'walk'); });
     }
 
-    /* ---------- details: how many moves of each kind, yours beside your opponent's ---------- */
-    /* Every kind is listed, so a game with no blunders says 0 rather than leaving the row out.
-       Tapping a kind steps through those moves, yours first. */
-    var KIND_COLS = [['brilliant', 'great', 'best', 'excellent', 'good'], ['book', 'inaccuracy', 'mistake', 'miss', 'blunder']];
-    var SHORT = { great: 'Great', best: 'Best' }; // the summary's narrow columns; the move card keeps the full names
+    /* ---------- the scorecard: both players side by side, read straight down ---------- */
+    /* One table in two columns, yours and your opponent's: who played, the accuracy, then how many moves of each kind,
+       with the kind's badge between the two counts. Every kind is listed, so a game with no blunders says 0 rather than
+       leaving the row out. Tapping a kind steps through those moves, yours first. */
+    var SHORT = { great: 'Great', best: 'Best' }; // the move card keeps the full names
     function renderSummary() {
       U.clear(summaryBox);
       summaryBox.hidden = !st.res;
       if (!st.res) return;
-      var me = you, them = you === 'w' ? 'b' : 'w';
-      summaryBox.appendChild(h('div', { class: 'label rv-sum-label' }, 'Moves by kind'));
-      var grid = h('div', { class: 'rv-kinds', role: 'table', 'aria-label': 'Moves by kind' });
-      KIND_COLS.forEach(function (col) {
-        var group = h('div', { class: 'rv-kind-col', role: 'rowgroup' });
-        group.appendChild(h('div', { class: 'rv-kind-head', role: 'row' }, h('span', { role: 'columnheader', class: 'sr-only' }, 'Kind'),
-          h('span', { role: 'columnheader', class: 'rv-n' }, 'You'), h('span', { role: 'columnheader', class: 'rv-n', title: opp, 'aria-label': oppShort }, 'Them')));
-        col.forEach(function (k) {
-          var a = st.res.counts[me][k] || 0, b = st.res.counts[them][k] || 0;
-          group.appendChild(h('button', { class: 'rv-kind' + (a + b ? '' : ' none'), type: 'button', role: 'row', 'data-kind': k, disabled: !(a + b), 'data-repeat': '',
-              'aria-label': KINDS[k].label + ': you ' + a + ', ' + oppShort + ' ' + b, onclick: function () { stepKind(k); } },
-            h('span', { class: 'rv-kind-name', role: 'rowheader' }, h('span', { class: 'dot-k k-' + k }), SHORT[k] || KINDS[k].label),
-            h('span', { class: 'rv-n' + (a ? '' : ' zero'), role: 'cell' }, String(a)),
-            h('span', { class: 'rv-n rv-them' + (b ? '' : ' zero'), role: 'cell' }, String(b))));
-        });
-        grid.appendChild(group);
+      var me = you, them = you === 'w' ? 'b' : 'w', acc = st.res.acc;
+      function accText(side) { return acc[side] == null ? '–' : Math.round(acc[side]) + '%'; }
+      function accSay(side) { return acc[side] == null ? 'no moves' : Math.round(acc[side]) + ' percent'; }
+      var table = h('div', { class: 'rv-score' });
+      table.appendChild(h('div', { class: 'rv-sc-row rv-sc-players', 'aria-hidden': 'true' },
+        h('span'),
+        h('span', { class: 'rv-sc-who' }, avatarFor('Y'), h('span', { class: 'rv-sc-pname' }, 'You')),
+        h('span'),
+        h('span', { class: 'rv-sc-who', title: opp }, avatarFor(oppShort, src.bot), h('span', { class: 'rv-sc-pname' }, oppShort))));
+      table.appendChild(h('div', { class: 'rv-sc-row rv-sc-acc', role: 'group', 'aria-label': 'Accuracy: you ' + accSay(me) + ', ' + oppShort + ' ' + accSay(them) },
+        h('span', { class: 'rv-sc-name' }, 'Accuracy'),
+        h('b', { class: 'rv-sc-box mine' }, accText(me)),
+        h('span'),
+        h('b', { class: 'rv-sc-box' }, accText(them))));
+      var list = h('div', { class: 'rv-sc-kinds', role: 'group', 'aria-label': 'Moves by kind' });
+      ORDER.forEach(function (k) {
+        var a = st.res.counts[me][k] || 0, b = st.res.counts[them][k] || 0;
+        list.appendChild(h('button', { class: 'rv-sc-row rv-kind' + (a + b ? '' : ' none'), type: 'button', 'data-kind': k, disabled: !(a + b), 'data-repeat': '',
+            'aria-label': KINDS[k].label + ': you ' + a + ', ' + oppShort + ' ' + b, onclick: function () { stepKind(k); } },
+          h('span', { class: 'rv-sc-name' }, SHORT[k] || KINDS[k].label),
+          h('span', { class: 'rv-n' + (a ? '' : ' zero') }, String(a)),
+          h('span', { class: 'rv-sc-badge k-' + k, 'aria-hidden': 'true' }, KINDS[k].sym),
+          h('span', { class: 'rv-n' + (b ? '' : ' zero') }, String(b))));
       });
-      summaryBox.appendChild(grid);
+      table.appendChild(list);
+      summaryBox.appendChild(table);
     }
     /* the next move of a kind after the one on the board, yours first, going round */
     function stepKind(k) {

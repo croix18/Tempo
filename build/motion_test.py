@@ -139,8 +139,9 @@ async def test_review_reveal(browser):
             check(tag + ': the moves glide to their new place instead of jumping', len(mid) >= 6, 'from %d to %d, %d in-between frames' % (first, last, len(mid)))
         else:
             check(tag + ': the moves stay put while the summary arrives', all(abs(t - first) <= 1 for t in tops), tops[::4])
-        heads = await pg.evaluate("[...document.querySelectorAll('.rv-kind-head')].map(e => e.innerText.replace(/\\s+/g, ' ').trim())")
-        check(tag + ': count columns are headed You and Them', heads and all(x == 'You Them' for x in heads), heads)
+        heads = await pg.evaluate("[...document.querySelectorAll('.rv-sc-players .rv-sc-pname')].map(e => e.innerText.trim())")
+        acc = await pg.evaluate("[...document.querySelectorAll('.rv-sc-acc .rv-sc-box')].map(e => e.innerText.trim())")
+        check(tag + ': one table, two columns: You and your opponent, each with an accuracy', len(heads) == 2 and heads[0] == 'You' and heads[1] and len(acc) == 2, [heads, acc])
         check(tag + ': review reveal: no page errors', not errors, errors[:3])
         await ctx.close()
     # every label whole at phone and tablet sizes
@@ -150,7 +151,7 @@ async def test_review_reveal(browser):
     bad = []
     for w in (320, 360, 375, 390, 430, 768, 1024, 1280):
         await pg.set_viewport_size({'width': w, 'height': 900}); await pg.wait_for_timeout(120)
-        r = await pg.evaluate("""() => ({ cut: [...document.querySelectorAll('.rv-kind-name, .rv-kind .rv-n, .rv-kind-head .rv-n')].filter(e => e.getClientRects().length && e.scrollWidth > e.clientWidth + 0.5).map(e => e.innerText),
+        r = await pg.evaluate("""() => ({ cut: [...document.querySelectorAll('.rv-sc-name, .rv-kind .rv-n, .rv-sc-box')].filter(e => e.getClientRects().length && e.scrollWidth > e.clientWidth + 0.5).map(e => e.innerText),
           wide: document.documentElement.scrollWidth > innerWidth })""")
         if r['cut'] or r['wide']: bad.append((w, r))
     check('summary: no move-kind name or count is cut short from 320 to 1280 px, and no sideways scroll', not bad, bad)

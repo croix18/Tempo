@@ -64,13 +64,6 @@ div.rv-verdict { font-weight: 600; }
 .rv-link { border: 0; background: none; padding: 0 2px; margin: 0 -1px; font: inherit; font-weight: 700; color: inherit; cursor: pointer; border-radius: 4px;
   text-decoration: underline; text-decoration-color: var(--gold-fill); text-decoration-thickness: 2px; text-underline-offset: 4px; }
 .rv-link:hover { background: var(--gold-wash); }
-.rv-acc-row { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; padding: 14px 0 2px; border-top: 1px solid var(--line); }
-.rv-acc { display: flex; align-items: center; gap: 10px; min-width: 0; }
-.rv-acc > div { display: flex; flex-direction: column; min-width: 0; }
-.rv-acc .label { margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rv-acc b { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1.1; color: var(--ink); }
-.rv-acc-opp { flex-direction: row-reverse; text-align: right; }
-.rv-acc .avatar { flex: none; }
 /* the summary's bottom bar: Fix your mistakes beside Start review, where Next sits in the walk through */
 .rv-start .rv-go { flex: 1; min-height: 50px; font-size: 16.5px; gap: 8px; }
 .rv-start .rv-go .ic { order: 2; }
