@@ -374,7 +374,7 @@ module.exports = {
         4: 'Now the queen also hits f7. The threat is Qxf7, which is checkmate.',
         5: 'Block with ...g6 and attack the queen. Never play 3...Nf6 here: 4.Qxf7 is checkmate.',
         6: 'The queen drops back to f3 and aims at f7 again.',
-        7: 'Now ...Nf6 is perfect. The knight blocks the f-file and develops.',
+        7: 'Now ...Nf6 is a good move. The knight blocks the f-file and develops.',
         8: 'A third try at f7, with the queen behind the bishop.',
         9: 'Guard f7 with the queen. It also protects e5.',
         11: 'Now you attack. The knight hits the queen and the c2 pawn, and White’s early queen moves have cost time.'
@@ -391,7 +391,7 @@ module.exports = {
         8: 'Take the pawn and attack the knight on c6.',
         9: 'Black takes back with the knight. This is a small mistake. 5...Na5, chasing your bishop, was better. Now the knight on d5 is a target.',
         10: 'The **Fried Liver**: sacrifice the knight on f7 to pull Black’s king out.',
-        11: 'The king has to take. Otherwise your knight forks the queen and rook, attacking both at once.',
+        11: 'Black takes with the king. Leaving the knight on f7 would cost the queen or the rook, because it attacks both.',
         12: 'Check, and attack the knight on d5 a second time.',
         13: 'The king runs back to g8. This is the mistake. 7...Ke6, guarding the knight, was the only good move.',
         14: 'Take the knight with check. Black’s king can’t move. Its own pieces are in the way, and your bishop and queen cover f7.',
@@ -408,7 +408,7 @@ module.exports = {
       moves: 'e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#',
       notes: {
         5: 'Black pins your knight on f3 to your queen on d1. A pin means the knight can’t move without leaving the queen open to attack.',
-        7: 'A slow move. Black forgets about the pawn on e5.',
+        7: 'A slow move. It brings no new piece out, and that gives you time for a trick on e5.',
         8: 'Ignore the pin. Nxe5 offers your queen, because three pieces are ready to attack the king.',
         9: 'Taking the queen is the mistake. It walks into checkmate. 5...dxe5 was safe: after 6.Qxg4, Black is only a pawn down.',
         10: 'Check with the bishop. The king has only one square, e7.',
@@ -418,11 +418,11 @@ module.exports = {
     { id: 'blackburne-shilling', name: 'Blackburne Shilling Trap', side: 'w', keyPly: 6,
       setter: 'b', key: 6, safe: 'Nxd4',
       safeNote: '4.Nxd4 trades off the knight that set the trap. After 4...exd4 5.O-O, your position is better.',
-      summary: 'Black leaves e5 hanging after 3...Nd4. Grabbing it is exactly what Black hopes for.',
+      summary: 'Black leaves the e5 pawn unprotected with 3...Nd4. Grabbing it is exactly what Black hopes for.',
       moves: 'e4 e5 Nf3 Nc6 Bc4 Nd4 Nxe5 Qg5 Nxf7 Qxg2 Rf1 Qxe4+ Be2 Nf3#',
       notes: {
         5: 'An odd move that leaves e5 unprotected. It is bait.',
-        6: 'Taking the pawn is the mistake. Black’s queen now joins the attack. 4.Nxd4 or 4.O-O was safe.',
+        6: 'Taking the pawn is the mistake. Now Black’s queen joins the attack with ...Qg5. 4.Nxd4 or 4.O-O was safe.',
         7: 'The queen attacks your knight on e5 and the pawn on g2.',
         8: 'Greed again. Your knight forks the queen and rook, attacking both at once. But your king is about to be in trouble.',
         9: 'The queen takes on g2 and attacks your rook.',
@@ -430,7 +430,7 @@ module.exports = {
         12: 'The bishop blocks the check. Now it is pinned: it can’t move, because that would leave your king in check.',
         13: 'Nf3 is checkmate. Your own pieces box in the king, and the only piece that could take the knight is the pinned bishop.'
       },
-      lesson: 'When a knight lands on d4 and leaves e5 hanging, don’t take the pawn; trade the knight with Nxd4 or castle.' },
+      lesson: 'When a knight lands on d4 and leaves e5 unprotected, don’t take the pawn. Trade the knight with Nxd4, or castle.' },
     { id: 'stafford', name: 'Stafford Gambit Trap', side: 'w', keyPly: 10,
       setter: 'b', key: 10, safe: 'Be2',
       safeNote: '6.Be2 develops a piece and gets your king ready to castle. You stay a pawn up.',
@@ -456,7 +456,7 @@ module.exports = {
       notes: {
         7: 'The knight jumps to g4. It looks harmless.',
         8: 'Kicking the knight is fine.',
-        9: 'Black leaves the knight hanging on purpose. This is the bait.',
+        9: 'Black leaves the knight where your pawn can take it. This is the bait.',
         10: 'Taking the knight is the mistake. It opens the h-file for Black’s rook and queen. 6.c3 or 6.d3 was safe.',
         11: 'The h-file is open, and Black’s rook on h8 points down it toward your king.',
         12: 'The knight runs from the pawn on g4. Now Black can force checkmate. After 6.hxg4 there was no good way out.',
@@ -568,7 +568,7 @@ module.exports = {
       lesson: '...f6 is a poor way to guard e5: take the pawn with your knight, and if Black takes back, Qh5+ and Qxe5+ win the rook on h8.' },
     { id: 'petrov-copycat', name: 'Petrov Copycat Trap', side: 'w',
       setter: 'w', key: 7, safe: 'Qe7',
-      safeNote: '4...Qe7 puts your queen on the e-file, so no discovered check can hit your king. After 5.Qxe4 d6, your pawn wins back the knight on e5.',
+      safeNote: '4...Qe7 puts your queen on the e-file, so no discovered check can hit your king. After 5.Qxe4 d6, your pawn attacks the knight on e5, and it can’t step away without letting your queen take White’s queen. You win your piece back.',
       summary: 'If Black copies you with 3...Nxe4, 4.Qe2 sets a trap. If the knight runs away, a discovered check wins Black’s queen.',
       moves: 'e4 e5 Nf3 Nf6 Nxe5 Nxe4 Qe2 Nf6 Nc6+ Qe7 Nxe7',
       notes: {
@@ -578,7 +578,7 @@ module.exports = {
         6: '4.Qe2 attacks the knight on e4. Your queen and Black’s king are now on the same file.',
         7: '4...Nf6 saves the knight, but it is the mistake. 4...Qe7 was safe.',
         8: 'A discovered check: your knight moves out of the way, and your queen gives check. The knight on c6 also attacks Black’s queen.',
-        9: 'Black has to answer the check, so the queen on d8 is lost.',
+        9: 'Black blocks the check with the queen, but your knight attacks e7 too. Every other answer to the check also loses the queen.',
         10: 'You win the queen for your knight.'
       },
       lesson: 'In the Petrov, if Black copies you with 3...Nxe4, play 4.Qe2: if the knight runs away, Nc6+ wins the queen.' },
