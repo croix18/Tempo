@@ -64,6 +64,7 @@ var U = (function () {
     flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
     draw: '<path d="M5 12h14"/><path d="M5 8h14M5 16h14" opacity=".35"/>',
     back: '<path d="M15 5l-7 7 7 7"/>',
+    leave: '<path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9.5 8l-4 4 4 4M5.5 12H16"/>',
     next: '<path d="M9 5l7 7-7 7"/>',
     first: '<path d="M17 5l-7 7 7 7M7 5v14"/>',
     last: '<path d="M7 5l7 7-7 7M17 5v14"/>',
