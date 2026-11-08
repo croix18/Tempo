@@ -243,9 +243,10 @@ var Store = (function () {
     if (rv) { out.rv = rv; if (out.acc == null) out.acc = rv.acc[out.color]; }
     if (rvx) out.rvx = rvx; // only worth keeping beside a usable rv
     out.reviewed = x.reviewed === true && out.acc != null;
-    // a game you played somewhere else, added from Chess.com or a PGN: who you played, the ratings, the time control, its address there
+    var opp = shortText(x.opp, 60); if (opp) out.opp = opp;   // who you played, when it wasn't one of Tempo's characters
+    // a game you played somewhere else, added from Chess.com or a PGN: the ratings, the time control, its address there
     if (SOURCES.indexOf(x.src) >= 0 && !out.bot) {
-      out.src = x.src; out.opp = shortText(x.opp, 60); out.oppElo = elo(x.oppElo); out.myElo = elo(x.myElo);
+      out.src = x.src; out.oppElo = elo(x.oppElo); out.myElo = elo(x.myElo);
       out.tc = shortText(x.tc, 20); out.tcl = TIME_CLASSES.indexOf(x.tcl) >= 0 ? x.tcl : null;
       out.link = typeof x.link === 'string' && /^https:\/\/[^\s"<>]{1,200}$/.test(x.link) ? x.link : null;
       out.key = shortText(x.key, 240);
