@@ -86,7 +86,7 @@ async def main():
                         if not (await pg.evaluate("Learn._cur()"))['complete']: problems.append((les['id'], i, 'pick step not completed'))
                     elif t == 'quiz':
                         st = (await pg.evaluate("Learn._steps()"))[i]
-                        await pg.locator('.choice').nth(st['answer']).click(); await pg.wait_for_timeout(250)
+                        await pg.locator('.choice[data-k="%d"]' % st['answer']).click(); await pg.wait_for_timeout(250)
                     elif t == 'play':
                         # learner moves come from the engine at full strength
                         for k in range(70):

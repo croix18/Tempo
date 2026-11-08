@@ -51,7 +51,7 @@ strings (`e2e4`, `e7e8q`, castling as king move `e1g1`). Squares are lowercase (
    Use for "click every hanging piece", "click every square the knight attacks", etc.
 
 4. **quiz** — multiple choice (fen optional).
-   `{ t: 'quiz', fen?, text, choices: ['…','…','…'], answer: 1, done }` (`answer` is a 0-based index; 2–4 choices.)
+   `{ t: 'quiz', fen?, text, choices: ['…','…','…'], answer: 1, done }` (`answer` is a 0-based index; 2–4 choices. The player shows the choices in a new order each time, so a choice must make sense on its own: no "both of the above".)
 
 5. **play** — play it out against the computer.
    `{ t: 'play', fen, text, goal, limit?, done }`
@@ -75,7 +75,8 @@ strings (`e2e4`, `e7e8q`, castling as king move `e1g1`). Squares are lowercase (
    checks it against the best move) is accepted.
    `{ t: 'safe', moves: 'e4 e5 …' | fen, side: 'w', text, aim?: ['Nbd2'], bait?: 'Nxe5', punish?: ['Qg5', …], note }`
    `aim` names the moves the lesson recommends (praised as "Yes."); a `bait` move is always refused and `punish`
-   plays out what happens after it; `note` follows a good move.
+   plays out what happens after it; `note` follows a good move. With `aim`, a Hint button marks the piece of `aim[0]`,
+   then draws the move, so put the clearest good move first.
 
 9. **game** — a practice game from move 1.
    `{ t: 'game', side: 'w', lines: ['e4 e5 Nf3 Nc6 Bc4 Bc5 …', …], until: 12, text, done }`

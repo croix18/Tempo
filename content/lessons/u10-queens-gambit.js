@@ -122,14 +122,14 @@ module.exports = {
             10: 'e3 opens the path for your bishop on f1.',
             11: 'Black castles.',
             12: 'Bd3 aims at Black’s kingside and watches f5, a good square for Black’s bishop on c8.',
-            13: '...c6 guards d5 again, so the pawn never hangs.',
+            13: '...c6 guards d5 again, so the pawn stays protected.',
             14: 'Develop the knight. Nge2 also works, but Nf3 is the simplest.',
             15: 'Black develops the last knight.',
             16: 'Your queen lines up behind the bishop, aiming at f5 and h7.',
             17: 'Black puts a rook on the e-file.',
             18: 'Castle. Your king is safe and your plan can begin.',
             19: 'The knight heads for g6 or e6, and the bishop on c8 is free again.',
-            20: 'Rab1 gets ready for b4 and b5. This starts the **minority attack**.'
+            20: 'Rab1 gets ready for b4 and b5. Two of your pawns will attack Black’s three on the queenside: the **minority attack**.'
           },
           end: 'The setup: cxd5, Bg5, e3, Bd3, Nf3, Qc2, castle and Rab1. Then push your b-pawn.' },
         { t: 'line', moves: 'd4 d5 c4 e6 Nc3 Nf6 cxd5 exd5 Bg5 Be7 e3 O-O Bd3 c6 Nf3 Nbd7 Qc2 Re8 O-O Nf8 Rab1', side: 'w', guide: true,
@@ -189,7 +189,7 @@ module.exports = {
           text: 'Sometimes Black tries to keep the extra pawn with ...b5. Watch how White punishes it.',
           notes: {
             5: 'Black guards c4 with another pawn. It looks solid, but it is a mistake.',
-            6: 'Hit the pawn chain from the side. a4 attacks b5.',
+            6: 'Hit the pawn that guards c4. a4 attacks b5.',
             7: 'Black defends b5 with ...c6. It looks natural, but it does not work.',
             8: 'Take the pawn. If Black takes back, the long diagonal from f3 to a8 opens.',
             9: 'Black takes back. Now no pawn stands on c6 or b7 to block the diagonal.',
@@ -353,9 +353,9 @@ module.exports = {
       steps: [
         { t: 'move', fen: 'rn1qkb1r/ppp2ppp/5n2/3p1bB1/3P4/2N5/PP2PPPP/R2QKBNR w KQkq - 2 6',
           text: 'This is the Exchange line, but Black played 5...Bf5. Your bishop on g5 pins the knight on f6, and that knight guards d5. The bishop on f5 no longer guards b7. Make the most of it.',
-          line: ['g5f6', 'g7f6', 'd1b3'], accept: [[], [], ['e2e3', 'g1f3']],
-          hint: 'Find the black piece that guards d5. Then look for a queen move that hits two pawns.',
-          done: 'Bxf6 took away the guard of d5 and broke Black’s pawns. The sharpest follow-up is Qb3, hitting d5 and b7 at once. If 6...Qxf6 instead, 7.Nxd5 wins the pawn right away.' },
+          line: ['g5f6'],
+          hint: 'Find the black piece that guards d5.',
+          done: 'Bxf6 takes away the guard of d5. After 6...gxf6, Qb3 hits d5 and b7 at once, and Black’s pawns are broken. After 6...Qxf6, 7.Nxd5 wins the pawn right away.' },
         { t: 'move', fen: 'r1bqkb1r/ppp1pppp/2n2n2/3p4/2PP4/5N2/PP2PPPP/RNBQKB1R w KQkq - 3 4',
           text: 'Black played the Chigorin with 2...Nc6 and then 3...Nf6. Your c4 pawn and Black’s d5 pawn face each other. Pick the right moment to trade, then take the center.',
           line: ['c4d5', 'f6d5', 'e2e4'],
@@ -383,7 +383,7 @@ module.exports = {
           line: ['c3b5', 'c6b5', 'c1c7'],
           hint: 'Move the knight with a threat. What happens if Black’s c-pawn takes it?',
           done: 'Nb5 hit the queen and the bishop on a3. Taking the knight opened the c-file, and your rook took the queen. Rooks love files that open up.' },
-        { t: 'quiz',
+        { t: 'quiz', fen: 'rn1qkb1r/ppp2ppp/5n2/3p1bB1/3P4/2N5/PP2PPPP/R2QKBNR w KQkq - 2 6',
           text: 'In many lines Black’s bishop leaves c8 early, like 5...Bf5. Which black pawn often loses its guard?',
           choices: ['The pawn on b7', 'The pawn on f7', 'The pawn on h7'], answer: 0,
           done: 'The bishop on c8 is the only piece that guards b7. Once it leaves, look for Qb3 to hit b7.' }
@@ -428,7 +428,7 @@ module.exports = {
             7: 'Take back with the e-pawn. Your pawn stays on d5, and the bishop on c8 gets an open diagonal.',
             9: 'Break the pin, as before.',
             11: 'Castle.',
-            13: '...c6 guards d5, so it never hangs.',
+            13: '...c6 guards d5, so it stays protected.',
             15: 'Develop the last knight. Next come ...Re8 and ...Nf8.'
           },
           end: 'Against the Exchange: take back with the e-pawn, then ...Be7, castle, ...c6 and ...Nbd7.' },

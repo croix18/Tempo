@@ -499,8 +499,10 @@ var Learn = (function () {
     function stepQuiz(s) {
       navRow(false);
       var box = h('div', { class: 'choices' });
-      s.choices.forEach(function (c, k) {
-        var b = h('button', { class: 'choice', type: 'button', onclick: function () {
+      // a new order each time the question is shown, so where the right answer sits is never a clue
+      U.shuffle(s.choices.map(function (c, k) { return k; })).forEach(function (k) {
+        var c = s.choices[k];
+        var b = h('button', { class: 'choice', type: 'button', 'data-k': String(k), onclick: function () {
           if (st.complete) return;
           if (k === s.answer) {
             b.classList.add('right'); st.complete = true; U.sound.good();
@@ -791,6 +793,7 @@ var Learn = (function () {
       board.setPosition(st.pos, { animate: false, clearLast: true });
       U.clear(feedback); paintMoves(s);
       navRow(false);
+      if (s.aim && s.aim.length) tool(h('button', { class: 'btn small', type: 'button', onclick: safeHint }, U.icon('hint'), 'Hint'));
       (function auto() {
         if (tok !== st.token) return;
         if (st.ply >= s.moves.length) { board.setMovable(s.side); fb('info', s.bait ? 'Your move. Don’t take the bait.' : 'Your move.'); return; }
@@ -806,9 +809,20 @@ var Learn = (function () {
         }, st.ply === 0 ? 650 : 520);
       })();
     }
+    /* the first hint marks the piece that one good move uses, the second draws the move */
+    function safeHint() {
+      var s = cur();
+      if (st.complete || st.checking || st.ply < s.moves.length || st.pos.side !== sideNum(s.side)) return;
+      var m = st.pos.parseMove(s.aim[0]); if (!m) return;
+      hinted(); st.hintLevel++;
+      var sq = C.sqName(m & 127), pc = PIECE_NAME[Math.abs(st.pos.b[m & 127])] || 'piece';
+      if (st.hintLevel === 1) { board.setMarks([{ sq: sq, kind: 'hint' }]); fb('info', 'Move your ' + pc + ' on ' + sq + '.'); }
+      else { board.setMarks([]); arrowFor(m, true); fb('info', 'One good move here is ' + st.pos.san(m) + '.'); }
+    }
     function safeMove(uci, m) {
       var s = cur();
       if (st.complete || st.checking) return;
+      board.setArrows([]); board.setMarks([]);
       var bait = s.bait ? st.pos.parseMove(s.bait) : 0;
       if (bait && m === bait) {
         miss(); U.sound.bad();

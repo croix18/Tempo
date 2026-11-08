@@ -56,7 +56,7 @@ async def solve_step(pg, limit=60):
             await pg.locator('.lesson-actions button.btn.primary').click(); await pg.wait_for_timeout(700); continue
         if c['t'] == 'quiz':
             a = await pg.evaluate("Learn._steps()[Learn._cur().i].answer")
-            await pg.locator('.choice').nth(a).click(); await pg.wait_for_timeout(250); continue
+            await pg.locator('.choice[data-k="%d"]' % a).click(); await pg.wait_for_timeout(250); continue
         if c['t'] == 'pick':
             for q in await pg.evaluate("Learn._steps()[Learn._cur().i].squares"): await click_sq(pg, q); await pg.wait_for_timeout(50)
             await pg.locator('button', has_text='Check').click(); await pg.wait_for_timeout(250); continue
@@ -247,7 +247,7 @@ async def main():
             if i == 1:
                 await movable(pg) if steps[i]['t'] in ('move', 'line', 'safe') else None
                 if steps[i]['t'] == 'quiz':
-                    a = steps[i]['answer']; await pg.locator('.choice').nth((a + 1) % len(steps[i]['choices'])).click(); await pg.wait_for_timeout(200)
+                    a = steps[i]['answer']; await pg.locator('.choice[data-k="%d"]' % ((a + 1) % len(steps[i]['choices']))).click(); await pg.wait_for_timeout(200)
                 elif steps[i]['t'] == 'pick':
                     await click_sq(pg, 'a1' if 'a1' not in steps[i]['squares'] else 'h8'); await pg.locator('button', has_text='Check').click(); await pg.wait_for_timeout(200)
                 else:
