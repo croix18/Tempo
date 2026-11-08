@@ -736,6 +736,15 @@ body.focus .tabs { display: none; }
 .rv-batch-head { margin: 0; font-weight: 600; }
 .rv-batch .list-row { cursor: default; }
 .rv-batch-st { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.rv-batch-note { margin: -6px 0 0; }
+.rv-waiting[hidden] { display: none; }
+/* the sidebar's line while the games you added are reviewed in the background: how far along, and a way to look */
+.bg-note { display: flex; flex-direction: column; gap: 7px; width: 100%; margin: 0 0 12px; padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--ink-2); font: inherit; font-weight: 600; line-height: 1.35; text-align: left; cursor: pointer; }
+.bg-note:hover { color: var(--ink); border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+.bg-note[hidden] { display: none; }
+.bg-note .bg-sub { margin-top: -5px; color: var(--ink-3); font-weight: 500; font-variant-numeric: tabular-nums; }
+.bg-note .meter { height: 4px; }
 /* Progress: your games */
 .games-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
 .games-work { gap: 8px; }

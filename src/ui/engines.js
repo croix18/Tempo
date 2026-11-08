@@ -5,8 +5,30 @@ var Engines = (function () {
 
   function scriptText(id) { var el = document.getElementById(id); return el ? el.textContent : ''; }
 
+  /* ---------- background work ----------
+     Reviews of the games you added run in the background, on any screen, and never get in the way:
+       - the screen you're on always comes first: a background search waits while anything else wants an engine (a
+         character's move, a hint, the review you're looking at), and one already running gives way at once (it is
+         stopped and run again later);
+       - it waits while a character thinks on the built-in engine too, since the two share the device's cores;
+       - it starts only once the engine has been free for a moment (QUIET_MS), so it doesn't fill the short gaps
+         between one search and the next;
+       - leaving a screen stops that screen's searches only (stopAll); stopBackground stops the background's. */
+  var QUIET_MS = 250, fgBusy = 0, lastFg = 0, held = false, bgGen = 0, quietT = null, overlap = 0;
+  /* how long until background work may start: 0 now, -1 while something holds it */
+  function bgWait() {
+    if (fgBusy > 0 || held) return -1;
+    return Math.max(0, QUIET_MS - (Date.now() - lastFg));
+  }
+  function bgSoon() {
+    var ms = bgWait();
+    if (ms < 0 || quietT) return;
+    quietT = setTimeout(function () { quietT = null; sfNext(); bgTempoNext(); }, ms + 5);
+  }
+  function fgEnd() { fgBusy = Math.max(0, fgBusy - 1); lastFg = Date.now(); bgSoon(); }
+
   /* ---------- built-in engine ---------- */
-  var tw = null, seq = 0, waiting = {}, inline = false, answered = false;
+  var tw = null, seq = 0, waiting = {}, inline = false, answered = false, srcUrl = null;
 
   /* When workers are blocked the engine runs on the page, where every search freezes it. Each search is capped
      at INLINE_MS, searches run one at a time with a pause between them so taps and paints get through, and
@@ -26,21 +48,27 @@ var Engines = (function () {
     }
     return m;
   }
-  function runInline(msg) {
-    var gen = inlineGen;
+  /* bg: a background search, dropped by stopBackground instead of stopAll */
+  function runInline(msg, bg) {
+    var gen = bg ? bgGen : inlineGen;
     var job = inlineChain.then(function () { return U.sleep(30); }).then(function () {
-      if (gen !== inlineGen) return { error: 'stopped' };
+      if (gen !== (bg ? bgGen : inlineGen)) return { error: 'stopped' };
       try { return TempoEngine.handle(inlineMsg(msg)); } catch (e) { return { error: String(e) }; }
     });
     inlineChain = job.then(null, function () { /* keep the queue going */ });
     return job;
   }
+  function workerUrl() {
+    if (!srcUrl) {
+      var src = scriptText('src-core') + '\n;\n' + scriptText('src-bots') + '\n;\n' + scriptText('src-engine');
+      srcUrl = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+    }
+    return srcUrl;
+  }
   function startTempo() {
     if (tw || inline) return;
     try {
-      var src = scriptText('src-core') + '\n;\n' + scriptText('src-bots') + '\n;\n' + scriptText('src-engine');
-      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-      tw = new Worker(url);
+      tw = new Worker(workerUrl());
       tw.onmessage = function (e) {
         answered = true;
         var d = e.data || {}, w = waiting[d.id];
@@ -62,7 +90,15 @@ var Engines = (function () {
       if (inline) runInline(w.msg).then(w.resolve); else w.resolve({ error: 'engine restarted' });
     });
   }
-  function tempo(msg) {
+  /* a search on the built-in engine; bg: for the background, which runs it in a worker of its own */
+  function tempo(msg, bg) {
+    if (bg) return bgTempo(msg);
+    fgBusy++; lastFg = Date.now(); yieldBg();
+    var pr = fgTempo(msg);
+    pr.then(fgEnd, fgEnd);
+    return pr;
+  }
+  function fgTempo(msg) {
     startTempo();
     if (!tw) return runInline(msg);
     var id = ++seq; msg.id = id;
@@ -77,6 +113,55 @@ var Engines = (function () {
     });
   }
   function resetTempo() { failTempo(); startTempo(); }
+
+  /* The built-in engine for the background (when Stockfish can't run here): a second worker, one search at a time. When
+     a character starts thinking, the search in it stops (the worker is closed) and runs again once the character has
+     moved. Where workers are blocked, it runs on the page between everything else. */
+  var bw = null, bwJob = null, bwAnswered = false, bgTempoQ = [];
+  function killBw() { try { if (bw) bw.terminate(); } catch (e) { /* ignore */ } bw = null; }
+  function startBw() {
+    if (bw || inline) return;
+    try {
+      bw = new Worker(workerUrl());
+      bw.onmessage = function (e) {
+        bwAnswered = true;
+        var d = e.data || {}, j = bwJob;
+        if (!j || d.id !== j.id) return;
+        clearTimeout(j.timer); bwJob = null; j.resolve(d); bgTempoNext();
+      };
+      bw.onerror = function (e) {
+        if (e.preventDefault) e.preventDefault();
+        var j = bwJob; bwJob = null; killBw();
+        if (!bwAnswered) inline = true;
+        if (j) { clearTimeout(j.timer); if (inline) bgTempoQ.unshift(j); else j.resolve({ error: 'engine restarted' }); }
+        bgTempoNext();
+      };
+    } catch (e) { bw = null; inline = true; }
+  }
+  function bgTempo(msg) {
+    return new Promise(function (resolve) { bgTempoQ.push({ msg: msg, resolve: resolve, gen: bgGen }); bgTempoNext(); });
+  }
+  function bgTempoNext() {
+    if (bwJob || !bgTempoQ.length) return;
+    if (bgWait() !== 0) { bgSoon(); return; }
+    var j = bgTempoQ.shift();
+    if (j.gen !== bgGen) { j.resolve({ error: 'stopped' }); bgTempoNext(); return; }
+    startBw();
+    bwJob = j;
+    if (!bw) {
+      runInline(j.msg, true).then(function (r) { if (bwJob === j) bwJob = null; j.resolve(r); bgTempoNext(); });
+      return;
+    }
+    j.id = ++seq;
+    j.timer = setTimeout(function () {
+      if (bwJob !== j) return;
+      bwJob = null; killBw();
+      // a worker that never answered is blocked without saying so: run on the page from now on
+      if (!bwAnswered) { inline = true; bgTempoQ.unshift(j); } else j.resolve({ error: 'timeout' });
+      bgTempoNext();
+    }, (j.msg.movetime || 4000) + 25000);
+    bw.postMessage(Object.assign({}, j.msg, { id: j.id }));
+  }
 
   /* ---------- Stockfish ----------
      Stockfish 19 (stockfish.js by Nathan Rugg). Three builds, all driven the same way (UCI over postMessage):
@@ -228,18 +313,32 @@ var Engines = (function () {
       if (j.onInfo) j.onInfo(j.lines);
     } else if (line.indexOf('bestmove') === 0) {
       clearTimeout(j.timer);
-      var best = line.split(/\s+/)[1];
-      var lines = Object.keys(j.lines).sort(function (a, b) { return a - b; }).map(function (k2) { return j.lines[k2]; });
       SF.cur = null;
-      j.resolve({ best: MV_RE.test(best) ? best : (lines[0] && lines[0].pv[0]) || null, lines: lines, engine: 'stockfish' });
+      if (j.cancelled) j.resolve(null);
+      else if (j.yielding) { j.yielding = false; SF.queue.unshift(j); } // a background search that gave way: again, later
+      else {
+        var best = line.split(/\s+/)[1];
+        var lines = Object.keys(j.lines).sort(function (a, b) { return a - b; }).map(function (k2) { return j.lines[k2]; });
+        if (!j.bg) lastFg = Date.now();
+        j.resolve({ best: MV_RE.test(best) ? best : (lines[0] && lines[0].pv[0]) || null, lines: lines, engine: 'stockfish' });
+      }
       sfNext();
     }
   }
+  /* the next search: the screen's, oldest first; a background one only when nothing else wants the engine */
+  function sfTake() {
+    for (var i = 0; i < SF.queue.length; i++) if (!SF.queue[i].bg) return SF.queue.splice(i, 1)[0];
+    if (!SF.queue.length) return null;
+    if (bgWait() !== 0) { bgSoon(); return null; }
+    return SF.queue.shift();
+  }
   function sfNext() {
     if (SF.cur || !SF.queue.length || !SF.worker) return;
-    var j = SF.queue.shift(), w = SF.worker;
+    var j = sfTake(), w = SF.worker;
+    if (!j) return;
     SF.cur = j; j.lines = {};
     if (j.cancelled) { SF.cur = null; j.resolve(null); sfNext(); return; }
+    if (j.bg && fgBusy) overlap++; // never: a background search doesn't start while a character thinks (for the tests)
     var skill = j.skill == null ? 20 : j.skill, mpv = j.multipv || 1;
     if (skill !== SF.opts.skill) { w.postMessage('setoption name Skill Level value ' + skill); SF.opts.skill = skill; }
     if (mpv !== SF.opts.multipv) { w.postMessage('setoption name MultiPV value ' + mpv); SF.opts.multipv = mpv; }
@@ -256,22 +355,47 @@ var Engines = (function () {
     return new Promise(function (resolve) {
       job.resolve = resolve;
       SF.queue.push(job);
+      if (!job.bg) { lastFg = Date.now(); yieldBg(); }
       sfNext();
     });
   }
+  /* the screen's searches stop (it was left); the background's carry on */
   function sfStop() {
-    SF.queue.forEach(function (j) { j.cancelled = true; });
-    if (SF.cur && SF.worker) SF.worker.postMessage('stop');
+    SF.queue.forEach(function (j) { if (!j.bg) j.cancelled = true; });
+    if (SF.cur && !SF.cur.bg && SF.worker) SF.worker.postMessage('stop');
+  }
+  /* something else wants an engine: a background search running now stops and goes back in line */
+  function yieldBg() {
+    var c = SF.cur;
+    if (c && c.bg && !c.yielding && !c.cancelled && SF.worker) { c.yielding = true; SF.worker.postMessage('stop'); }
+    if (bwJob && bw) { var j = bwJob; bwJob = null; clearTimeout(j.timer); killBw(); bgTempoQ.unshift(j); }
+  }
+  /* every background search stops, the queued ones and the one running; each resolves as canceled */
+  function stopBackground() {
+    bgGen++;
+    SF.queue = SF.queue.filter(function (j) { if (!j.bg) return true; j.cancelled = true; j.resolve(null); return false; });
+    var c = SF.cur;
+    if (c && c.bg) { c.cancelled = true; if (!c.yielding && SF.worker) { c.yielding = true; SF.worker.postMessage('stop'); } }
+    bgTempoQ.splice(0).forEach(function (j) { j.resolve({ error: 'stopped' }); });
+    if (bwJob) { var j = bwJob; bwJob = null; clearTimeout(j.timer); if (bw) killBw(); j.resolve({ error: 'stopped' }); }
+  }
+  /* on: background work waits (where the engine runs on the page, it waits while you're away from your reviews) */
+  function holdBackground(on) {
+    held = !!on;
+    if (held) yieldBg(); else bgSoon();
   }
 
   /* ---------- one interface ---------- */
   function sfReady() { return SF.status === 'ready' && !!SF.worker; }
 
-  /* opts: fen (start), moves (uci list), depth, movetime, multipv. Scores are from the side to move. */
+  /* opts: fen (start), moves (uci list), depth, movetime, multipv; bg: background work (see above). Scores are from the
+     side to move. */
   function analyse(opts) {
+    var bg = !!opts.bg;
     if (sfReady()) {
-      // newGame clears Stockfish's memory first, so one review isn't colored by the searches before it
-      var job = { fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo, newGame: !!opts.newGame };
+      // newGame clears Stockfish's memory first, so one review isn't colored by the searches before it. Not in the
+      // background: that would wipe what a character playing you right now has worked out.
+      var job = { fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo, newGame: !!opts.newGame && !bg, bg: bg };
       return sfRun(job).then(function (r) {
         if (r) return r;
         // a search canceled because you left the screen has no one waiting for it: don't redo it on the built-in engine
@@ -282,14 +406,14 @@ var Engines = (function () {
     return tempoAnalyse(opts);
   }
   function tempoAnalyse(opts) {
-    var depth = opts.depth ? Math.min(opts.depth, opts.fast ? 7 : 11) : 0;
+    var depth = opts.depth ? Math.min(opts.depth, opts.fast ? 7 : 11) : 0, bg = !!opts.bg;
     if (opts.multipv && opts.multipv > 1) {
-      return tempo({ cmd: 'scoremoves', fen: opts.fen, moves: opts.moves, depth: Math.min(4, depth || 4) }).then(function (r) {
+      return tempo({ cmd: 'scoremoves', fen: opts.fen, moves: opts.moves, depth: Math.min(4, depth || 4) }, bg).then(function (r) {
         var list = (r.list || []).slice(0, opts.multipv);
         return { best: list[0] ? list[0].move : null, engine: 'tempo', lines: list.map(function (x) { return toLine(x.score, [x.move], 4); }) };
       });
     }
-    return tempo({ cmd: 'analyse', fen: opts.fen, moves: opts.moves, depth: depth || 0, movetime: opts.movetime || (depth ? 0 : 600) }).then(function (r) {
+    return tempo({ cmd: 'analyse', fen: opts.fen, moves: opts.moves, depth: depth || 0, movetime: opts.movetime || (depth ? 0 : 600) }, bg).then(function (r) {
       if (!r || r.error) return { best: null, lines: [], engine: 'tempo' };
       var line = toLine(r.score, r.pv || [], r.depth);
       return { best: r.best, lines: [line], engine: 'tempo' };
@@ -360,11 +484,19 @@ var Engines = (function () {
   /* Bot move as a UCI string (or null). game: { fen (start), moves (uci), sans }. */
   function botMove(bot, game) { return botDecide(bot, game, {}).then(function (r) { return r ? r.uci : null; }); }
 
+  /* the screen's searches stop; background work carries on (stopBackground stops it) */
   function stopAll() { sfStop(); inlineGen++; }
 
   return {
     init: function () { startTempo(); return sfInit(); },
     analyse: analyse, botMove: botMove, botDecide: botDecide, stopAll: stopAll, resetTempo: resetTempo,
+    stopBackground: stopBackground, holdBackground: holdBackground,
+    /* for tests: the background's searches waiting and running, and whether one ever started while a character thought */
+    _bg: function () {
+      return { queued: SF.queue.filter(function (j) { return j.bg; }).length + bgTempoQ.length, running: !!(SF.cur && SF.cur.bg) || !!bwJob,
+        fgQueued: SF.queue.filter(function (j) { return !j.bg; }).length + (SF.cur && !SF.cur.bg ? 1 : 0),
+        yielding: !!(SF.cur && SF.cur.yielding), fgBusy: fgBusy, held: held, overlap: overlap, worker: !!bw };
+    },
     /* the last few move decisions, newest last: where each came from, the candidates and how they scored */
     log: function () { return LOG.slice(); },
     tempo: tempo,

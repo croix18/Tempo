@@ -375,7 +375,6 @@ var Review = (function () {
   var SAVE_VERSION = 2;
 
   var R = null; // current review state
-  var B = null; // the batch of games being reviewed one after another (renderBatch)
 
   /* ---------- saving a finished review with its game ---------- */
   function packEval(e) { if (e.mate === 0) return e.mateWinner === 1 ? 20000 : -20000; if (e.mate != null) return e.mate > 0 ? 10000 - e.mate : -10000 - e.mate; return Math.max(-9000, Math.min(9000, Math.round(e.cp || 0))); }
@@ -411,24 +410,117 @@ var Review = (function () {
     var side = new C.Pos(fen).side;
     return { fen: fen, moves: r.moves.map(C.uci), isMine: function (i) { return ((i % 2 === 0) === (side === 1)) === (g.color === 'w'); } };
   }
-  /* Review a saved game without showing it (a batch of games added at once): the same analysis and the same save as the
-     review screen, and the opening line you left goes back in your drills. hooks: { cancelled(), progress(done, total) } */
+  /* Review a saved game without showing it (the games you added): the same analysis and the same save as the review
+     screen, and the opening line you left goes back in your drills. hooks: { cancelled(), progress(done, total), bg } */
   function reviewQuietly(g, hooks) {
     var gm = gameMoves(g); if (!gm) return Promise.resolve(null);
-    var map = null;
+    var map = null, id = g.id, pgn = g.pgn;
     return Promise.all([Data.openings(), Engines.sfReady()]).then(function (res) {
       if (hooks.cancelled()) return null;
       map = res[0];
-      return analyseAll({ startFen: gm.fen, moves: gm.moves, map: map, mine: gm.isMine, cancelled: hooks.cancelled,
+      return analyseAll({ startFen: gm.fen, moves: gm.moves, map: map, mine: gm.isMine, cancelled: hooks.cancelled, bg: !!hooks.bg,
         progress: function (done) { if (done != null) hooks.progress(done, gm.moves.length + 1); } });
     }).then(function (evals) {
       if (!evals || hooks.cancelled()) return null;
+      // the game as it is now: gone (a backup was restored) or reviewed on its own screen meanwhile leaves nothing to save
+      var now = gameById(id);
+      if (!now || now.reviewed || now.pgn !== pgn) return null;
       var res = classify(gm.fen, gm.moves, evals, map);
-      saveReview(g, gm.fen, gm.moves, evals, res, gm.isMine);
-      var rep = typeof Openings !== 'undefined' && Openings.followed ? Openings.followed(gm.fen, gm.moves, g.color) : null;
+      saveReview(now, gm.fen, gm.moves, evals, res, gm.isMine);
+      var rep = typeof Openings !== 'undefined' && Openings.followed ? Openings.followed(gm.fen, gm.moves, now.color) : null;
       if (rep && rep.k > 0 && rep.k < rep.len && rep.k < gm.moves.length && gm.isMine(rep.k)) Openings.queueLine(rep.key);
       return res;
     });
+  }
+
+  /* ---------- the games you added, reviewed in the background ----------
+     One after another, while you do anything else in Tempo: play, practice, or look at another review. The engine
+     serves the screen you're on first (see Engines), so a character's moves come as quickly as ever, and the reviews
+     pick up whenever it's free. The sidebar shows how far along they are, and a note says when they're done (after the
+     game you're in). Closing Tempo stops them; the games not reviewed yet wait in Your games, offered on Home and here.
+     RUN: the reviews going now, or the last ones: { ids, at, pct, done, failed, marks: { id: 'ok' | 'fail' }, running,
+     stopped, seen (their result was shown) } */
+  var RUN = null, runFns = [], batchShown = false, batchOff = null, listOff = null;
+  function runEmit() { runFns.slice().forEach(function (fn) { try { fn(RUN); } catch (e) { console.error(e); } }); paintStatus(); }
+  function onRun(fn) { runFns.push(fn); return function () { runFns = runFns.filter(function (f) { return f !== fn; }); }; }
+  function reviewing() { return !!(RUN && RUN.running); }
+  /* add games to the reviews (those not reviewed yet), starting them if they aren't going */
+  function queueReviews(ids) {
+    var add = (ids || []).filter(function (id) { var g = gameById(id); return g && !g.reviewed; });
+    if (reviewing()) add.forEach(function (id) { if (RUN.ids.indexOf(id) < 0) RUN.ids.push(id); });
+    else if (add.length) { RUN = { ids: add.slice(), at: 0, pct: 0, done: 0, failed: 0, marks: {}, running: true, stopped: false, seen: false }; nextReview(RUN); }
+    runEmit();
+  }
+  function nextReview(run) {
+    if (RUN !== run || !run.running) return;
+    if (run.at >= run.ids.length) {
+      run.running = false;
+      if (!run.ids.length) run.seen = true; // every game went (a backup was restored): nothing to tell
+      runEmit(); if (run.ids.length) doneNote(run);
+      return;
+    }
+    var id = run.ids[run.at], g = gameById(id);
+    if (!g) { run.ids.splice(run.at, 1); runEmit(); nextReview(run); return; } // gone: a backup was restored meanwhile
+    function settle(mark) {
+      if (RUN !== run || !run.running) return;
+      run.marks[id] = mark; if (mark === 'ok') run.done++; else run.failed++;
+      run.at++; run.pct = 0; runEmit(); nextReview(run);
+    }
+    if (g.reviewed) { settle('ok'); return; } // reviewed on its own screen meanwhile
+    run.pct = 0; runEmit();
+    function live() { return RUN === run && run.running; }
+    reviewQuietly(g, { bg: true, cancelled: function () { return !live(); }, progress: function (d, t) { if (live()) { run.pct = Math.min(1, d / t); runEmit(); } } })
+      .then(function () { var now = gameById(id); settle(now && now.reviewed ? 'ok' : 'fail'); }, function (e) { console.error(e); settle('fail'); });
+  }
+  function stopReviews() {
+    if (!reviewing()) return;
+    RUN.running = false; RUN.stopped = true;
+    Engines.stopBackground();
+    runEmit();
+  }
+  /* leaving Review: where the engine runs on the page itself (no workers here), a background search would freeze
+     whatever you do next, so there the reviews wait until you come back */
+  function holdCheckAway() { Engines.holdBackground(!!Engines.inline); }
+  /* "3 mistakes from them are in your practice now." */
+  function practiceLine(ids) {
+    var k = Store.state.mistakes.items.filter(function (x) { return !x.gone && ids.some(function (id) { return x.id.indexOf('g' + id + '-') === 0; }); }).length;
+    var from = ids.length === 1 ? 'it' : 'them';
+    return k ? U.plural(k, 'mistake') + ' from ' + from + (k === 1 ? ' is' : ' are') + ' in your practice now.' : 'No mistakes from ' + from + ' to practice.';
+  }
+  function runSummary(run) {
+    var n = run.ids.length, ok = run.ids.filter(function (id) { return run.marks[id] === 'ok'; });
+    if (!n) return 'Those games aren’t in Your games any more.';
+    if (run.stopped) return !ok.length ? 'Stopped. ' + (n === 1 ? 'The game is' : 'The games are') + ' waiting in Your games.'
+      : 'Stopped with ' + ok.length + ' of ' + n + ' games reviewed. The rest are waiting in Your games.';
+    var head = ok.length === n ? (n === 1 ? 'Reviewed.' : 'All ' + n + ' games reviewed.') : ok.length + ' of ' + n + ' games reviewed.';
+    return ok.length ? head + ' ' + practiceLine(ok) : head;
+  }
+  /* the note when they're done: held while you're in a game, on the clock, in a timed round or reading a sheet */
+  function doneNote(run) {
+    if (App.name === 'review' && batchShown) { run.seen = true; return; }
+    (function tryNow() {
+      if (RUN !== run) return;
+      var cur = Store.state.current;
+      if ((App.name === 'play' && cur && !cur.result) || App.name === 'clock' || App.guarded || document.querySelector('#layer .sheet')) { setTimeout(tryNow, 1000); return; }
+      if (App.name === 'review' && batchShown) { run.seen = true; paintStatus(); return; }
+      var n = run.ids.length, ok = run.ids.filter(function (id) { return run.marks[id] === 'ok'; }).length;
+      App.toast(ok === n ? (n === 1 ? 'The game you added is reviewed. ' : 'The ' + n + ' games you added are reviewed. ') + practiceLine(run.ids) : runSummary(run));
+    })();
+  }
+  /* the sidebar's line: how far along the reviews are, or that they're done (until you look) */
+  function paintStatus() {
+    var el = document.getElementById('bg-note'); if (!el) return;
+    var r = RUN, show = !!r && (r.running || (!r.seen && !r.stopped));
+    el.hidden = !show;
+    if (!show) return;
+    var n = r.ids.length, txt = el.querySelector('.bg-txt'), sub = el.querySelector('.bg-sub'), fill = el.querySelector('.meter > i');
+    if (!txt) {
+      U.clear(el); txt = h('span', { class: 'bg-txt' }); sub = h('span', { class: 'bg-sub' }); fill = h('i');
+      el.appendChild(txt); el.appendChild(sub); el.appendChild(h('span', { class: 'meter green' }, fill));
+    }
+    txt.textContent = r.running ? 'Reviewing your games' : n === 1 ? 'Your game is reviewed' : 'Your ' + n + ' games are reviewed';
+    sub.textContent = r.running ? 'Game ' + Math.min(r.at + 1, n) + ' of ' + n : 'See how ' + (n === 1 ? 'it' : 'they') + ' went';
+    fill.style.width = Math.round(100 * (r.running ? (r.at + r.pct) / Math.max(1, n) : 1)) + '%';
   }
 
   /* the quick look every position gets, and the longer one before a move is called a mistake */
@@ -461,7 +553,7 @@ var Review = (function () {
 
   /* Evaluate every position, from White's view. Each move that looks like an inaccuracy or worse gets a longer
      single-line search of the position after it (and, for some mistakes, of the position before it) before it is labeled.
-     job: { startFen, moves, map, mine(i), cancelled(), progress(positionsDone, moveIndex, deep) } */
+     job: { startFen, moves, map, mine(i), cancelled(), progress(positionsDone, moveIndex, deep), bg (in the background) } */
   function analyseAll(job) {
     var moves = job.moves, n = moves.length, evals = new Array(n + 1), info = [], ints = [];
     if (job.live) job.live(evals); // the screen draws the evals as they come in
@@ -474,7 +566,7 @@ var Review = (function () {
       if (k < n) { ints.push(p.parseMove(moves[k])); p.make(ints[k]); }
     }
     var fresh = true; // the first search of a review starts Stockfish with a clean slate
-    function search(i, opts) { var o = Object.assign({ fen: job.startFen, moves: moves.slice(0, i), newGame: fresh }, opts); fresh = false; return Engines.analyse(o); }
+    function search(i, opts) { var o = Object.assign({ fen: job.startFen, moves: moves.slice(0, i), newGame: fresh, bg: !!job.bg }, opts); fresh = false; return Engines.analyse(o); }
     function quick(i) {
       if (info[i].over) { evals[i] = overRecord(info[i].over); return Promise.resolve(); }
       return search(i, quickOpts()).then(function (r) { evals[i] = record(r, info[i].side); },
@@ -610,7 +702,8 @@ var Review = (function () {
   /* ---------- entry points ---------- */
   function openGame(id) { App.go('review', { gameId: id }); }
   function openPgn(pgn, color, label) { App.go('review', { pgn: pgn, color: color || 'w', label: label }); }
-  function openBatch(ids) { App.go('review', { batch: ids }); }
+  /* review these games in the background, and show how they're going (no ids: just show) */
+  function openBatch(ids) { if (ids && ids.length) queueReviews(ids); App.go('review', { batch: true }); }
 
   function gameById(id) { return Store.state.games.list.filter(function (g) { return g.id === id; })[0]; }
 
@@ -650,17 +743,43 @@ var Review = (function () {
     var grid = h('div', { class: 'grid two' });
     var games = h('div', { class: 'card' }, h('h3', { style: { marginBottom: '8px' } }, 'Your games'));
     if (!S.games.list.length) games.appendChild(h('div', { class: 'empty' }, 'Finished games show up here.', h('div', { style: { marginTop: '10px' } }, h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('play'); } }, 'Play a game'))));
-    var wait = waiting();
-    if (wait.length) games.appendChild(h('div', { class: 'resume rv-waiting' },
-      h('p', { class: 'grow' }, h('b', null, wait.length === 1 ? '1 added game is waiting for its review.' : wait.length + ' added games are waiting for their review.')),
-      h('button', { class: 'btn small', type: 'button', onclick: function () { openBatch(wait.map(function (g) { return g.id; })); } }, wait.length === 1 ? 'Review it' : 'Review them')));
-    var list = h('div', { class: 'list' }), shown = 30;
+    // the games you added: reviewing now (and how far along), or waiting for their review
+    var banner = h('div', { class: 'resume rv-waiting' }), bannerKey = null;
+    function paintBanner() {
+      var r = RUN, wait = waiting(), key = reviewing() ? 'run ' + r.at + '/' + r.ids.length : 'wait ' + wait.length;
+      if (key === bannerKey) return;
+      bannerKey = key; U.clear(banner);
+      banner.hidden = !reviewing() && !wait.length;
+      if (reviewing()) {
+        banner.appendChild(h('p', { class: 'grow' }, h('b', null, 'Reviewing the games you added: ' + Math.min(r.at + 1, r.ids.length) + ' of ' + r.ids.length + '.'), ' It keeps going while you play.'));
+        banner.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { openBatch(); } }, 'See how it’s going'));
+      } else if (wait.length) {
+        banner.appendChild(h('p', { class: 'grow' }, h('b', null, wait.length === 1 ? '1 added game is waiting for its review.' : wait.length + ' added games are waiting for their review.')));
+        banner.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { openBatch(wait.map(function (g) { return g.id; })); } }, wait.length === 1 ? 'Review it' : 'Review them'));
+      }
+    }
+    paintBanner();
+    games.appendChild(banner);
+    var list = h('div', { class: 'list' }), shown = 30, rowEls = {};
     function row(g) {
-      return h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
+      var el = h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
         gameAvatar(g),
         h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, gameTitle(g)), h('div', { class: 'muted small' }, gameSub(g))),
         g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next'));
+      rowEls[g.id] = { el: el, reviewed: !!g.reviewed };
+      return el;
     }
+    // a game reviewed in the background gets its accuracy and its Reviewed mark here as soon as it's done
+    listOff = onRun(function () {
+      paintBanner();
+      Object.keys(rowEls).forEach(function (id) {
+        var x = rowEls[id], g = gameById(id);
+        if (!g || !g.reviewed || x.reviewed || !x.el.parentNode) return;
+        var had = document.activeElement === x.el, el = row(g);
+        x.el.parentNode.replaceChild(el, x.el);
+        if (had) try { el.focus({ preventScroll: true }); } catch (e) { /* ignore */ }
+      });
+    });
     S.games.list.slice(0, shown).forEach(function (g) { list.appendChild(row(g)); });
     games.appendChild(list);
     if (S.games.list.length > shown) {
@@ -698,7 +817,7 @@ var Review = (function () {
     App.focus(true);
     // token: bumped by every navigation, so an engine answer that arrives late is dropped instead of shown on the wrong move
     // stage: 'recap' (the summary) or 'walk' (the coach card); practice: { idx } while fixing your mistakes one after another
-    var st = { moves: moves, ply: moves.length, shown: moves.length, evals: null, res: null, cancelled: false, token: 0, mode: 'game', retry: null,
+    var st = { gameId: src.gameId || null, moves: moves, ply: moves.length, shown: moves.length, evals: null, res: null, cancelled: false, token: 0, mode: 'game', retry: null,
       map: null, keyPlies: [], moments: [], stage: 'recap', practice: null, why: {}, pending: {}, details: false, progFrac: 0, follow: true };
     R = st;
     var board = new Board({ orient: you, coords: Store.state.settings.coords !== false, movable: null,
@@ -1753,60 +1872,77 @@ var Review = (function () {
     }
   }
 
-  /* ---------- several games added at once: reviewed one after another ---------- */
-  /* Each game shows where it stands: waiting, how far along, or its accuracy once done. Leaving stops the batch; the
-     games not reviewed yet stay in Your games, and the Review page and Home offer to finish them. */
-  function renderBatch(root, ids) {
-    var games = (ids || []).map(gameById).filter(function (g) { return g && !g.reviewed; });
+  /* ---------- the games you added: how their reviews are going ---------- */
+  /* Each game shows where it stands: waiting, how far along, or its accuracy once done. This page only shows the
+     reviews: leaving it doesn't stop them (Stop does), and they go on while you play. */
+  function renderBatch(root) {
     root.appendChild(h('div', { class: 'rv-head' },
       h('button', { class: 'back', type: 'button', onclick: function () { App.go('review'); } }, U.icon('back'), 'Games'),
       h('div', { class: 'rv-label' }, 'Reviewing your games')));
-    var card = h('section', { class: 'card stack rv-batch', 'aria-live': 'polite' });
+    var card = h('section', { class: 'card stack rv-batch' });
     root.appendChild(card);
-    if (!games.length) {
-      card.appendChild(h('p', null, 'These games are reviewed already.'));
+    var run = RUN;
+    if (!run || !run.ids.length) {
+      card.appendChild(h('p', null, 'No games are being reviewed right now.'));
       card.appendChild(h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('review'); } }, 'Your games')));
       return;
     }
-    App.focus(true);
-    var head = h('p', { class: 'rv-batch-head' }), fill = h('i'), bar = h('div', { class: 'meter green' }, fill), list = h('div', { class: 'list' });
-    var marks = games.map(function (g) {
-      var mark = h('span', { class: 'muted small rv-batch-st' }, 'Waiting');
+    batchShown = true;
+    var head = h('p', { class: 'rv-batch-head', role: 'status' }), note = h('p', { class: 'muted small rv-batch-note' });
+    var fill = h('i'), bar = h('div', { class: 'meter green' }, fill), list = h('div', { class: 'list' }), actions = h('div', { class: 'row' });
+    card.appendChild(head); card.appendChild(note); card.appendChild(bar); card.appendChild(list); card.appendChild(actions);
+    var rows = {}, state = null;
+    function rowOf(id) {
+      if (rows[id]) return rows[id];
+      var g = gameById(id); if (!g) return null;
+      var mark = h('span', { class: 'muted small rv-batch-st' });
       list.appendChild(h('div', { class: 'list-row' }, gameAvatar(g), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, gameTitle(g)), h('div', { class: 'muted small' }, gameSub(g))), mark));
-      return mark;
-    });
-    var actions = h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: function () { App.go('review'); } }, 'Stop'));
-    card.appendChild(head); card.appendChild(bar); card.appendChild(list); card.appendChild(actions);
-    var me = B = { cancelled: false, i: 0, n: games.length, done: 0 };
-    function live() { return B === me && !me.cancelled; }
-    function setBar(f) { fill.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
-    function next() {
-      if (!live()) return;
-      if (me.i >= games.length) return finish();
-      var g = games[me.i], mark = marks[me.i];
-      head.textContent = 'Reviewing game ' + (me.i + 1) + ' of ' + games.length + '. Each one takes about half a minute.';
-      mark.textContent = 'Reviewing';
-      reviewQuietly(g, { cancelled: function () { return !live(); }, progress: function (d, t) { if (!live()) return; setBar((me.i + d / t) / games.length); mark.textContent = Math.round(100 * Math.min(1, d / t)) + '%'; } })
-        .then(function () { if (!live()) return; mark.textContent = g.reviewed ? Math.round(g.acc) + '% accuracy' : 'Couldn’t review it'; if (g.reviewed) me.done++; },
-          function () { if (live()) mark.textContent = 'Couldn’t review it'; })
-        .then(function () { if (!live()) return; me.i++; setBar(me.i / games.length); next(); });
+      return (rows[id] = { mark: mark });
     }
-    function finish() {
-      B = null; App.focus(false);
-      head.textContent = me.done === games.length ? (games.length === 1 ? 'Reviewed. ' : 'All ' + games.length + ' games reviewed. ') + 'Their mistakes are in your practice now.'
-        : me.done + ' of ' + games.length + ' games reviewed.';
-      U.clear(actions);
-      var pc = UI.patternCard({ label: 'Across your games' }); if (pc) card.insertBefore(pc, actions);
-      actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('review'); } }, 'Your games'));
-      actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { App.go('progress'); } }, U.icon('progress'), 'Your progress'));
+    function btn(cls, text, fn, icon) { return h('button', { class: 'btn ' + cls, type: 'button', onclick: fn }, icon ? U.icon(icon) : null, text); }
+    function say(el, t) { if (el.textContent !== t) el.textContent = t; } // the head is read out when it changes, so only then
+    function paint() {
+      if (RUN && RUN !== run) run = RUN;
+      var n = run.ids.length;
+      run.ids.forEach(function (id, i) {
+        var r = rowOf(id); if (!r) return;
+        var g = gameById(id), m = run.marks[id];
+        say(r.mark, g && g.reviewed ? (g.acc != null ? Math.round(g.acc) + '% accuracy' : 'Reviewed') : m === 'fail' ? 'Couldn’t review it'
+          : run.running && i === run.at ? Math.round(100 * run.pct) + '%' : run.running ? 'Waiting' : 'Not reviewed yet');
+      });
+      fill.style.width = Math.round(100 * Math.max(0, Math.min(1, run.running ? (run.at + run.pct) / Math.max(1, n) : run.at / Math.max(1, n)))) + '%';
+      var now = run.running ? 'run' : run.stopped ? 'stopped' : 'over';
+      if (run.running) say(head, 'Reviewing game ' + Math.min(run.at + 1, n) + ' of ' + n + '. Each one takes about half a minute, or longer while you play.');
+      if (now === state) return;
+      // what the page offers changes only when the reviews start, stop or finish
+      state = now; U.clear(actions);
+      var pc = card.querySelector('.pattern'); if (pc) pc.remove();
+      if (run.running) {
+        note.hidden = false;
+        note.textContent = Engines.inline ? 'This browser can’t run the engine in the background, so the reviews pause while you’re away from Review.'
+          : 'You don’t have to wait here. The reviews keep going while you play or practice, and they won’t slow your game down.';
+        actions.appendChild(btn('primary', 'Play a game', function () { App.go('play'); }));
+        actions.appendChild(btn('quiet', 'Stop reviewing', function () { stopReviews(); }));
+        return;
+      }
+      note.hidden = true;
+      say(head, runSummary(run));
+      run.seen = true; paintStatus();
+      var left = run.ids.filter(function (id) { var g = gameById(id); return g && !g.reviewed; });
+      if (now === 'over' && run.done) { var card2 = UI.patternCard({ label: 'Across your games' }); if (card2) card.insertBefore(card2, actions); }
+      var again = left.length === n ? (n === 1 ? 'Review it' : 'Review them') : left.length === 1 ? 'Review the last one' : 'Review the rest';
+      if (left.length) actions.appendChild(btn('primary', again, function () { queueReviews(left); App.go('review', { batch: true }, { replace: true }); }));
+      actions.appendChild(btn(left.length ? '' : 'primary', 'Your games', function () { App.go('review'); }));
+      if (run.done) actions.appendChild(btn('', 'Your progress', function () { App.go('progress'); }, 'progress'));
     }
-    setBar(0);
-    next();
+    batchOff = onRun(paint);
+    paint();
   }
 
   App.register('review', {
     render: function (root, params) {
-      if (params && params.batch) { renderBatch(root, params.batch); return; }
+      Engines.holdBackground(false); // the reviews can always run here
+      if (params && params.batch) { renderBatch(root); return; }
       if (params && params.gameId) {
         var g = gameById(params.gameId);
         if (!g) { renderList(root); return; }
@@ -1823,8 +1959,22 @@ var Review = (function () {
           oppName: params.color === 'b' ? (p2.headers.White || 'White') : (p2.headers.Black || 'Black') });
       } else renderList(root);
     },
-    leave: function () { if (B) { B.cancelled = true; B = null; } if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); clearTimeout(R.travelT); clearTimeout(R.playT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
-    busy: function () { return !!R || !!B; }
+    leave: function () {
+      batchShown = false;
+      if (batchOff) { batchOff(); batchOff = null; }
+      if (listOff) { listOff(); listOff = null; }
+      // a game you added whose review hadn't finished: the background finishes it
+      var handoff = null;
+      if (R) {
+        var g = !R.res && R.gameId ? gameById(R.gameId) : null;
+        if (g && g.src && !g.reviewed) handoff = g.id;
+        R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); clearTimeout(R.travelT); clearTimeout(R.playT); document.removeEventListener('keydown', R.keydown); R = null;
+      }
+      Engines.stopAll();
+      holdCheckAway();
+      if (handoff) { queueReviews([handoff]); App.toast('Tempo will finish this review in the background.'); }
+    },
+    busy: function () { return !!R || batchShown; }
   });
   function sansOf(fen, ms) { var p = new C.Pos(fen), out = []; ms.forEach(function (m) { out.push(p.san(m)); p.make(m); }); return out; }
 
@@ -1838,7 +1988,12 @@ var Review = (function () {
   }
 
   return { openGame: openGame, openPgn: openPgn, openBatch: openBatch, waiting: waiting, gameTitle: gameTitle, gameSub: gameSub, gameAvatar: gameAvatar,
-    classify: classify, KINDS: KINDS, _state: testState, _batch: function () { return B ? { i: B.i, n: B.n, done: B.done } : null; } };
+    classify: classify, KINDS: KINDS, _state: testState,
+    /* the reviews of the games you added: going now ({ at, n, done, pct }) or not (null); and stopping them */
+    reviewing: function () { return reviewing() ? { at: RUN.at, n: RUN.ids.length, done: RUN.done, pct: RUN.pct } : null; },
+    stopReviews: stopReviews,
+    _batch: function () { return reviewing() ? { i: RUN.at, n: RUN.ids.length, done: RUN.done } : null; },
+    _run: function () { return RUN ? { ids: RUN.ids.slice(), at: RUN.at, done: RUN.done, failed: RUN.failed, running: RUN.running, stopped: RUN.stopped, seen: RUN.seen, marks: Object.assign({}, RUN.marks) } : null; } };
 })();
 
 /* Positions from your own games where you went wrong, replayed with spaced repetition. */
