@@ -1,11 +1,21 @@
-// Stockfish 10 in Node for build-time checks. analyse(fen, {depth, multipv}) -> lines
+// Stockfish in Node for build-time checks. analyse(fen, {depth, movetime, multipv, skill}) -> { best, lines }
+// The engine is a UCI process: the native binary named by SF_BIN when that's set (fast, e.g. Stockfish 17.1 or 19 for
+// a deep check), otherwise the Stockfish 19 Lite that Tempo itself embeds, run by Node from assets/ (it speaks UCI on
+// stdin and stdout there), so the checks need nothing outside the repo.
 const path = require('path');
-const SF = require(path.join(__dirname, '../assets/sf10.js'));
-function create() {
-  const eng = SF(path.join(__dirname, '../assets/sf10.wasm'));
-  let listener = null;
-  eng.onmessage = (line) => { if (listener) listener(String(line)); };
-  const send = (c) => eng.postMessage(c, true);
+const { spawn } = require('child_process');
+function create(opts = {}) {
+  const bin = opts.bin || process.env.SF_BIN || null;
+  const proc = bin ? spawn(bin, [], { stdio: ['pipe', 'pipe', 'ignore'] })
+    : spawn(process.execPath, [path.join(__dirname, '../assets/sf19-lite-single.js')], { stdio: ['pipe', 'pipe', 'ignore'] });
+  let listener = null, buf = '';
+  proc.stdout.setEncoding('utf8');
+  proc.stdout.on('data', (chunk) => {
+    buf += chunk;
+    let i;
+    while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i).replace(/\r$/, ''); buf = buf.slice(i + 1); if (listener) listener(line); }
+  });
+  const send = (c) => proc.stdin.write(c + '\n');
   let chain = Promise.resolve();
   function run(cmds, until) {
     const p = chain.then(() => new Promise((res) => {
@@ -16,14 +26,15 @@ function create() {
     chain = p.catch(() => {});
     return p;
   }
-  const ready = run(['uci'], l => l === 'uciok').then(() => run(['setoption name Hash value 64', 'isready'], l => l === 'readyok'));
+  const threads = Math.max(1, +(process.env.SF_THREADS || 1));
+  const ready = run(['uci'], l => l === 'uciok').then(() => run(['setoption name Hash value ' + (bin ? 256 : 64)].concat(bin && threads > 1 ? ['setoption name Threads value ' + threads] : []).concat(['isready']), l => l === 'readyok'));
   let curMpv = 1, curSkill = 20;
-  async function analyse(fen, opts = {}) {
+  async function analyse(fen, o = {}) {
     await ready;
-    const mpv = opts.multipv || 1, skill = opts.skill == null ? 20 : opts.skill, cmds = [];
+    const mpv = o.multipv || 1, skill = o.skill == null ? 20 : o.skill, cmds = [];
     if (mpv !== curMpv) { cmds.push('setoption name MultiPV value ' + mpv); curMpv = mpv; }
     if (skill !== curSkill) { cmds.push('setoption name Skill Level value ' + skill); curSkill = skill; }
-    cmds.push('position fen ' + fen, 'go' + (opts.depth ? ' depth ' + opts.depth : '') + (opts.movetime ? ' movetime ' + opts.movetime : '') + (!opts.depth && !opts.movetime ? ' depth 16' : ''));
+    cmds.push('position fen ' + fen, 'go' + (o.depth ? ' depth ' + o.depth : '') + (o.movetime ? ' movetime ' + o.movetime : '') + (!o.depth && !o.movetime ? ' depth 16' : ''));
     const lines = await run(cmds, l => l.startsWith('bestmove'));
     const byPv = {};
     for (const l of lines) {
@@ -37,7 +48,7 @@ function create() {
     const best = (lines.find(l => l.startsWith('bestmove')) || '').split(' ')[1];
     return { best, lines: Object.keys(byPv).sort((a, b) => a - b).map(k => byPv[k]) };
   }
-  return { analyse, quit: () => send('quit') };
+  return { analyse, quit: () => { try { send('quit'); proc.stdin.end(); } catch (e) { /* gone */ } } };
 }
 module.exports = { create };
 if (require.main === module) {
@@ -47,6 +58,7 @@ if (require.main === module) {
     console.log(JSON.stringify(r, null, 0));
     const r2 = await e.analyse('6k1/5ppp/8/8/8/8/5PPP/3R2K1 w - - 0 1', { depth: 10 });
     console.log(JSON.stringify(r2));
+    e.quit();
     process.exit(0);
   })();
 }

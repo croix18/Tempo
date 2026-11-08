@@ -4,6 +4,7 @@ var Openings = (function () {
   var h = U.h, C = TempoCore;
   var O = null;
   var DAY = 86400000, GAPS = [0, 1, 3, 7, 16, 35];
+  var COURSES = ['italian', 'queens-gambit'];   // Learn units that teach an opening from the ground up
 
   function lineKey(rep, line) { return rep.id + '/' + line.id; }
   function lineState(rep, line) { return Store.state.openings.lines[lineKey(rep, line)] || null; }
@@ -14,6 +15,19 @@ var Openings = (function () {
     var D = Data.reps();
     root.appendChild(h('div', { class: 'page-head' }, h('h1', null, 'Openings')));
     if (!D.repertoires.length) { root.appendChild(h('div', { class: 'empty' }, 'Opening lines are missing from this build.')); return; }
+    // the opening courses in Learn come first: they teach the ideas and plans, and the lines below are drilled from them
+    var courses = Data.lessons().filter(function (u) { return COURSES.indexOf(u.id) >= 0; });
+    if (courses.length) {
+      var cl = h('nav', { class: 'menu-list', 'aria-label': 'Opening courses', style: { maxWidth: '640px', marginBottom: '28px' } });
+      courses.forEach(function (u) {
+        var n = u.lessons.filter(function (l) { return Store.state.learn.done[l.id]; }).length, lk = u.lessons.filter(function (l) { return Learn.lockedIn(l.id); }).length;
+        var sub = n ? n + ' of ' + u.lessons.length + ' lessons done' + (lk ? ' · ' + lk + ' locked in' : '') : u.summary;
+        cl.appendChild(UI.menuRow('book', u.title, sub, function () { Learn.openUnit(u.id); }));
+      });
+      root.appendChild(h('h2', { style: { margin: '0 0 12px' } }, 'Courses'));
+      root.appendChild(cl);
+      root.appendChild(h('h2', { style: { margin: '0 0 12px' } }, 'Repertoires'));
+    }
     var list = h('nav', { class: 'menu-list', 'aria-label': 'Repertoires', style: { maxWidth: '640px' } });
     D.repertoires.forEach(function (rep) {
       var learned = 0, due = 0, now = Date.now();
@@ -28,8 +42,11 @@ var Openings = (function () {
       D.traps.forEach(function (t) {
         var seen = Store.state.openings.lines['trap/' + t.id], victim = t.trapper && t.trapper !== t.side && t.keyPly != null;
         var who = t.side === 'w' ? 'White' : 'Black';
+        // each trap has a lesson in Learn (watch it, set it, dodge it, set it from memory); the walkthrough here is the fallback
+        var les = Data.lesson('trap-' + t.id), ld = les && Store.state.learn.done[les.lesson.id];
+        if (les) tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (ld ? (Learn.lockedIn(les.lesson.id) ? 'Locked in.' : 'Lesson done.') : t.noSet || t.defend ? 'Learn to stop it.' : 'Learn to set it and to dodge it.'), function () { Learn.open('trap-' + t.id, 'openings'); }));
         // three kinds: a trap you set, one you must not fall into, and an attack you learn to stop
-        tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (victim ? 'Learn to avoid it as ' : t.defend ? 'Learn to stop it as ' : 'Learn to set it as ') + who + '.' + (seen ? ' Done.' : ''), function () { App.go('openings', { trap: t.id }); }));
+        else tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (victim ? 'Learn to avoid it as ' : t.defend ? 'Learn to stop it as ' : 'Learn to set it as ') + who + '.' + (seen ? ' Done.' : ''), function () { App.go('openings', { trap: t.id }); }));
       });
       root.appendChild(tl);
     }

@@ -21,8 +21,11 @@ if ! git diff --cached --quiet; then
 
 $TRAILER"
 fi
-git -c "http.https://github.com/.extraheader=Authorization: Basic $B" push -q origin main 2>&1 | grep -v "acknowledgments\|push negotiation" || true
+# the branch that's checked out (main when shipping; a work-in-progress branch while a change is half done)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+[ "$BRANCH" = "HEAD" ] && { echo "detached HEAD: check out a branch first" >&2; exit 1; }
+git -c "http.https://github.com/.extraheader=Authorization: Basic $B" push -q origin "$BRANCH" 2>&1 | grep -v "acknowledgments\|push negotiation" || true
 # Trust the remote, not the message.
-REMOTE=$(git -c "http.https://github.com/.extraheader=Authorization: Basic $B" ls-remote origin main | cut -f1)
+REMOTE=$(git -c "http.https://github.com/.extraheader=Authorization: Basic $B" ls-remote origin "refs/heads/$BRANCH" | cut -f1)
 LOCAL=$(git rev-parse HEAD)
 if [ "$REMOTE" = "$LOCAL" ]; then echo "pushed: $LOCAL"; else echo "PUSH FAILED: remote $REMOTE local $LOCAL" >&2; exit 1; fi
