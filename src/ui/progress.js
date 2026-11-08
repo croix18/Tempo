@@ -169,10 +169,52 @@
 
   function engineText() {
     var s = Engines.status;
-    return 'Engine: ' + (s === 'ready' ? 'Stockfish 10 is running in this browser.' : s === 'failed' ? 'Stockfish isn’t available here, so Tempo uses its own built-in engine.' :
-      'Stockfish is still loading. Until it’s ready, Tempo uses its own built-in engine.');
+    if (s === 'failed') return 'Stockfish isn’t available here, so Tempo uses its own built-in engine.';
+    if (s !== 'ready') return 'Stockfish is starting…';
+    var th = Engines.threads > 1 ? ' on ' + Engines.threads + ' threads' : '';
+    if (Engines.kind === 'full') return 'Stockfish 19 at full strength is running in this browser' + th + '.';
+    return 'Stockfish 19 (the lite build) is running in this browser' + th + '.';
   }
   if (Engines.onStatus) Engines.onStatus(function () { var el = document.getElementById('engine-about'); if (el) el.textContent = engineText(); });
+  function mb(n) { return Math.round(n / 1048576); }
+
+  /* The Engine card. On the site, with the page cross-origin isolated, it also offers the full-strength engine: a 94 MB
+     download kept on this device (Cache Storage), switched on and off here. Elsewhere it's the status line alone. */
+  function engineCard() {
+    var card = h('div', { class: 'card stack' }, h('h3', null, 'Engine'), h('p', { class: 'muted', id: 'engine-about' }, engineText()));
+    if (!Engines.site || !Engines.isolated() || !Engines.fullSize()) return card;
+    var S = Store.state.settings, size = mb(Engines.fullSize());
+    var box = h('div');
+    card.appendChild(box);
+    function paint(cached) {
+      U.clear(box);
+      var on = !!S.fullEngine && cached;
+      var sub = 'Downloads the full Stockfish 19 (' + size + ' MB) to this device once, and uses it for reviews and the strongest characters. The lite build is right for nearly every game; the full one judges hard positions a little better.';
+      box.appendChild(Play.toggle('Full-strength engine', sub, on, function (v) {
+        if (v) { S.fullEngine = true; Store.touch('settings'); if (cached) { Engines.restart().then(function () { App.toast('Full-strength engine on'); }); } else download(); }
+        else { S.fullEngine = false; Store.touch('settings'); Engines.restart().then(function () { App.toast('Back to the lite engine'); }); paint(cached); }
+      }));
+      if (cached && !on) box.appendChild(h('div', { class: 'row', style: { marginTop: '6px' } }, h('button', { class: 'btn small', type: 'button', onclick: function () {
+        Engines.removeFull().then(function () { App.toast('Download deleted'); paint(false); });
+      } }, U.icon('trash'), 'Delete the download (' + size + ' MB)')));
+    }
+    function download() {
+      U.clear(box);
+      var text = h('p', { class: 'muted small', 'aria-live': 'polite' }, 'Downloading the full engine…'), bar = UI.meter(0);
+      box.appendChild(h('div', { style: { fontWeight: 600, marginBottom: '6px' } }, 'Full-strength engine')); box.appendChild(text); box.appendChild(bar);
+      Engines.downloadFull(function (done, total) {
+        text.textContent = 'Downloading the full engine… ' + mb(done) + ' of ' + (total ? mb(total) : size) + ' MB';
+        var i = bar.querySelector('i'); if (i && total) i.style.width = Math.round(100 * done / total) + '%';
+      }).then(function (ok) {
+        if (!ok) { S.fullEngine = false; Store.touch('settings'); App.toast('The download didn’t finish. Try again later.'); paint(false); return; }
+        text.textContent = 'Starting it…';
+        Engines.restart().then(function () { App.toast(Engines.kind === 'full' ? 'Full-strength engine on' : 'The full engine couldn’t start here'); paint(true); });
+      });
+    }
+    Engines.hasFull().then(paint);
+    if (Engines.downloading) download();
+    return card;
+  }
 
   App.register('prefs', {
     render: function (root) {
@@ -274,9 +316,9 @@
       col.appendChild(kept);
       paintCopies(kept);
 
+      col.appendChild(engineCard());
       col.appendChild(h('div', { class: 'card stack small' }, h('h3', null, 'About'),
-        h('p', { class: 'muted', id: 'engine-about' }, engineText()),
-        h('p', { class: 'muted' }, 'Stockfish is free software by the Stockfish developers (GNU GPL v3), compiled for the web by Nathan Rugg. Puzzles and opening names come from the Lichess open database (CC0). Fonts: DM Sans and DM Serif Display (SIL Open Font License). Pieces, lessons and bots were made for Tempo.')));
+        h('p', { class: 'muted' }, 'Stockfish 19 is free software by the Stockfish developers (GNU GPL v3), compiled for the web as stockfish.js by Nathan Rugg. Puzzles and opening names come from the Lichess open database (CC0). Fonts: DM Sans and DM Serif Display (SIL Open Font License). Pieces, lessons and bots were made for Tempo.')));
     }
   });
 })();

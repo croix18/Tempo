@@ -1,4 +1,4 @@
-/* Tempo engines: the built-in engine in a worker, embedded Stockfish, and one analysis interface. */
+/* Tempo engines: the built-in engine in a worker, Stockfish (embedded, or the site's builds), and one analysis interface. */
 var Engines = (function () {
   'use strict';
   var C = TempoCore;
@@ -78,52 +78,140 @@ var Engines = (function () {
   }
   function resetTempo() { failTempo(); startTempo(); }
 
-  /* ---------- Stockfish ---------- */
-  var SF = { status: 'idle', worker: null, queue: [], cur: null, opts: { skill: 20, multipv: 1 }, readyP: null };
+  /* ---------- Stockfish ----------
+     Stockfish 19 (stockfish.js by Nathan Rugg). Three builds, all driven the same way (UCI over postMessage):
+       embedded  the lite single-threaded build packed into this file: runs anywhere, no headers needed
+       site      the lite multi-threaded build served beside the page (window.TEMPO_ENGINE), when the page is cross-origin
+                 isolated so SharedArrayBuffer exists; uses the device's cores
+       full      the full-strength build (94 MB), downloaded once on request from Preferences and kept in Cache Storage
+     The loader takes the wasm's address in the worker URL's hash, so each build's wasm can come from a blob or the site. */
+  var SF = { status: 'idle', worker: null, queue: [], cur: null, opts: { skill: 20, multipv: 1 }, readyP: null, kind: null, name: null, threads: 1 };
+  var SITE = (typeof window !== 'undefined' && window.TEMPO_ENGINE) || null;   // { base, lite: { js, wasm }, full: { js, wasm: [parts], bytes } }
+  var CACHE = 'tempo-engine', FULL_KEY = '/tempo-engine/full.wasm', dl = null;
   var statusFns = [];
   function setStatus(s) {
     if (SF.status === s) return;
     SF.status = s;
     statusFns.forEach(function (fn) { try { fn(s); } catch (e) { console.error(e); } });
   }
+  function isolated() { return typeof SharedArrayBuffer !== 'undefined' && typeof window !== 'undefined' && window.crossOriginIsolated === true; }
+  function threadsFor(kind) { return kind === 'embedded' ? 1 : Math.max(1, Math.min(4, (navigator.hardwareConcurrency || 2) - 1)); } // a few cores, never all: the page stays smooth
+  function hashFor(kind) { return kind === 'full' ? 64 : kind === 'site' ? 32 : 16; }
+  function fullWanted() { return !!(SITE && SITE.full && Store.state.settings.fullEngine); }
+  function cacheOk() { return typeof caches !== 'undefined' && typeof window !== 'undefined' && window.isSecureContext; }
+
+  /* Start a worker for one build. Resolves true once it has answered readyok, false if it couldn't (and leaves nothing running). */
+  function startWorker(kind, jsUrl, wasmUrl, limitMs) {
+    return new Promise(function (resolve) {
+      var w, done = false;
+      function fail() { if (done) return; done = true; clearTimeout(t); try { w.terminate(); } catch (e) { /* ignore */ } resolve(false); }
+      try { w = new Worker(jsUrl + '#' + encodeURIComponent(wasmUrl)); } catch (e) { resolve(false); return; }
+      var t = setTimeout(fail, limitMs);
+      w.onerror = function (e) { if (e.preventDefault) e.preventDefault(); fail(); };
+      w.onmessage = function (e) {
+        var line = String(e.data);
+        if (line.indexOf('id name ') === 0) SF.name = line.slice(8).trim();
+        else if (line.indexOf('uciok') === 0) {
+          var th = threadsFor(kind);
+          w.postMessage('setoption name Hash value ' + hashFor(kind));
+          if (th > 1) w.postMessage('setoption name Threads value ' + th);
+          w.postMessage('isready');
+          SF.threads = th;
+        } else if (line.indexOf('readyok') === 0) {
+          if (done) return;
+          done = true; clearTimeout(t);
+          SF.worker = w; SF.kind = kind; SF.opts = { skill: 20, multipv: 1 };
+          w.onmessage = sfLine; w.onerror = function (ev) { if (ev.preventDefault) ev.preventDefault(); sfDead(); };
+          resolve(true);
+        }
+      };
+      w.postMessage('uci');
+    });
+  }
   function b64FromBytes(bytes) {
     var parts = [], CH = 0x8000;
     for (var i = 0; i < bytes.length; i += CH) parts.push(String.fromCharCode.apply(null, bytes.subarray(i, i + CH)));
     return btoa(parts.join(''));
   }
+  /* The embedded build: the wasm goes into the worker's script as bytes, and the worker's fetch hands them over when
+     the loader asks for the address in the hash (a page opened from a file can't fetch a blob from a worker). */
+  var EMBEDDED_WASM = 'tempo-embedded.wasm';
+  function embedded() {
+    return Promise.all([TempoInflate.unpackText(scriptText('d-sfjs')), TempoInflate.unpackBytes(scriptText('d-sfwasm'))]).then(function (res) {
+      var src = 'self.__SFWASM=(function(b){var s=atob(b),u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;})("' + b64FromBytes(res[1]) + '");\n' +
+        'self.__fetch=self.fetch;self.fetch=function(u,o){if(String(u).indexOf("' + EMBEDDED_WASM + '")>=0)return Promise.resolve(new Response(self.__SFWASM,{headers:{"Content-Type":"application/wasm"}}));return self.__fetch.apply(self,arguments);};\n' + res[0];
+      var js = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+      return startWorker('embedded', js, EMBEDDED_WASM, 20000);
+    }, function () { return false; });
+  }
+  /* the site's files, as full addresses: the worker resolves a relative one against its own script, not the page */
+  function siteUrl(name) { return new URL(SITE.base + name, location.href).href; }
+  function site() {
+    if (!SITE || !SITE.lite || !isolated()) return Promise.resolve(false);
+    return startWorker('site', siteUrl(SITE.lite.js), siteUrl(SITE.lite.wasm), 20000);
+  }
+  /* the full engine's wasm, if it was downloaded to this device: a blob URL for it, or null */
+  function fullUrl() {
+    if (!cacheOk()) return Promise.resolve(null);
+    return caches.open(CACHE).then(function (c) { return c.match(FULL_KEY); }).then(function (r) { return r ? r.blob() : null; })
+      .then(function (b) { return b ? URL.createObjectURL(b) : null; }, function () { return null; });
+  }
+  function full() {
+    if (!fullWanted() || !isolated()) return Promise.resolve(false);
+    return fullUrl().then(function (url) { return url ? startWorker('full', siteUrl(SITE.full.js), url, 60000) : false; });
+  }
   function sfInit() {
     if (SF.readyP) return SF.readyP;
     setStatus('loading');
-    SF.readyP = Promise.all([
-      TempoInflate.unpackText(scriptText('d-sfjs')),
-      TempoInflate.unpackBytes(scriptText('d-sfwasm'))
-    ]).then(function (res) {
-      var js = res[0], wasm = res[1];
-      var src = 'self.__SFWASM=(function(b){var s=atob(b),u=new Uint8Array(s.length);for(var i=0;i<s.length;i++)u[i]=s.charCodeAt(i);return u;})("' + b64FromBytes(wasm) + '");\n' + js;
-      var url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
-      return new Promise(function (resolve) {
-        var w;
-        try { w = new Worker(url); } catch (e) { resolve(false); return; }
-        var t = setTimeout(function () { try { w.terminate(); } catch (e) { /* ignore */ } resolve(false); }, 12000);
-        w.onerror = function (e) { if (e.preventDefault) e.preventDefault(); clearTimeout(t); resolve(false); };
-        w.onmessage = function (e) {
-          var line = String(e.data);
-          if (line.indexOf('uciok') === 0) { w.postMessage('setoption name Hash value 16'); w.postMessage('isready'); }
-          else if (line.indexOf('readyok') === 0) {
-            clearTimeout(t);
-            SF.worker = w; w.onmessage = sfLine; w.onerror = function (ev) { if (ev.preventDefault) ev.preventDefault(); sfDead(); };
-            resolve(true);
-          }
-        };
-        w.postMessage('uci');
-      });
-    }).then(function (ok) { setStatus(ok ? 'ready' : 'failed'); return ok; }, function () { setStatus('failed'); return false; });
+    SF.readyP = full().then(function (ok) { return ok || site(); }).then(function (ok) { return ok || embedded(); })
+      .then(function (ok) { setStatus(ok ? 'ready' : 'failed'); return ok; }, function () { setStatus('failed'); return false; });
     return SF.readyP;
+  }
+  /* stop the engine and start again (after the full engine was downloaded or switched off); searches in flight resolve null */
+  function restart() { sfDead(); SF.readyP = null; return sfInit(); }
+
+  /* Download the full engine (its wasm, in parts) and keep it in Cache Storage. progress(doneBytes, totalBytes).
+     Resolves true when it's stored; false (with nothing kept) when it couldn't be. Only one download runs at a time. */
+  function downloadFull(progress) {
+    if (dl) return dl;
+    if (!SITE || !SITE.full || !cacheOk()) return Promise.resolve(false);
+    var parts = SITE.full.wasm.slice(), total = SITE.full.bytes || 0, got = 0, bufs = [];
+    function next() {
+      if (!parts.length) return Promise.resolve(true);
+      return fetch(siteUrl(parts.shift()), { credentials: 'same-origin' }).then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        var reader = r.body && r.body.getReader ? r.body.getReader() : null;
+        if (!reader) return r.arrayBuffer().then(function (ab) { bufs.push(new Uint8Array(ab)); got += ab.byteLength; if (progress) progress(got, total); });
+        var chunks = [];
+        return (function pump() {
+          return reader.read().then(function (x) {
+            if (x.done) { bufs.push.apply(bufs, chunks); return; }
+            chunks.push(x.value); got += x.value.byteLength; if (progress) progress(got, total);
+            return pump();
+          });
+        })();
+      }).then(next);
+    }
+    dl = next().then(function () {
+      var blob = new Blob(bufs, { type: 'application/wasm' });
+      bufs = null;
+      return caches.open(CACHE).then(function (c) { return c.put(FULL_KEY, new Response(blob, { headers: { 'Content-Type': 'application/wasm', 'Content-Length': String(blob.size) } })); })
+        .then(function () { return true; });
+    }).catch(function (e) { console.error(e); return false; }).then(function (ok) { dl = null; return ok; });
+    return dl;
+  }
+  function hasFull() {
+    if (!cacheOk()) return Promise.resolve(false);
+    return caches.open(CACHE).then(function (c) { return c.match(FULL_KEY); }).then(function (r) { return !!r; }, function () { return false; });
+  }
+  function removeFull() {
+    if (!cacheOk()) return Promise.resolve(false);
+    return caches.open(CACHE).then(function (c) { return c.delete(FULL_KEY); }).catch(function () { return false; });
   }
   function sfDead() {
     setStatus('failed');
     try { if (SF.worker) SF.worker.terminate(); } catch (e) { /* ignore */ }
-    SF.worker = null;
+    SF.worker = null; SF.kind = null;
     if (SF.cur) { clearTimeout(SF.cur.timer); SF.cur.resolve(null); SF.cur = null; }
     SF.queue.forEach(function (j) { j.resolve(null); }); SF.queue = [];
   }
@@ -282,6 +370,16 @@ var Engines = (function () {
     tempo: tempo,
     get strong() { return sfReady(); },
     get status() { return SF.status; },
+    /* which Stockfish is running ('embedded', 'site' or 'full'), its name as it gave it, and its threads */
+    get kind() { return SF.kind; },
+    get name() { return SF.name; },
+    get threads() { return SF.threads; },
+    /* the site's engines: present when the page is served with them; usable only when the page is cross-origin isolated */
+    get site() { return !!SITE; },
+    isolated: isolated,
+    fullSize: function () { return SITE && SITE.full ? SITE.full.bytes || 0 : 0; },
+    hasFull: hasFull, downloadFull: downloadFull, removeFull: removeFull, restart: restart,
+    get downloading() { return !!dl; },
     /* fn(status) runs whenever status changes: 'loading', 'ready' or 'failed' */
     onStatus: function (fn) { statusFns.push(fn); },
     get inline() { return inline; },

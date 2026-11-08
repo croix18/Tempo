@@ -224,15 +224,15 @@ async def test_phone(browser):
     b = await pg.evaluate(BOARD)
     check('retry: then shows the best move in green', any(a['color'] == 'green' for a in b['arrows']), b['arrows'])
 
-    # Find a better move: safe but clearly worse (a3 instead of Nf3)
+    # Find a better move: safe but clearly worse (a4 instead of Nf3; Stockfish 17+ rates a3 as good as Nf3 here)
     await go(pg, BG5)
     await pg.locator('.rv-card button', has_text='Find a better move').click(); await pg.wait_for_timeout(600)
-    await play(pg, 'a2a3')
+    await play(pg, 'a2a4')
     await pg.wait_for_function("() => !document.querySelector('.rv-card .thinking')", timeout=20000)
     await pg.wait_for_timeout(300)
     txt = await card_text(pg)
-    check('retry: a safe but worse move is not praised', not re.search(r'Yes, a3', txt), txt[:160])
-    check('retry: "a3 is safe, but %s was best: it ..." (or ", which ..." for a reason that only describes the move)' % best_san, re.search(r'a3 is safe, but %s was best((: it |, which )[^.]+)?\.' % re.escape(best_san), txt), txt[:200])
+    check('retry: a safe but worse move is not praised', not re.search(r'Yes, a4', txt), txt[:160])
+    check('retry: "a4 is safe, but %s was best: it ..." (or ", which ..." for a reason that only describes the move)' % best_san, re.search(r'a4 is safe, but %s was best((: it |, which )[^.]+)?\.' % re.escape(best_san), txt), txt[:200])
 
     # stale verdict: play a move, then go to the start before the engine answers
     await go(pg, BG5)

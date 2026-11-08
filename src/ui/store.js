@@ -9,7 +9,7 @@ var Store = (function () {
   var SECTIONS = SYNC.concat(['games']);
   var THEMES = ['system', 'light', 'dark'], BOARDS = ['tempo', 'classic', 'walnut', 'slate'];
   var CLOCKS = ['none', '10', '15+10', '30'], COLORS = ['w', 'r', 'b'], CHATS = ['off', 'some', 'lots'];
-  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'coachAsk', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed'];
+  var FLAGS = ['sound', 'coords', 'dots', 'animate', 'autoQueen', 'coach', 'coachAsk', 'hanging', 'takebacks', 'unlockAll', 'botChat', 'placed', 'fullEngine'];
   var LIMIT = { playHist: 400, puzzleHist: 600, bots: 140, games: 100, mistakes: 200, days: 400, moves: 1200, seen: 200000 };
   var RESULTS = ['1-0', '0-1', '1/2-1/2', '*'], KINDS = ['blunder', 'mistake', 'miss'], REVIEW_CODES = 'RGBEOKIMSX';
   var TOPICS = ['safety', 'fork', 'threats', 'mates', 'free', 'position'];

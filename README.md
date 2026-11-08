@@ -89,7 +89,7 @@ tools/with_portraits.py  a copy of Tempo with pictures for the characters, for y
 
 ## Credits
 
-- Stockfish 10 by the Stockfish developers, compiled to WebAssembly as [stockfish.js](https://github.com/nmrugg/stockfish.js) by Nathan Rugg. GPL-3.0; source at [official-stockfish/Stockfish](https://github.com/official-stockfish/Stockfish).
+- Stockfish 19 by the Stockfish developers, compiled to WebAssembly as [stockfish.js](https://github.com/nmrugg/stockfish.js) by Nathan Rugg (the lite single-threaded build is packed into the file; `tools/pack_engine.py`). GPL-3.0; source at [official-stockfish/Stockfish](https://github.com/official-stockfish/Stockfish). On mrshaffer.org the page is cross-origin isolated and loads the site's multi-threaded lite build instead, and Preferences can download the full-strength build (94 MB) once per device, kept in Cache Storage.
 - Puzzles from the [Lichess puzzle database](https://database.lichess.org/#puzzles) and opening names from [lichess-org/chess-openings](https://github.com/lichess-org/chess-openings), both CC0.
 - DM Sans and DM Serif Display, SIL Open Font License 1.1.
 - The chess pieces were drawn for this project.
