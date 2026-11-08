@@ -31,6 +31,8 @@ python3 build/build.py      # writes dist/Tempo.html and dist/tempo-artifact.htm
 
 `dist/Tempo.html` is the standalone file. `dist/tempo-artifact.html` is the same app without the document wrapper, for publishing as a Claude artifact.
 
+A page that hosts Tempo can tell it two things in a script before the app's own: `window.TEMPO_ENGINE`, the site's Stockfish builds (see Credits), and `window.TEMPO_HOME = { href, label, title }`, the way back to the site, which Tempo shows as the last link in its sidebar and the last row of More rather than anything over the page (only an address on the same site or an https one is taken). mrshaffer.org sets both; the file, the artifact and the Game Lab's copy set neither.
+
 The engine, fonts, puzzles and opening names are packed into `build/*.b64`. Rebuild those only if something in `assets/` or `data/` changes:
 
 ```sh

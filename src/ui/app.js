@@ -66,6 +66,16 @@ var App = (function () {
   var LEARN_OF = ['openings', 'train'];
   var PLAY_OF = ['clock'];
 
+  /* The way back to the site that hosts this copy, when the page says where that is: window.TEMPO_HOME = { href, label,
+     title } (mrshaffer.org sets it). It's a link at the foot of the sidebar and the last row of More, so nothing floats
+     over the page. Only an address on the same site (/…) or an https one is taken. */
+  var HOME_OUT = (function () {
+    var c = typeof window !== 'undefined' ? window.TEMPO_HOME : null;
+    if (!c || typeof c !== 'object' || typeof c.href !== 'string' || !/^(\/(?![\/\\])|https:\/\/)/.test(c.href)) return null;
+    var label = typeof c.label === 'string' && c.label.trim() ? c.label.trim().slice(0, 40) : 'Back';
+    return { href: c.href, label: label, title: typeof c.title === 'string' && c.title.trim() ? c.title.trim().slice(0, 120) : label };
+  })();
+
   function register(name, view) { views[name] = view; }
   function isView(n) { return typeof n === 'string' && Object.prototype.hasOwnProperty.call(views, n); }
 
@@ -79,6 +89,8 @@ var App = (function () {
       if (n.id === 'openings' && !hasOpenings) return;
       sideNav.appendChild(h('button', { class: 'nav-item', type: 'button', dataset: { go: n.id }, onclick: function () { navigate(n.id); } }, U.icon(n.icon), n.label));
     });
+    // the way back to the site this copy lives on, when it says where that is
+    if (HOME_OUT) sideNav.appendChild(h('a', { class: 'nav-item side-home', href: HOME_OUT.href, title: HOME_OUT.title, 'aria-label': HOME_OUT.title }, U.icon('leave'), HOME_OUT.label));
     // the foot: how the reviews of the games you added are going (while they run), and which engine is working
     sideNav.appendChild(h('div', { class: 'side-foot' },
       h('button', { class: 'bg-note', id: 'bg-note', type: 'button', hidden: true, onclick: function () { Review.openBatch(); } }),
@@ -282,7 +294,7 @@ var App = (function () {
   }
 
   return { register: register, go: go, refresh: refresh, sheet: sheet, closeSheet: closeSheet, confirm: confirm, toast: toast,
-    applySettings: applySettings, boot: boot, focus: focus, get name() { return currentName; }, NAV: NAV,
+    applySettings: applySettings, boot: boot, focus: focus, get name() { return currentName; }, NAV: NAV, homeOut: HOME_OUT,
     /* the screen has something to lose right now (a timed round, a running clock): its guard would ask before leaving */
     get guarded() { try { return !!(current && current.guard && current.guard()); } catch (e) { return false; } } };
 })();
@@ -693,6 +705,10 @@ App.register('more', {
     App.NAV.filter(function (n) { return ['clock', 'openings', 'train', 'review', 'progress', 'prefs'].indexOf(n.id) >= 0 && (n.id !== 'openings' || hasOpenings); }).forEach(function (n) {
       list.appendChild(UI.menuRow(n.icon, n.label, null, function () { App.go(n.id); }));
     });
+    // the way back to the site this copy lives on (the sidebar has it on a wide screen)
+    var out = App.homeOut;
+    if (out) list.appendChild(h('a', { class: 'menu-row more-home', href: out.href },
+      U.icon('leave'), h('span', { class: 'txt' }, h('span', { class: 't' }, out.label), out.title !== out.label ? h('span', { class: 's' }, out.title) : null), U.icon('next', 'chev')));
     root.appendChild(list);
   }
 });

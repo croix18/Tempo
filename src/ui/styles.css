@@ -128,6 +128,10 @@ p:last-child { margin-bottom: 0; }
 .nav-item.on { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
 .nav-item.on .ic { color: var(--gold); }
 .side-foot { margin-top: auto; padding: 12px; font-size: 12.5px; color: var(--ink-3); }
+/* the way back to the site this copy lives on: the last thing in the sidebar's nav, just above its foot */
+.nav-item.side-home { margin-top: auto; text-decoration: none; }
+.nav-item.side-home + .side-foot { margin-top: 0; }
+a.menu-row { text-decoration: none; }
 
 main#main {
   flex: 1; min-width: 0;
