@@ -58,6 +58,11 @@ async def open_review(pg, pgn, watch=False):
     for _ in range(240):
         if await pg.evaluate("(() => { const s = document.querySelector('.rv-summary'); return !!s && !s.hidden; })()"): break
         await pg.wait_for_timeout(500)
+    # the board replayed the game while the engine read it and now travels to the end: let it land
+    for _ in range(20):
+        if await pg.evaluate("(() => { const s = Review._state(); return !s || s.at === s.ply; })()"): break
+        await pg.wait_for_timeout(300)
+    await pg.wait_for_timeout(700)
     return frames
 
 
