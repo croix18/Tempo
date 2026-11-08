@@ -100,6 +100,12 @@ practice game. Write every interactive step so it still makes sense on its own, 
 - 1–3 short sentences per step. Never more than ~45 words in a step's `text`.
 - Name pieces in words and give the square: "the knight on f3", "your bishop on c4".
   You may use move notation too ("Nf3"), but explain new notation the first time.
+- Use the words chess players use, and use them correctly: hanging, loose piece, pin, fork, tempo,
+  fianchetto, half-open file, minor piece, transposition, pawn break. The first time the course uses a
+  term, bold it and say what it means in a few words; after that, use it freely. Don't trade a standard
+  term for a homemade phrase: learners meet these words in every game review and video. Check the
+  meaning, though: a piece a pawn defends is not "hanging". A ? or ?? after a move is fine when the
+  sentence also says why the move fails.
 - No emoji, no exclamation-mark spam (one at most per lesson), no "Let's dive in",
   no "Great job!" filler, no em-dash asides, no "It's not X, it's Y" constructions.
 - `**bold**` is allowed for a key term the first time it appears. Use `\n\n` for a paragraph break.

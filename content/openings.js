@@ -372,7 +372,7 @@ module.exports = {
       notes: {
         2: 'The bishop on c4 aims at f7, the weak square next to your king.',
         4: 'Now the queen also hits f7. The threat is Qxf7, which is checkmate.',
-        5: 'Block with ...g6 and attack the queen. Never play 3...Nf6 here: 4.Qxf7 is checkmate.',
+        5: 'Block with ...g6 and attack the queen. 3...Nf6?? loses at once: 4.Qxf7 is checkmate.',
         6: 'The queen drops back to f3 and aims at f7 again.',
         7: 'Now ...Nf6 is a good move. The knight blocks the f-file and develops.',
         8: 'A third try at f7, with the queen behind the bishop.',
@@ -404,7 +404,7 @@ module.exports = {
     { id: 'legals-mate', name: 'Légal’s Mate', side: 'w',
       setter: 'w', key: 9, safe: 'dxe5',
       safeNote: '5...dxe5 takes the knight and leaves the queen alone. After 6.Qxg4 you are a pawn down, but there is no checkmate.',
-      summary: 'A pinned knight jumps away and offers the queen. If Black takes it, your bishop and two knights give checkmate.',
+      summary: 'A pinned knight jumps away and offers the queen. If Black takes it, three minor pieces, your bishop and two knights, give checkmate.',
       moves: 'e4 e5 Nf3 d6 Bc4 Bg4 Nc3 g6 Nxe5 Bxd1 Bxf7+ Ke7 Nd5#',
       notes: {
         5: 'Black pins your knight on f3 to your queen on d1. A pin means the knight can’t move without leaving the queen open to attack.',
@@ -418,7 +418,7 @@ module.exports = {
     { id: 'blackburne-shilling', name: 'Blackburne Shilling Trap', side: 'w', keyPly: 6,
       setter: 'b', key: 6, safe: 'Nxd4',
       safeNote: '4.Nxd4 trades off the knight that set the trap. After 4...exd4 5.O-O, your position is better.',
-      summary: 'Black leaves the e5 pawn unprotected with 3...Nd4. Grabbing it is exactly what Black hopes for.',
+      summary: 'Black leaves e5 hanging after 3...Nd4. Grabbing it is exactly what Black hopes for.',
       moves: 'e4 e5 Nf3 Nc6 Bc4 Nd4 Nxe5 Qg5 Nxf7 Qxg2 Rf1 Qxe4+ Be2 Nf3#',
       notes: {
         5: 'An odd move that leaves e5 unprotected. It is bait.',
@@ -430,7 +430,7 @@ module.exports = {
         12: 'The bishop blocks the check. Now it is pinned: it can’t move, because that would leave your king in check.',
         13: 'Nf3 is checkmate. Your own pieces box in the king, and the only piece that could take the knight is the pinned bishop.'
       },
-      lesson: 'When a knight lands on d4 and leaves e5 unprotected, don’t take the pawn. Trade the knight with Nxd4, or castle.' },
+      lesson: 'When a knight lands on d4 and leaves e5 hanging, don’t take the pawn. Trade the knight with Nxd4, or castle.' },
     { id: 'stafford', name: 'Stafford Gambit Trap', side: 'w', keyPly: 10,
       setter: 'b', key: 10, safe: 'Be2',
       safeNote: '6.Be2 develops a piece and gets your king ready to castle. You stay a pawn up.',
@@ -455,7 +455,7 @@ module.exports = {
       summary: 'Black dangles a knight on g4. If you take the bait, the h-file opens toward your king.',
       moves: 'e4 e5 Nf3 Nc6 Bb5 Nf6 O-O Ng4 h3 h5 hxg4 hxg4 Ne1 Qh4 f3 g3',
       notes: {
-        7: 'The knight jumps to g4. It looks harmless.',
+        7: 'The knight jumps to g4. It looks like a simple loose piece, with nothing defending it.',
         8: 'Kicking the knight is fine.',
         9: 'Black leaves the knight where your pawn can take it. This is the bait.',
         10: 'Taking the knight is the mistake. It opens the h-file for Black’s rook and queen. 6.c3 or 6.d3 was safe.',

@@ -189,13 +189,12 @@ function legalSans(pos) { return pos.legalMoves().map(m => pos.san(m)).sort(); }
 
 /* ---------- prose ---------- */
 const SAN_RE = /^(?:O-O-O|O-O|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=[QRBN])?)[+#]?$/;
-const JARGON = [/\bluft\b/i, /\bminor pieces?\b/i, /\bzwischenzug\b/i, /\boutposts?\b/i, /\bhalf-open\b/i, /\btempo\b/];
 // numbered moves written in the prose, grouped into the sequences they form ("5.Qxe4 d6 6.d4", "If 8.Rxg1, then ...Bg4+")
 function proseSequences(text) {
   const seqs = [];
   let cur = null;
   for (const raw of String(text).split(/\s+/)) {
-    const w = raw.replace(/^[(“"*]+/, ''), core = w.replace(/[,.;:)”"*]+$/, ''), ends = core !== w;
+    const w = raw.replace(/^[(“"*]+/, ''), bare = w.replace(/[?!]+(?=[,.;:)”"*]*$)/, ''), core = bare.replace(/[,.;:)”"*]+$/, ''), ends = core !== bare;
     const num = /^(\d+)\.(\.\.)?(.+)$/.exec(core), dots = /^\.\.\.(.+)$/.exec(core);
     if (num && SAN_RE.test(num[3])) {
       const ply = 2 * (+num[1] - 1) + (num[2] ? 1 : 0);
@@ -295,11 +294,8 @@ async function verifyTrap(t, meta) {
   const fields = Object.keys(t.notes || {}).map(k => ['note ' + k, t.notes[k]]).concat([['summary', t.summary], ['lesson', t.lesson], ['safeNote', t.safeNote]]);
   for (const [where, text] of fields) {
     const s = String(text);
-    if (/[?!]{2}/.test(s)) err(where + ': no ?? or !! annotations in prose');
-    if (/(?:^|[\s(])(?:\d+\.(?:\.\.)?|\.\.\.)?(?:O-O(?:-O)?|[KQRBN][a-h]?[1-8]?x?[a-h][1-8]|[a-h](?:x[a-h])?[1-8](?:=[QRBN])?)[+#]?[?!]/.test(s)) err(where + ': no ! or ? after a move');
     if (/'/.test(s)) err(where + ': use typographic apostrophes (’)');
     if (/—/.test(s)) err(where + ': no em dashes');
-    for (const re of JARGON) if (re.test(s)) err(where + ': jargon ' + re);
     if ((s.match(/\*\*/g) || []).length > 2) warn(where + ': more than one bold term');
     if (s.split(/\s+/).length > 50) warn(where + ': long (' + s.split(/\s+/).length + ' words)');
     for (const q of proseSequences(s)) {

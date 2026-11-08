@@ -27,7 +27,7 @@ async def main():
         await pg.goto(page_with_reps(TEMPO_URL, SAMPLE)); await pg.wait_for_timeout(1200)
         await pg.evaluate("App.go('openings')"); await pg.wait_for_timeout(300)
         await pg.screenshot(path=ROOT + '/build/shots/openings-menu.png')
-        await pg.locator('.menu-row').first.click(); await pg.wait_for_timeout(300)
+        await pg.locator('nav[aria-label="Repertoires"] .menu-row').first.click(); await pg.wait_for_timeout(300)   # the courses come first
         await pg.screenshot(path=ROOT + '/build/shots/openings-rep.png')
         await pg.locator('button', has_text='Learn next line').click(); await pg.wait_for_timeout(500)
         # play White's moves of the Giuoco line

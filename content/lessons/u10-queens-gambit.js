@@ -122,7 +122,7 @@ module.exports = {
             10: 'e3 opens the path for your bishop on f1.',
             11: 'Black castles.',
             12: 'Bd3 aims at Black’s kingside and watches f5, a good square for Black’s bishop on c8.',
-            13: '...c6 guards d5 again, so the pawn stays protected.',
+            13: '...c6 guards d5 again, so the pawn never hangs.',
             14: 'Develop the knight. Nge2 also works, but Nf3 is the simplest.',
             15: 'Black develops the last knight.',
             16: 'Your queen lines up behind the bishop, aiming at f5 and h7.',
@@ -290,7 +290,7 @@ module.exports = {
             5: 'The pawn on d4 cramps you and keeps your knight off c3.',
             6: 'Develop with 4.Nf3, which guards e5. Avoid 4.e3: it opens the door to the **Lasker Trap**.',
             7: 'Black develops and attacks e5 again.',
-            8: 'g3 and Bg2 put your bishop on the long diagonal.',
+            8: 'g3 and Bg2 **fianchetto** your bishop: it sits on g2 and looks down the long diagonal.',
             9: 'Black’s bishop attacks your knight on f3.',
             10: 'Bg2 develops and also protects the knight.',
             11: 'Black gets ready to castle on the queenside.',
@@ -313,7 +313,7 @@ module.exports = {
             5: 'Black’s bishop eyes your knight on f3.',
             6: 'Take the pawn. Black will spend moves winning it back.',
             7: 'Black gives up the bishop for your knight.',
-            8: 'Take back with the g-pawn, toward the center. The doubled pawns are fine here, and you keep both bishops.',
+            8: 'Take back with the g-pawn, toward the center. The doubled pawns are fine here, and you keep both bishops, the **bishop pair**.',
             9: 'Black’s queen wins the pawn back and attacks d4.',
             10: 'e3 guards d4. It is the only good move here.',
             11: 'Black hits d4 again, this time with a pawn.',
@@ -321,12 +321,12 @@ module.exports = {
             13: 'Black pins your knight to your king.',
             14: 'Bd2 breaks the pin, so your knight now threatens to take the queen.',
             15: 'Black trades the bishop for your knight.',
-            16: 'Take back with the b-pawn, toward the center. You have two bishops and a big pawn center.'
+            16: 'Take back with the b-pawn, toward the center. You have the bishop pair and a big pawn center.'
           },
           end: 'Take on d5, recapture toward the center, guard d4 with e3, and use your two bishops.' },
         { t: 'line', moves: 'd4 d5 c4 Nc6 Nf3 Bg4 cxd5 Bxf3 gxf3 Qxd5 e3 e5 Nc3 Bb4 Bd2 Bxc3 bxc3', side: 'w', guide: false,
           text: 'Now play the Chigorin line from memory.',
-          done: 'cxd5, gxf3, e3, Nc3, Bd2 and bxc3. Two bishops and a strong center.' },
+          done: 'cxd5, gxf3, e3, Nc3, Bd2 and bxc3. The bishop pair and a strong center.' },
         { t: 'pick', fen: 'rn1qkbnr/ppp1pppp/8/3p1b2/2PP4/8/PP2PPPP/RNBQKBNR w KQkq - 1 3',
           text: 'The **Baltic Defense**, 2...Bf5. The bishop came out before ...e6. Click the black pawn that lost its guard when the bishop left c8.',
           squares: ['b7'],
@@ -336,14 +336,14 @@ module.exports = {
           notes: {
             4: 'Take the pawn. If 3...Qxd5, then 4.Nc3 kicks the queen.',
             5: 'Black takes your knight before it can come to c3.',
-            6: 'Take back. You have two bishops against bishop and knight.',
+            6: 'Take back. You have the bishop pair against bishop and knight.',
             7: 'Black wins the pawn back.',
             8: 'Develop the knight. Next come e3, a bishop to d3 or c4, and castling.'
           },
-          end: 'Take on d5 right away. Black usually has to give up the bishop for your knight, and you get two bishops.' },
+          end: 'Take on d5 right away. Black usually has to give up the bishop for your knight, and you get the bishop pair.' },
         { t: 'line', moves: 'd4 d5 c4 Bf5 cxd5 Bxb1 Rxb1 Qxd5 Nf3', side: 'w', guide: false,
           text: 'Now play the Baltic line from memory.',
-          done: 'cxd5, Rxb1 and Nf3. Two bishops and an easy game.' }
+          done: 'cxd5, Rxb1 and Nf3. The bishop pair and an easy game.' }
       ]
     },
     {
@@ -428,7 +428,7 @@ module.exports = {
             7: 'Take back with the e-pawn. Your pawn stays on d5, and the bishop on c8 gets an open diagonal.',
             9: 'Break the pin, as before.',
             11: 'Castle.',
-            13: '...c6 guards d5, so it stays protected.',
+            13: '...c6 guards d5, so it never hangs.',
             15: 'Develop the last knight. Next come ...Re8 and ...Nf8.'
           },
           end: 'Against the Exchange: take back with the e-pawn, then ...Be7, castle, ...c6 and ...Nbd7.' },
