@@ -40,7 +40,9 @@ SAMPLER = """() => { window.__viol = []; window.__samples = 0; clearInterval(win
     if ((s.fgBusy > 0 || s.fgQueued > 0) && s.running && !s.yielding) window.__viol.push(JSON.stringify(s)); }, 5); }"""
 
 async def fresh(b, init=None):
-    pg = await b.new_page(viewport={'width': 1200, 'height': 900})
+    # bypass_csp: the site's copy forbids eval, which these checks' waits use (run against it with TEMPO_URL)
+    ctx = await b.new_context(viewport={'width': 1200, 'height': 900}, bypass_csp=True)
+    pg = await ctx.new_page()
     errs = []
     pg.on('pageerror', lambda e: errs.append('pageerror: ' + str(e)))
     pg.on('console', lambda m: errs.append(m.type + ': ' + m.text[:200]) if m.type == 'error' and 'Failed to load resource' not in m.text and 'Workers are blocked' not in m.text else None)
