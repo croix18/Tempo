@@ -1230,8 +1230,8 @@ var Learn = (function () {
   /* for Home and the trainers: how many lessons are due, and about how long they take */
   function due() {
     settle();
-    var d = dueList();
-    return { count: d.length, minutes: minutesFor(d.slice(0, 5)) };
+    var d = dueList(), next = d.length ? null : nextDueAt();
+    return { count: d.length, minutes: minutesFor(d.slice(0, 5)), next: next, when: next ? whenText(next) : null };
   }
 
   return { nextLesson: nextLesson, open: open, practice: practice, openUnit: openUnit, due: due, lockedIn: lockedIn,

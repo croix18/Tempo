@@ -409,7 +409,7 @@ async def t_teaching(b):
 
 
 # ---------------- items 11 and 12: the puzzles and trainers menus ----------------
-ALLOWED_SUB = re.compile(r'^(Your rating \d+|Your best is \d+( of 10)?|\d+ positions? (is|are) ready to retry|Nothing due right now|None yet|From .+)$')
+ALLOWED_SUB = re.compile(r'^(Your rating \d+|Your best is \d+( of 10)?|\d+ positions? (is|are) ready to retry|Nothing due right now|None yet|\d+ lessons? due · about \d+ minutes?|Next review (today|tomorrow|in \d+ days)|From .+)$')
 async def t_menus(b):
     async with Page(b, PHONE) as P:
         await P.ev("App.go('puzzles')")

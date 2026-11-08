@@ -14,7 +14,7 @@ var Train = (function () {
     list.appendChild(UI.menuRow('refresh', 'Your mistakes', dueN ? (dueN === 1 ? '1 position is ready to retry' : dueN + ' positions are ready to retry') : S.mistakes.items.some(function (x) { return !x.gone; }) ? 'Nothing due right now' : 'None yet',
       function () { App.go('train', { mode: 'mistakes' }); }));
     var rv = Learn.due();
-    list.appendChild(UI.menuRow('learn', 'Lesson review', rv.count ? U.plural(rv.count, 'lesson') + ' due · about ' + U.plural(rv.minutes, 'minute') : 'Nothing due today', function () { Learn.review(); }));
+    list.appendChild(UI.menuRow('learn', 'Lesson review', rv.count ? U.plural(rv.count, 'lesson') + ' due · about ' + U.plural(rv.minutes, 'minute') : rv.next ? 'Next review ' + rv.when : 'None yet', function () { Learn.review(); }));
     list.appendChild(UI.menuRow('target', 'Coordinates', S.puzzles.coordBest ? 'Your best is ' + S.puzzles.coordBest : null, function () { App.go('train', { mode: 'coords' }); }));
     list.appendChild(UI.menuRow('eye', 'Board vision', S.puzzles.visionBest ? 'Your best is ' + S.puzzles.visionBest + ' of 10' : null, function () { App.go('train', { mode: 'vision' }); }));
     list.appendChild(UI.menuRow('analyze', 'Analysis board', null, function () { analysis(); }));
