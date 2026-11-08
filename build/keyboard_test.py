@@ -49,9 +49,13 @@ async def main():
         await pg.keyboard.type('d3'); await pg.wait_for_function("Store.state.current.moves.length >= 4", timeout=15000)
         check('typing d3 plays the pawn', (await pg.evaluate("Store.state.current.moves[2]")) == 'd2d3')
         await pg.wait_for_timeout(600)
+        # castling gets a game of its own, from a position where it's legal now: in the game above, Mario's reply to d3 can be
+        # ...Bb4+, and in check there's no castling
+        await pg.evaluate(GAME, 'r1bqk1nr/pppp1ppp/2n5/2b1p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4'); await pg.wait_for_timeout(1200)
+        await pg.evaluate("document.querySelector('.v-play .board').focus()")
         orient = await pg.evaluate("document.querySelector('.v-play .board').__board.orient")
-        await pg.keyboard.type('O-O'); await pg.wait_for_function("Store.state.current.moves.length >= 6", timeout=15000)
-        check('typing O-O castles', (await pg.evaluate("Store.state.current.moves[4]")) == 'e1g1')
+        await pg.keyboard.type('O-O'); await pg.wait_for_function("Store.state.current.moves.length >= 2", timeout=15000)
+        check('typing O-O castles', (await pg.evaluate("Store.state.current.moves[0]")) == 'e1g1', await pg.evaluate("Store.state.current.sans"))
         check('"f" typed on the board didn’t flip it', (await pg.evaluate("document.querySelector('.v-play .board').__board.orient")) == orient)
         await pg.wait_for_timeout(600)
         # the cursor: arrows and Enter
