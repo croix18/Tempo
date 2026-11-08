@@ -106,7 +106,7 @@ var Explain = (function () {
       if (wb >= 55 && wa >= 50) return 'This gives away part of ' + me.poss + ' advantage.';
       if (wb >= 45 && wa < 45) return 'This hands ' + them.subj + ' the advantage.';
       if (wb >= 55) return 'This gives away ' + me.poss + ' advantage.';
-      if (wb < 45) return 'This makes ' + me.poss + ' position harder to hold.';
+      if (wb < 45) return 'This makes ' + me.poss + ' position harder to defend.';
     }
     return 'This makes ' + me.poss + ' position worse.';
   }
@@ -173,7 +173,7 @@ var Explain = (function () {
       var nm = PIECE_NAME[Math.abs(x.cap)], sq = C.sqName(x.capSq), taker = 'the ' + PIECE_NAME[x.by] + ' on ' + C.sqName(x.from);
       r.topic = 'safety'; r.piece = Math.abs(x.cap); r.at = x.i;
       if (x.i === 0) r.ask = { prompt: 'After this move one of ' + me.poss + ' pieces can be taken for free. Tap it.', squares: [sq] };
-      r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This drops a pawn';
+      r.title = PIECE_VAL[Math.abs(x.cap)] >= 3 ? 'This loses ' + me.poss + ' ' + nm : 'This loses a pawn';
       r.short = x.san + ' would have won ' + me.poss + ' ' + nm + '.';
       if (x.i > 0) r.text = 'After ' + sanLine(after, pv, x.i).join(' ') + ', ' + taker + ' can take ' + me.poss + ' ' + nm + ' on ' + sq + ': ' + x.san + '.';
       else if (x.capSq === movedTo) r.text = me.Poss + ' ' + nm + ' on ' + sq + ' isn’t safe there. ' + cap1(taker) + ' can take it: ' + x.san + '.';
@@ -828,9 +828,9 @@ var Review = (function () {
       switch (k) {
         case 'book':
           var nm = openingName(i);
-          if (i === st.bookEnd && i < moves.length - 1) return { text: 'The last move from the opening book' + (nm ? ' (the ' + nm + ')' : '') + '. After it, both sides were on their own.' };
+          if (i === st.bookEnd && i < moves.length - 1) return { text: 'The last move that follows a known opening' + (nm ? ' (the ' + nm + ')' : '') + '. After it, both sides were on their own.' };
           return { text: 'A standard opening move' + (nm ? ', part of the ' + nm : '') + '.' };
-        case 'best': return { text: 'The engine’s top choice.' };
+        case 'best': return { text: 'The computer’s top choice.' };
         case 'excellent': return { text: 'Nearly as good as the best move.' };
         case 'good': return { text: ('A reasonable move. ' + bestSays(i, function (s) { return s + ' was a little better'; })).trim() };
         case 'great': return { text: 'The only good move here, and ' + (mine ? 'you' : oppShort) + ' found it.' };
@@ -860,40 +860,21 @@ var Review = (function () {
     }
 
     /* ---------- the summary: the coach's verdict, both accuracies, Start review ---------- */
-    // "This allows a fork" -> "it allowed a fork"
-    function pastTense(title) {
-      return title.replace(/^This /, 'it ').replace(/^it allows\b/, 'it allowed').replace(/^it loses\b/, 'it lost').replace(/^it drops\b/, 'it dropped')
-        .replace(/^it makes\b/, 'it made').replace(/^it gives\b/, 'it gave').replace(/^it hands\b/, 'it handed');
-    }
-    /* what your costliest move cost, in a few words, without giving the better move away */
-    function costOf(i, k) {
-      var w = why(i);
-      if (k === 'miss') {
-        // a miss that also gives something away (a piece, a fork, a checkmate) is told by what it gave away
-        if (w && w.title && (w.topic === 'threats' || w.topic === 'fork' || (w.topic === 'safety' && PIECE_VAL[w.piece] >= 3))) return pastTense(w.title);
-        var e0 = st.evals[i], mi = e0 && e0.best ? Explain.missedInfo(posAt(i).pos, e0.best, e0.line, { you: true, name: oppShort }) : null;
-        return mi && mi.what ? 'you missed a move that ' + mi.what : 'you missed a win';
-      }
-      return w && w.title ? pastTense(w.title) : '';
-    }
-    /* One or two sentences: where it went wrong (or that it didn't), and your best moment. Each move named is a link to it. */
+    /* One or two sentences: how many key moments there are to walk through, and your best moment. (It doesn't pick a
+       "costliest move": the biggest swing was usually a late blunder in a game already lost, which wasn't the move to learn
+       from.) Each move named is a link to it. */
     function coachSays() {
-      var worst = null, best = null;
+      var best = null, mistakes = st.keyPlies.length, n = st.moments.length;
       st.res.cls.forEach(function (k, i) {
         if (!isMine(i)) return;
-        var side = isWhiteMove(i) ? 1 : -1, wb = winFor(st.evals[i], side), wa = winFor(st.evals[i + 1], side);
-        if (SERIOUS.indexOf(k) >= 0 && (!worst || wb - wa > worst.drop)) worst = { i: i, k: k, drop: wb - wa, wb: wb, wa: wa };
         if (k === 'brilliant' && (!best || best.k !== 'brilliant')) best = { i: i, k: k };
         else if (k === 'great' && !best) best = { i: i, k: k };
       });
       function link(i) { return h('button', { class: 'rv-link', type: 'button', onclick: function () { jump(i + 1); } }, moveLabel(i)); }
       var out = [], acc = st.res.acc[you];
-      if (worst) {
-        var cost = costOf(worst.i, worst.k);
-        if (cost && worst.wb >= 75 && worst.wa < 50) out.push('You were winning before ', link(worst.i), ', but ' + cost + '.');
-        else if (cost && worst.wb >= 55 && worst.wa < 45) out.push('You were ahead before ', link(worst.i), ', but ' + cost + '.');
-        else out.push('Your costliest move was ', link(worst.i), cost ? ': ' + cost + '.' : '.');
-      } else out.push(acc != null && acc >= 85 ? 'A clean game: no mistakes to fix.' : 'No big mistakes in this game.');
+      if (!mistakes) out.push(acc != null && acc >= 85 ? 'A clean game: no mistakes to fix.' : 'No big mistakes in this game.');
+      else if (!n) out.push('Nothing to walk through this time.');
+      else out.push(n === 1 ? 'One key moment to look at' : n + ' key moments to look at', mistakes === n ? '.' : ', ' + (mistakes === 1 ? 'one of them a mistake of yours.' : mistakes + ' of them mistakes of yours.'));
       if (best) out.push(' Your best moment was ', link(best.i), best.k === 'brilliant' ? ', a brilliant sacrifice.' : ', the only good move there.');
       return out;
     }
@@ -1179,10 +1160,10 @@ var Review = (function () {
         text = o.reason === 'checkmate' ? sideName(o.winner) + ' wins by checkmate' + later
           : o.reason === 'stalemate' ? 'A draw by stalemate' + later : o.reason === 'insufficient material' ? 'A draw' + later + ' There isn’t enough left to checkmate.'
           : o.reason === 'fifty-move rule' ? 'A draw by the fifty-move rule' + later : o.reason === 'threefold repetition' ? 'A draw' + later + ' The same position came up three times.'
-          : o.reason === 'cap' ? 'Stopped after ' + n + ' moves. Still going!' : 'The engine couldn’t go on from here.';
+          : o.reason === 'cap' ? 'Stopped after ' + n + ' moves. Nobody had won yet.' : 'The computer couldn’t go on from here.';
       } else if (P.auto) text = P.skip ? 'Skipping to the end…' : 'Playing it out to the end…';
       else if (P.thinking) text = sideName(P.pos.side) + ' is thinking…';
-      else if (!P.line.length) text = 'Play any move for ' + sideName(P.you) + ' (the game’s move or a different one). The engine answers, and you can keep going or let it play out to the end.';
+      else if (!P.line.length) text = 'Your move as ' + sideName(P.you) + '. Play the game’s move or try a new one. The computer answers, and you can keep going or let it play to the end.';
       else text = 'Your move (' + sideName(P.you) + '). Or let it play out.';
       el.textContent = text;
       el.classList.toggle('rv-over', !!o);
@@ -1266,7 +1247,7 @@ var Review = (function () {
       st.token++; st.practice = null; st.mode = 'end';
       board.setMovable(null);
       cardBody(function (body) {
-        body.appendChild(h('div', { class: 'rv-done' }, U.icon('check'), h('span', null, n === 1 ? 'That was your mistake.' : 'That’s all ' + n + ' of your mistakes.')));
+        body.appendChild(h('div', { class: 'rv-done' }, U.icon('check'), h('span', null, n === 1 ? 'That was your one mistake.' : 'That’s all ' + n + ' of your mistakes.')));
         body.appendChild(h('p', { class: 'rv-text' }, 'Every one of them comes back in Practice, so they stick.'));
         if (topic) { var sr = Explain.studyRow(topic); if (sr) body.appendChild(sr); }
       });
@@ -1330,7 +1311,7 @@ var Review = (function () {
       }
       var w = Explain.bad(before, m, g.line, e0.best, { you: true, name: oppShort, wb: g.wb, wa: g.wa });
       if (w.topic === 'position' && g.loss < 10) {
-        answer(i, uci, 'safe', san + ' is safe, but ' + (bestSays(i, function (s) { return s + ' was best'; }) || 'the engine’s choice was better.'));
+        answer(i, uci, 'safe', san + ' is safe, but ' + (bestSays(i, function (s) { return s + ' was best'; }) || 'the computer’s choice was better.'));
         return;
       }
       // nothing punishes the try, but it misses something much better: say so calmly, point at the idea, and let them look again

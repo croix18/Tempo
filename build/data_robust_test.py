@@ -525,9 +525,13 @@ async def paste_restore(pg, text):
     await pg.evaluate("App.go('prefs')"); await pg.wait_for_timeout(150)
     await pg.evaluate("(t) => { document.getElementById('backup-io').value = t; }", text)
     await pg.locator('.v-prefs button', has_text='Restore').last.click(); await pg.wait_for_timeout(250)
-    sheet = await pg.locator('.sheet h2', has_text='Restore this backup?').count()
+    sheet = await pg.locator('.sheet h2', has_text='Restore this').count()
     if sheet:
-        await pg.locator('.sheet button', has_text='Restore').click(); await pg.wait_for_timeout(500)
+        # with progress on the device the sheet offers Combine / Replace; without it, a plain Restore
+        rep = pg.locator('.sheet button', has_text='Replace what’s here')
+        if await rep.count(): await rep.click()
+        else: await pg.locator('.sheet button', has_text='Restore').click()
+        await pg.wait_for_timeout(500)
     msg = await pg.evaluate("(() => { const e = document.querySelector('.v-prefs .feedback.no[role=alert]'); return e && !e.hidden ? e.textContent : null; })()")
     return sheet, msg
 
@@ -552,7 +556,7 @@ async def restores(browser):
                 r.want(msg == want_msg, label + ': message ' + repr(msg))
                 await r.check("want(%s && %s, %s);" % (INTACT['play'], INTACT['settings'], json.dumps(label + ': progress changed')))
             await r.tour()
-            await r.check("want(!toasts.includes('Backup restored'), 'said restored');")
+            await r.check("want(!toasts.includes('Progress restored'), 'said restored');")
 
     name = 'a 7.6 MB backup restores within the app’s limits and survives a reload'
     if wanted(name):
@@ -560,7 +564,7 @@ async def restores(browser):
             await r.boot()
             sheet, msg = await paste_restore(r.pg, big_backup())
             r.want(sheet and msg is None, 'restore flow: sheet %s, message %r' % (sheet, msg))
-            await r.check("""want(toasts.includes('Backup restored'), 'toasts ' + JSON.stringify(toasts));
+            await r.check("""want(toasts.includes('Progress restored'), 'toasts ' + JSON.stringify(toasts));
               want(S.games.list.length === 100 && S.play.rating === 777 && S.current === null && !('exported' in S), 'state after restore');
               want(raw('tempo:v1').length < 1000000, 'stored ' + raw('tempo:v1').length);""")
             await r.pg.wait_for_timeout(600); await r.pg.reload(); await r.pg.wait_for_function("() => window.App && App.name", timeout=30000)
@@ -574,7 +578,7 @@ async def restores(browser):
             await r.boot()
             sheet, msg = await paste_restore(r.pg, big_backup())
             r.want(msg == 'There isn’t enough room in this browser’s storage, so the backup wasn’t restored.', 'message ' + repr(msg))
-            await r.check("""want(!toasts.includes('Backup restored'), 'said restored');
+            await r.check("""want(!toasts.includes('Progress restored'), 'said restored');
               want(%s && %s, 'progress changed');
               want(Store.saveError === null, 'saveError ' + Store.saveError);
               want(!toasts.some(t => /can’t be saved/.test(t)), 'save warning shown for a refused restore');""" % (INTACT['play'], INTACT['games']))
@@ -582,20 +586,36 @@ async def restores(browser):
             await r.check("want(%s, 'stored progress changed');" % INTACT['play'])
             await r.tour()
 
-    name = 'a valid backup round-trips through Copy backup, Reset and Restore'
+    name = 'progress round-trips through Copy progress code, Reset and Restore; Combine merges'
     if wanted(name):
         async with Run(browser, name, init_script(seed_obj())) as r:
             await r.boot()
             before = await r.pg.evaluate("() => { const s = JSON.parse(JSON.stringify(Store.state)); for (const k in s) if (s[k] && s[k].rev != null) delete s[k].rev; s.current = null; return JSON.stringify(s); }")
             await r.pg.evaluate("App.go('prefs')"); await r.pg.wait_for_timeout(150)
-            await r.pg.locator('button', has_text='Copy backup').click(); await r.pg.wait_for_timeout(300)
+            await r.pg.locator('button', has_text='Copy progress code').click(); await r.pg.wait_for_timeout(600)
             text = await r.pg.locator('#backup-io').input_value()
+            r.want(text.startswith('TEMPO1.') and ' ' not in text and len(text) < len(before), 'the code: %s… (%d chars vs %d of JSON)' % (text[:12], len(text), len(before)))
             await r.pg.evaluate("Store.reset()"); await r.pg.wait_for_timeout(150)
             await r.check("want(S.play.rating === 600, 'reset did not clear');")
             sheet, msg = await paste_restore(r.pg, text)
             after = await r.pg.evaluate("() => { const s = JSON.parse(JSON.stringify(Store.state)); for (const k in s) if (s[k] && s[k].rev != null) delete s[k].rev; return JSON.stringify(s); }")
             r.want(sheet and msg is None, 'restore flow: sheet %s, message %r' % (sheet, msg))
             r.want(before == after, 'state differs after the round trip')
+            # a code pasted with line breaks (as a messaging app wraps it) still reads
+            wrapped = '\n'.join(text[i:i + 60] for i in range(0, len(text), 60))
+            r.want(await r.pg.evaluate("(t) => Store.unpack(t).then(j => Store.checkBackup(j))", wrapped) is None, 'a line-wrapped code was refused')
+            r.want('damaged' in (await r.pg.evaluate("(t) => Store.unpack(t).then(j => j === null ? 'damaged' : Store.checkBackup(j))", text[:-30])), 'a cut-off code was not called damaged')
+            # Combine: play a lesson here, then bring in a code with a different lesson and a game: both kept
+            await r.pg.evaluate("Store.state.learn.done['local-only'] = { stars: 3, ts: Date.now() }; Store.touch('learn')")
+            other = await r.pg.evaluate("() => { const o = JSON.parse(Store.exportJson()); delete o.learn.done['local-only']; o.learn.done['from-code'] = { stars: 2, ts: 5 }; o.learn.rev = 1; o.play.rating = 999; o.play.rev = 1; o.games.list.unshift({ id: 'code-game', ts: 1700000000000, bot: 'pip', color: 'w', result: '1-0', reason: 'checkmate', pgn: '1. e4 e5', plies: 2, rated: true, before: 600, after: 610, reviewed: false, acc: null, counts: null }); return JSON.stringify(o); }")
+            n_games = await r.pg.evaluate("Store.state.games.list.length")
+            await r.pg.evaluate("App.go('prefs')"); await r.pg.wait_for_timeout(150)
+            await r.pg.evaluate("(t) => { document.getElementById('backup-io').value = t; }", other)
+            await r.pg.locator('.v-prefs button', has_text='Restore').last.click(); await r.pg.wait_for_timeout(250)
+            r.want(await r.pg.locator('.sheet button', has_text='Combine them').count() == 1, 'no Combine offered when the device has progress')
+            await r.pg.locator('.sheet button', has_text='Combine them').click(); await r.pg.wait_for_timeout(500)
+            await r.check("want(S.learn.done['local-only'] && S.learn.done['from-code'] && S.games.list.length === %d && S.games.list.some(g => g.id === 'code-game') && toasts.includes('Progress combined'), 'combine: ' + JSON.stringify(Object.keys(S.learn.done)) + ' games ' + S.games.list.length + ' ' + JSON.stringify(toasts));" % (n_games + 1))
+            await r.check("want(S.play.rating !== 999, 'an older rating from the code replaced the newer one here');")
             await r.tour()
 
     name = 'Open file goes straight to the restore confirmation'
@@ -612,10 +632,10 @@ async def restores(browser):
                 await r.pg.locator('button', has_text='Open file').click()
             await (await fc.value).set_files(good)
             await r.pg.wait_for_selector('.sheet h2:has-text("Restore this backup?")', timeout=5000)
-            r.want(await r.pg.locator('.sheet p').inner_text() == 'It replaces your current progress.', 'confirm text')
+            r.want(await r.pg.locator('.sheet p').first.inner_text() == 'There’s progress on this device already.', 'confirm text')
             r.want(await r.pg.locator('#backup-io').input_value() == '', 'the file was dumped into the text box')
-            await r.pg.locator('.sheet button', has_text='Restore').click(); await r.pg.wait_for_timeout(400)
-            await r.check("want(S.play.rating === 1444 && toasts.includes('Backup restored'), 'not restored: ' + S.play.rating + ' ' + JSON.stringify(toasts));")
+            await r.pg.locator('.sheet button', has_text='Replace what’s here').click(); await r.pg.wait_for_timeout(400)
+            await r.check("want(S.play.rating === 1444 && toasts.includes('Progress restored'), 'not restored: ' + S.play.rating + ' ' + JSON.stringify(toasts));")
             async with r.pg.expect_file_chooser() as fc:
                 await r.pg.locator('button', has_text='Open file').click()
             await (await fc.value).set_files(damaged)

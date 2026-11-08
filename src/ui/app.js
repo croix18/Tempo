@@ -121,6 +121,7 @@ var App = (function () {
     try {
       current.render(wrap, params || {});
       if (LEARN_OF.concat(['learn']).indexOf(name) >= 0 && !hasParams(params)) wrap.insertBefore(learnTabs(name), wrap.firstChild);
+      skipLink(!!wrap.querySelector('.board'));
     } catch (e) { console.error(e); wrap.appendChild(h('div', { class: 'empty' }, 'Something went wrong showing this page.')); }
     if (!(opts && opts.keepScroll)) window.scrollTo(0, 0);
     // every screen change is a history entry, so the browser's Back button moves through Tempo
@@ -131,6 +132,14 @@ var App = (function () {
     }
   }
   function hasParams(p) { return !!p && Object.keys(p).length > 0; }
+  /* a keyboard user's way straight to the board: the Tab key's first stop on a screen with one, shown only while focused */
+  var skipEl = null;
+  function skipLink(on) {
+    if (skipEl) { skipEl.remove(); skipEl = null; }
+    if (!on) return;
+    skipEl = h('a', { class: 'skip-board', href: '#board', onclick: function (e) { e.preventDefault(); var b = mainEl.querySelector('.board'); if (b) b.focus(); } }, 'Go to the board');
+    document.body.insertBefore(skipEl, document.body.firstChild);
+  }
   /* on phones, Lessons, Openings and Trainers sit under one tab: let each reach the others */
   function learnTabs(active) {
     var reps = Data.reps(), items = [['learn', 'Lessons'], ['openings', 'Openings'], ['train', 'Trainers']];

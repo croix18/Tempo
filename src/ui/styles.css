@@ -648,6 +648,13 @@ body.focus .tabs { display: none; }
 .board:focus { outline: none; }
 .board:focus-visible { outline: 3px solid var(--primary); outline-offset: 3px; }
 .hl.cursor { box-shadow: inset 0 0 0 3px var(--primary); border-radius: 2px; }
+/* the move being typed on a focused board */
+.board .typed { position: absolute; left: 50%; bottom: 6%; transform: translateX(-50%); z-index: 6; pointer-events: none; padding: 4px 12px; border-radius: 999px;
+  background: var(--navy); color: var(--on-navy); font-weight: 700; font-size: clamp(14px, 3.4vmin, 20px); letter-spacing: 0.04em; box-shadow: var(--shadow); }
+.board .typed[hidden] { display: none; }
+/* a keyboard user's way straight to the board: shown only while it has the focus */
+.skip-board { position: absolute; left: 50%; top: 8px; transform: translate(-50%, -200%); z-index: 50; padding: 8px 14px; border-radius: 999px; background: var(--navy); color: var(--on-navy); font-weight: 600; text-decoration: none; }
+.skip-board:focus { transform: translate(-50%, 0); outline: 3px solid var(--gold); }
 @media (pointer: coarse) { .strip .mv { min-height: 36px; padding: 0 8px; } }
 .chart-empty { margin: 6px 0 2px; }
 /* review: where the game left your opening line */

@@ -32,15 +32,15 @@ module.exports = {
           hint: 'A queen check on e1 can only be answered one way.',
           done: 'Qe1+ forces Rxe1, then Rxe1 is mate. Giving up the queen was worth it.' },
         { t: 'move', fen: '3r2k1/p1R2ppp/b7/8/8/5N2/P4PPP/6K1 w - - 0 30',
-          text: 'Your back rank is weak too: Rd1+ Ne1 Rxe1 would be mate. Make **luft**, an escape square for your king, before you grab anything.',
+          text: 'Your back rank is weak too: Rd1+ Ne1 Rxe1 would be mate. Give your king an escape square before you grab anything.',
           line: ['h2h3'], accept: [['h2h4']],
-          wrong: { c7a7: 'Rxa7?? Rd1+ Ne1 Rxe1 is checkmate.', g2g3: 'g3 makes room, but the bishop can check on f1 and chase your king. Push the h-pawn.' },
+          wrong: { c7a7: 'Rxa7 looks free, but Rd1+ Ne1 Rxe1 is checkmate.', g2g3: 'g3 makes room, but the bishop can check on f1 and chase your king. Push the h-pawn.' },
           hint: 'Push a pawn in front of your king.',
           done: 'Now your king can step to h2, and the back-rank threats are gone. Next move the a7 pawn is a real target.' },
         { t: 'move', fen: '6k1/p4ppp/5n2/8/8/B7/P1r2PPP/3R2K1 b - - 0 1',
           text: 'You are Black. Taking on a2 now would lose to Rd8+ Ne8 Rxe8 mate. Fix your back rank first.',
           line: ['h7h6'], accept: [['h7h5']],
-          wrong: { c2a2: 'Rxa2?? Rd8+ Ne8 Rxe8 is checkmate.' },
+          wrong: { c2a2: 'Rxa2 looks free, but Rd8+ Ne8 Rxe8 is checkmate.' },
           hint: 'Give your king a square on h7.',
           done: 'Your king can breathe on h7. Now the pawn on a2 can be taken safely next move.' }
       ]
@@ -171,12 +171,12 @@ module.exports = {
           text: 'This happens in real openings. Black’s last move, Ngf6, left the king boxed in. Find the mate.',
           line: ['e4d6'], mate: true,
           hint: 'The pawn on e7 can’t capture if your queen stands behind it on the e-file.',
-          done: 'Nd6 is smothered mate. The e7 pawn can’t take because your queen pins it to the king.' },
+          done: 'Nd6 is smothered mate. The e7 pawn can’t take: that would leave its own king in check from your queen.' },
         { t: 'move', fen: 'r1b1k2r/ppppqppp/2n5/4n3/1PP2B2/5N2/1P1NPPPP/R2QKB1R b KQkq - 0 8',
           text: 'You are Black. White just took your bishop on b4. Punish it.',
           line: ['e5d3'], mate: true,
           hint: 'White’s king is surrounded by its own pieces.',
-          done: 'Nd3 is smothered mate. The e2 pawn can’t take because your queen pins it.' }
+          done: 'Nd3 is smothered mate. The e2 pawn can’t take: that would leave its own king in check from your queen.' }
       ]
     },
     {

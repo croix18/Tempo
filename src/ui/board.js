@@ -41,10 +41,13 @@ var Board = (function () {
     this.live = h('div', { class: 'sr-only', 'aria-live': 'polite' });
     this.el.appendChild(this.live);
     this.cursor = -1; this.kbd = false; this.viaPointer = false;
+    // typing a move: letters and digits gather into a move (e4, Nf3, O-O, exd5, e8=Q) that plays when it names one legal move
+    this.typed = ''; this.typedEl = h('div', { class: 'typed', 'aria-hidden': 'true', hidden: true });
+    this.el.appendChild(this.typedEl);
     this.el.addEventListener('keydown', function (e) { self.key(e); });
     this.el.addEventListener('focus', function () { self.viaPointer = lastInput === 'pointer'; });
     this.el.addEventListener('pointerdown', function () { self.viaPointer = true; if (self.kbd) { self.kbd = false; self.paint(); } }, true);
-    this.el.addEventListener('blur', function () { if (self.kbd) { self.kbd = false; self.paint(); } });
+    this.el.addEventListener('blur', function () { if (self.kbd) { self.kbd = false; self.paint(); } if (self.typed) self.setTyped(''); });
     this.drawCoords();
   }
   var B = Board.prototype;
@@ -310,6 +313,7 @@ var Board = (function () {
   /* ---------- keyboard ---------- */
   B.key = function (e) {
     if (this.promoOpen) return;
+    if (this.typeKey(e)) return;
     var dirs = { ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }, d = dirs[e.key];
     if (!d && e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Escape') return;
     // Steering with the keys is for a board you reached with the keyboard and that can take a move. Otherwise the
@@ -329,6 +333,43 @@ var Board = (function () {
     else this.activate(this.cursor);
     this.paint();
     this.announce();
+  };
+  /* Typing a move while the board has the focus. Returns true when the key was part of a move. A typed move plays as soon
+     as it names exactly one legal move (e4, Nf3, Bxc6, O-O, e8=Q; Nbd7 when two knights could go); Backspace edits,
+     Escape clears, and what's typed shows on the board and is read out. */
+  B.typeKey = function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return false;
+    var k = e.key;
+    if (k === 'Backspace' && this.typed) { e.preventDefault(); e.stopPropagation(); this.setTyped(this.typed.slice(0, -1)); return true; }
+    if (k === 'Escape' && this.typed) { e.preventDefault(); e.stopPropagation(); this.setTyped(''); return true; }
+    if (k.length !== 1 || !/[a-hNBRQKOox1-8=+#-]/.test(k)) return false;
+    if (!this.canMove() || this.opts.onSquare) return false;
+    e.preventDefault(); e.stopPropagation();
+    var t = this.typed + (k === 'o' ? 'O' : k);
+    if (t.length > 7) return true;
+    var m = this.matchTyped(t);
+    if (m === 0) return true;                                 // nothing legal starts like this: ignore the key
+    this.setTyped(t);
+    if (m) { var mv = m; this.setTyped(''); this.select(-1); this.tryMove(mv & 127, (mv >> 7) & 127, false); }
+    return true;
+  };
+  /* the one legal move the text names, null while several could still match, 0 when none can */
+  B.matchTyped = function (t) {
+    var self = this, norm = function (x) { return x.replace(/[+#]/g, '').replace(/0/g, 'O'); }, want = norm(t);
+    var hits = this.legal.filter(function (mv) {
+      var san = norm(self.pos.san(mv)), uci = C.uci(mv);
+      return san.indexOf(want) === 0 || uci.indexOf(want.toLowerCase()) === 0 || norm(C.sqName((mv >> 7) & 127)).indexOf(want) === 0 && (mv >> 14 & 7) === 0 && Math.abs(self.pos.b[mv & 127]) === 1;
+    });
+    if (!hits.length) return 0;
+    var exact = hits.filter(function (mv) { return norm(self.pos.san(mv)) === want || C.uci(mv) === want.toLowerCase(); });
+    if (exact.length === 1) return exact[0];
+    if (hits.length === 1 && (want.length >= 2)) return hits[0];
+    return null;
+  };
+  B.setTyped = function (t) {
+    this.typed = t;
+    this.typedEl.textContent = t; this.typedEl.hidden = !t;
+    if (t) this.live.textContent = 'Typing ' + t.split('').join(' ');
   };
   B.announce = function () {
     if (!this.pos || this.cursor < 0) return;

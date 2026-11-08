@@ -108,10 +108,10 @@
   function saveStatus() {
     var err = Store.saveError;
     if (Store.synced()) return { alert: false, text: 'Your progress is saved to your account and syncs across your devices whenever you open this page on claude.ai.' + (err ? ' This browser can’t keep its own copy right now.' : '') };
-    if (err === 'full') return { alert: true, text: 'Your progress can’t be saved in this browser because its storage is full. Copy or save a backup to keep it.' };
-    if (err === 'blocked') return { alert: true, text: 'Your progress can’t be saved because this browser is blocking storage for this page. Copy or save a backup to keep it.' };
-    if (err) return { alert: true, text: 'Your progress couldn’t be saved in this browser. Copy or save a backup to keep it.' };
-    return { alert: false, text: 'Your progress is saved in this browser. Use a backup to move it to another device.' };
+    if (err === 'full') return { alert: true, text: 'Your progress can’t be saved in this browser because its storage is full. Copy your progress code or save a file to keep it.' };
+    if (err === 'blocked') return { alert: true, text: 'Your progress can’t be saved because this browser is blocking storage for this page. Copy your progress code or save a file to keep it.' };
+    if (err) return { alert: true, text: 'Your progress couldn’t be saved in this browser. Copy your progress code or save a file to keep it.' };
+    return { alert: false, text: 'Your progress is saved in this browser.' };
   }
   function paintSave(el) {
     el = el || document.getElementById('save-status');
@@ -208,26 +208,61 @@
       play.appendChild(Play.toggle('Unlock all characters', 'Play any character without winning your way up the tiers.', !!s.unlockAll, function (v) { s.unlockAll = v; save(); }));
       col.appendChild(play);
 
-      var data = h('div', { class: 'card stack' }, h('h3', null, 'Your progress'), paintSave(h('p', { id: 'save-status', 'aria-live': 'polite' })));
-      var ta = h('textarea', { id: 'backup-io', 'aria-label': 'Backup code', placeholder: 'Paste a backup here to restore it.' });
+      var data = h('div', { class: 'card stack' }, h('h3', null, 'Your progress'), paintSave(h('p', { id: 'save-status', 'aria-live': 'polite' })),
+        h('p', { class: 'muted small' }, 'To take it to another device, copy your progress code (it carries everything: ratings, games, lessons, puzzles), then paste it into this box on the other device and tap Restore.'));
+      var ta = h('textarea', { id: 'backup-io', 'aria-label': 'Progress code', placeholder: 'Paste a progress code here to restore it.' });
       var problem = h('div', { class: 'feedback no', role: 'alert', hidden: true });
-      var btns = h('div', { class: 'row' },
-        h('button', { class: 'btn small', type: 'button', onclick: function () { var j = Store.exportJson(); ta.value = j; Store.backedUp(); U.copyText(j, ta).then(function (ok) { App.toast(ok ? 'Backup copied' : 'Backup is in the box below: select and copy it'); }); } }, U.icon('copy'), 'Copy backup'));
-      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (ok) Store.backedUp(); else App.toast('Saving files isn’t allowed here. Use Copy backup instead.'); }); } }, U.icon('download'), 'Save file'));
+      var copyBtn = h('button', { class: 'btn small', type: 'button', onclick: function () {
+        copyBtn.disabled = true;
+        Store.exportCode().then(function (code) {
+          copyBtn.disabled = false;
+          ta.value = code; Store.backedUp();
+          U.copyText(code, ta).then(function (ok) { App.toast(ok ? 'Progress code copied' : 'Your code is in the box: select and copy it'); });
+        });
+      } }, U.icon('copy'), 'Copy progress code');
+      var btns = h('div', { class: 'row' }, copyBtn);
+      if (U.canSaveFile()) btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.saveFile('tempo-backup-' + U.dayKey() + '.json', Store.exportJson(), 'application/json').then(function (ok) { if (ok) Store.backedUp(); else App.toast('Saving files isn’t allowed here. Use Copy progress code instead.'); }); } }, U.icon('download'), 'Save file'));
       btns.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { U.readFile('.json,.txt').then(function (t) { if (t) restore(t); }); } }, U.icon('upload'), 'Open file'));
       btns.appendChild(h('button', { class: 'btn small primary', type: 'button', onclick: function () {
-        var t = ta.value.trim(); if (!t) { App.toast('Paste a backup first'); return; }
+        var t = ta.value.trim(); if (!t) { App.toast('Paste a progress code first'); return; }
         restore(t);
       } }, 'Restore'));
+      var BAD_CODE = 'That progress code is damaged or incomplete. Copy it again from the other device, all of it.';
       function restore(text) {
         problem.hidden = true;
-        var why = Store.checkBackup(text);
-        if (why) { problem.textContent = why; problem.hidden = false; return; }
-        App.confirm('Restore this backup?', 'It replaces your current progress.', 'Restore').then(function (ok) {
-          if (!ok) return;
-          var err = Store.importJson(text);
-          if (err) { problem.textContent = err; problem.hidden = false; return; }
-          App.toast('Backup restored');
+        var fromCode = Store.isCode(text);
+        Store.unpack(text).then(function (json) {
+          if (json == null) { fail(BAD_CODE); return; }
+          var why = Store.checkBackup(json);
+          if (why) { fail(fromCode && why === 'That doesn’t look like a Tempo backup.' ? BAD_CODE : why); return; }
+          var what = fromCode ? 'progress code' : 'backup';
+          if (!Store.hasProgress()) {
+            App.confirm('Restore this ' + what + '?', 'Your progress will be set from it.', 'Restore').then(function (ok) { if (ok) apply(Store.importJson(json), 'Progress restored'); });
+            return;
+          }
+          choose(what).then(function (how) {
+            if (how === 'replace') apply(Store.importJson(json), 'Progress restored');
+            else if (how === 'merge') apply(Store.mergeJson(json), 'Progress combined');
+          });
+        });
+      }
+      function fail(text) { problem.textContent = text; problem.hidden = false; }
+      function apply(err, done) { if (err) fail(err); else { ta.value = ''; App.toast(done); } }
+      /* there's progress here already: replace it, or combine the two? */
+      function choose(what) {
+        return new Promise(function (resolve) {
+          var answered = false;
+          App.sheet(function (box, api) {
+            function pick(v) { answered = true; api.close(); resolve(v); }
+            box.appendChild(h('h2', null, 'Restore this ' + what + '?'));
+            box.appendChild(h('p', { class: 'muted' }, 'There’s progress on this device already.'));
+            box.appendChild(h('div', { class: 'stack', style: { gap: '10px', marginTop: '14px' } },
+              h('button', { class: 'btn primary', type: 'button', onclick: function () { pick('merge'); } }, 'Combine them'),
+              h('p', { class: 'muted small', style: { margin: '-4px 0 0' } }, 'Keeps the newer ratings, and every lesson, game and saved mistake from both.'),
+              h('button', { class: 'btn', type: 'button', onclick: function () { pick('replace'); } }, 'Replace what’s here'),
+              h('p', { class: 'muted small', style: { margin: '-4px 0 0' } }, 'The progress on this device is thrown away.')));
+            box.appendChild(h('div', { class: 'row end', style: { marginTop: '14px' } }, h('button', { class: 'btn quiet', type: 'button', onclick: function () { pick(null); } }, 'Cancel')));
+          }, { onClose: function () { if (!answered) resolve(null); } });
         });
       }
       data.appendChild(ta); data.appendChild(problem); data.appendChild(btns);

@@ -313,7 +313,7 @@ var Learn = (function () {
         paintLeft(s);
         if (s.limit && st.moves >= s.limit) {
           if (s.goal === 'draw') return evalDraw();
-          return fail('Out of moves. Restart and try a faster plan.');
+          return fail('Out of moves. Restart and look for a quicker way.');
         }
         board.setMovable(st.learner === 1 ? 'w' : 'b');
       });
@@ -362,7 +362,7 @@ var Learn = (function () {
       Engines.analyse({ fen: s.fen, moves: st.history.slice(), depth: 14, movetime: 900 }).then(function (r) {
         var l = r.lines[0] || { cp: 0 };
         var forLearner = (st.pos.side === st.learner ? 1 : -1) * (l.mate != null ? (l.mate > 0 ? 3000 : -3000) : l.cp);
-        if (forLearner > -150) success(); else fail('The position slipped. Restart and keep your defense tight.');
+        if (forLearner > -150) success(); else fail('The draw slipped away: the other side is winning now. Restart and stay in front of the pawn.');
       });
     }
     function judge(status) {

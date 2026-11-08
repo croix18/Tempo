@@ -88,7 +88,7 @@ var Play = (function () {
       box.lastChild.children[2].setAttribute('aria-label', '15 minutes, plus 10 seconds for each move');
       box.lastChild.children[2].title = '15 minutes, plus 10 seconds for each move';
       var tg = h('div', { style: { marginTop: '10px' } });
-      tg.appendChild(toggle('Coach', 'Warns you before a move that loses material.', choice.coach, function (v) { choice.coach = v; }));
+      tg.appendChild(toggle('Coach', 'Warns you before a move that loses a piece or a pawn.', choice.coach, function (v) { choice.coach = v; }));
       tg.appendChild(toggle('Ask me first', 'The coach asks you to find the problem before it explains.', choice.ask, function (v) { choice.ask = v; }));
       tg.appendChild(toggle('Show threats', 'Rings pieces you could lose, and warns you when checkmate is threatened.', choice.hanging, function (v) { choice.hanging = v; }));
       tg.appendChild(toggle('Takebacks', 'Lets you undo a move.', choice.takebacks, function (v) { choice.takebacks = v; }));
@@ -436,7 +436,7 @@ var Play = (function () {
       var threat = speak && !st.deciding && coach.hidden ? mateThreat() : null;
       if (threat) {
         board.setArrows([{ from: threat.uci.slice(0, 2), to: threat.uci.slice(2, 4), color: 'red' }]);
-        say('Watch out: ' + bot.short + ' threatens checkmate with ' + threat.san + '. Stop it with this move.', 'alert');
+        say('Watch out: ' + bot.short + ' threatens checkmate with ' + threat.san + '. Your next move has to stop it.', 'alert');
         return;
       }
       if (speak && worst && !st.deciding && coach.hidden) {
@@ -447,7 +447,7 @@ var Play = (function () {
         var first = !Store.state.settings.tipHanging, text;
         // a defended piece is in danger only from a cheaper attacker or from too many attackers
         if (!defended) text = name + ' can be taken for free' + (att ? ' by' + where : '') + '. Move it or protect it.';
-        else if (att && V[att] < V[worst.type]) text = name + ' is attacked by' + where + ', which is worth less. Move it.';
+        else if (att && V[att] < V[worst.type]) text = 'The ' + PIECE_NAME[att] + ' on ' + C.sqName(by[0]) + ' is attacking your ' + PIECE_NAME[worst.type] + ' on ' + C.sqName(worst.sq) + '. A ' + PIECE_NAME[att] + ' is worth less than a ' + PIECE_NAME[worst.type] + ', so move the ' + PIECE_NAME[worst.type] + '.';
         else text = name + ' is attacked more times than it is defended. Move it or add a defender.';
         say(text + (first ? ' A red ring marks a piece you could lose.' : ''), 'alert');
         if (first) { Store.state.settings.tipHanging = true; Store.touch('settings'); }
@@ -787,7 +787,7 @@ var Play = (function () {
     function resultWords(rec) {
       return { title: rec.score === 1 ? 'You won' : rec.score === 0.5 ? 'Draw' : 'You lost',
         why: { checkmate: 'by checkmate', resignation: 'by resignation', time: 'on time', stalemate: 'by stalemate', agreement: 'by agreement',
-          'insufficient material': 'by insufficient material', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
+          'insufficient material': 'because there weren\u2019t enough pieces left to checkmate', 'fifty-move rule': 'by the fifty-move rule', 'threefold repetition': 'by repetition',
           'timeout vs insufficient material': 'on time, but there wasn\u2019t enough left to checkmate' }[rec.reason] || rec.reason };
     }
     function showResult(rec) {
@@ -819,7 +819,7 @@ var Play = (function () {
         } else box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Not rated: ' + (G.undos ? 'you took back a move.' : G.hints ? 'you used a hint.' : 'games shorter than three moves each don\u2019t count.')));
         (rec.news || []).forEach(function (n) { box.appendChild(h('div', { class: 'feedback ok news', style: { textAlign: 'center', marginBottom: '8px' } }, n.text)); });
         var pt = Mistakes.patterns();
-        if (pt) box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'Your pattern so far: ' + Mistakes.patternText(pt).replace(/^You /, 'you ').replace(/\.$/, '') + '. The review shows whether this game fits it.'));
+        if (pt) box.appendChild(h('p', { class: 'muted small', style: { textAlign: 'center' } }, 'One thing to watch: ' + Mistakes.patternText(pt).replace(/^You /, 'you ').replace(/\.$/, '') + '. The review will show whether it happened again.'));
         var row = h('div', { class: 'stack', style: { marginTop: '14px' } },
           h('button', { class: 'btn primary block', type: 'button', onclick: function () { api.close(); Review.openGame(G.id); } }, U.icon('review'), 'Review this game'));
         var row2 = h('div', { class: 'row' }, h('button', { class: 'btn grow', type: 'button', onclick: function () { api.close(); setup(bot, { rematch: true }); } }, 'Rematch'));
@@ -841,7 +841,7 @@ var Play = (function () {
       if (e.key === 'Escape' && !bubble.hidden && !document.querySelector('.sheet')) { hush(); return; }
       if (e.key === 'ArrowLeft') { var n = st.viewPly == null ? G.moves.length - 1 : st.viewPly - 1; if (n >= 0) showPly(n); }
       else if (e.key === 'ArrowRight') { if (st.viewPly != null) showPly(st.viewPly + 1); }
-      else if (e.key === 'f') flip();
+      else if (e.key === 'f' && !(e.target && e.target.classList && e.target.classList.contains('board'))) flip(); // not while typing a move on the board
     };
     document.addEventListener('keydown', st.keys);
 
@@ -852,7 +852,7 @@ var Play = (function () {
     // hello (or "again?" on a rematch); a game picked up again goes on where it was, so the referee looks at it now
     if (!G.moves.length) botSays(TempoTalk.start(G, bot, talkOpts()));
     else if (!G.result) refAt(G.moves.length);
-    if (G.coach && !G.moves.length) say('Coach is on. You’ll get a warning before a move that loses material.');
+    if (G.coach && !G.moves.length) say('Coach is on. You’ll get a warning before a move that loses a piece or a pawn.');
     if (G.result) { finishView(); }
     else if (myTurn()) startMyTurn();
     else botTurn();
@@ -917,7 +917,7 @@ var Play = (function () {
     if (after.inCheck()) return 'It gives check.';
     if (hits.length) return 'It attacks the ' + PIECE_NAME[hits[0]] + '.';
     if (cap) return 'It takes the ' + PIECE_NAME[cap] + '.';
-    if (fl & 4) return 'It gets your king safe and brings a rook toward the middle.';
+    if (fl & 4) return 'It tucks your king away and brings a rook toward the middle.';
     var homeRank = me === 1 ? 0 : 7;
     if ((piece === 2 || piece === 3) && (from >> 4) === homeRank) return 'It develops your ' + PIECE_NAME[piece] + '.';
     if (piece === 1 && [3, 4].indexOf(to & 7) >= 0 && [3, 4].indexOf(to >> 4) >= 0) return 'It takes space in the center.';

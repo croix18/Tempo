@@ -119,7 +119,7 @@ async def test_patterns(browser):
     await pg.locator('button[aria-label="Resign the game"]').click(); await pg.wait_for_timeout(300)
     await pg.locator('.sheet button', has_text='Resign').click(); await pg.wait_for_timeout(600)
     sheet = await pg.locator('.sheet').inner_text()
-    check('the end of a game shows your pattern so far', 'Your pattern so far: you left a piece where it could be taken in 5 of your last 6 games' in sheet, sheet[:200])
+    check('the end of a game shows your pattern so far', 'One thing to watch: you left a piece where it could be taken in 5 of your last 6 games' in sheet, sheet[:200])
     await ctx.close()
     # a saved topic is checked on load: a made-up one is dropped, a real one kept
     ctx = await browser.new_context(**DESK)
@@ -193,7 +193,7 @@ async def test_home_nudges(browser):
     check('the reminder opens Preferences and then waits a month before asking again', await pg.evaluate("App.name === 'prefs' && !Store.backupDue() && Store.state.settings.backupAsked > 0"))
     await pg.evaluate("Store.state.settings.backupAsked = Date.now() - 40 * 86400000")
     check('a month on with still no backup, it asks again', await pg.evaluate("Store.backupDue()"))
-    await pg.locator('.v-prefs button', has_text='Copy backup').click(); await pg.wait_for_timeout(300)
+    await pg.locator('.v-prefs button', has_text='Copy progress code').click(); await pg.wait_for_timeout(600)
     check('copying a backup clears the reminder', not await pg.evaluate("Store.backupDue()") and await pg.evaluate("Store.state.settings.backedUp > 0"))
     check('home nudges: no page errors', not errors, errors[:3])
     await ctx.close()

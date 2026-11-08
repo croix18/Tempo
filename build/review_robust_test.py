@@ -123,7 +123,7 @@ async def test_phone(browser):
     # the summary first: the coach's verdict, both accuracies, and Start review on screen
     check('summary: the review opens on the summary, at the final position', s['stage'] == 'recap' and s['ply'] == len(PIP), (s['stage'], s['ply']))
     recap = (await pg.evaluate("(document.querySelector('.rv-recap:not([hidden])') || {}).innerText || ''")).replace('\n', ' ')
-    check('summary: the coach names the costliest move', re.search(r'(costliest move was|were (winning|ahead) before) \d+\.', recap), recap[:200])
+    check('summary: the coach counts the key moments and your mistakes, and names no "costliest move"', re.search(r'\d+ key moments to look at, \d+ of them mistakes of yours\.', recap) and 'costliest' not in recap, recap[:200])
     check('summary: both accuracies', 'Your accuracy' in recap and recap.count('%') >= 2, recap[:200])
     gb = await pg.locator('.rv-go').bounding_box()
     check('summary: Start review is on screen without scrolling', gb and gb['y'] >= 0 and gb['y'] + gb['height'] <= 844, gb)
@@ -131,12 +131,13 @@ async def test_phone(browser):
     check('summary: Fix your mistakes counts them', ('Fix your %d mistakes' % len(keys)) == fix, fix)
     ctl = await pg.locator('.rv-controls').bounding_box()
 
-    # a move named in the verdict opens it
-    await pg.locator('.rv-verdict .rv-link').first.click(); await pg.wait_for_timeout(900)
-    s = await pg.evaluate("Review._state()")
-    check('summary: a move in the verdict opens the walk through at that move', s['stage'] == 'walk' and s['ply'] in keys, (s['stage'], s['ply']))
-    await pg.locator('.rv-to-summary').click(); await pg.wait_for_timeout(700)
-    check('Summary goes back to the summary', (await pg.evaluate("Review._state()"))['stage'] == 'recap')
+    # a move named in the verdict (the best moment, when there is one) opens it
+    if await pg.locator('.rv-verdict .rv-link').count():
+        await pg.locator('.rv-verdict .rv-link').first.click(); await pg.wait_for_timeout(900)
+        s = await pg.evaluate("Review._state()")
+        check('summary: a move in the verdict opens the walk through at that move', s['stage'] == 'walk' and s['ply'] in moments, (s['stage'], s['ply']))
+        await pg.locator('.rv-to-summary').click(); await pg.wait_for_timeout(700)
+        check('Summary goes back to the summary', (await pg.evaluate("Review._state()"))['stage'] == 'recap')
 
     # Start review: the first key moment, and Next goes through them in order
     await pg.locator('.rv-go').click(); await pg.wait_for_timeout(1000)

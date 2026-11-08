@@ -34,7 +34,7 @@ module.exports = {
           text: 'Read the move and play it: Nxe5.',
           line: ['f3e5'],
           hint: 'Only one of your knights can capture on e5.',
-          done: 'Knight takes on e5. If Black grabs your queen with Bxd1, then Bxf7+ Ke7 and Nd5 is checkmate.' },
+          done: 'Knight takes on e5. It looks like your queen is hanging, but if Black takes it, White checkmates in two moves. You will meet this trick again in the Openings unit. When moves are written in a row they get numbers: 1.e4 e5 2.Nf3 means White played e4, Black answered e5, and White played Nf3. Three dots before a move, like ...Nc6, mean it is Black’s move.' },
         { t: 'move', fen: 'r1bqk2r/pppp1ppp/2n2n2/6N1/1bB1P3/8/PB3PPP/RN1Q1RK1 b kq - 2 8',
           text: 'You are Black. Play O-O.',
           line: ['e8g8'],
@@ -71,7 +71,7 @@ module.exports = {
           squares: ['d1', 'f1'],
           done: 'The rook on a2 covers the whole second rank, and your own pawn sits on f2. Only d1 and f1 are safe.' },
         { t: 'move', fen: '2r3k1/p4pp1/1pN4p/8/4n3/2P5/P4PPP/2R3K1 w - - 3 25',
-          text: 'Use the knight’s jump to win material.',
+          text: 'Use the knight’s jump to win a piece.',
           line: ['c6e7', 'g8f8', 'e7c8'],
           hint: 'Find a knight check that also hits Black’s rook.',
           done: 'Ne7+ attacked the king and the rook at once. The king had to move, and the rook fell.' }

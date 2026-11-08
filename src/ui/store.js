@@ -635,6 +635,54 @@ var Store = (function () {
     copy.exported = new Date().toISOString();
     return JSON.stringify(copy);
   }
+  /* ---- the progress code: the backup squeezed into one pasteable string ----
+     "TEMPO1." + base64url(deflate-raw(json)) where the browser can compress, "TEMPO0." + base64url(json) where it can't.
+     Decoding takes either, with or without the padding, with any whitespace a messaging app wrapped in. */
+  var CODE = /^TEMPO([01])\.([A-Za-z0-9\-_+\/=\s]+)$/;
+  function b64url(bytes) {
+    var bin = '';
+    for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  }
+  function unb64url(s) {
+    s = s.replace(/\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+    while (s.length % 4) s += '=';
+    var bin = atob(s), out = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  function deflate(bytes) {
+    if (typeof CompressionStream === 'undefined' || typeof Response === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(null);
+    try {
+      var stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream('deflate-raw'));
+      return new Response(stream).arrayBuffer().then(function (ab) { return new Uint8Array(ab); }, function () { return null; });
+    } catch (e) { return Promise.resolve(null); }
+  }
+  function inflate(bytes) {
+    var slow = function () { return window.TempoInflate.inflateRaw(bytes); };
+    if (typeof DecompressionStream === 'undefined' || typeof Response === 'undefined' || typeof Blob === 'undefined') return Promise.resolve(slow());
+    try {
+      var stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Response(stream).arrayBuffer().then(function (ab) { return new Uint8Array(ab); }, slow);
+    } catch (e) { return Promise.resolve(slow()); }
+  }
+  /* Resolves to the code for the current progress. */
+  function exportCode() {
+    var bytes = new TextEncoder().encode(exportJson());
+    return deflate(bytes).then(function (z) { return z && z.length < bytes.length ? 'TEMPO1.' + b64url(z) : 'TEMPO0.' + b64url(bytes); });
+  }
+  function isCode(text) { return CODE.test(String(text == null ? '' : text).trim()); }
+  /* Resolves to the backup text a progress code holds (text that isn't a code comes back as it is, trimmed),
+     or to null when the code is damaged. */
+  function unpack(text) {
+    text = String(text == null ? '' : text).replace(/^\ufeff/, '').trim();
+    var m = CODE.exec(text);
+    if (!m) return Promise.resolve(text);
+    var bytes;
+    try { bytes = unb64url(m[2]); } catch (e) { return Promise.resolve(null); }
+    var out = m[1] === '0' ? Promise.resolve(bytes) : inflate(bytes);
+    return out.then(function (b) { return new TextDecoder().decode(b); }, function () { return null; });
+  }
   /* Worth a reminder to back up? Only in a browser without the account sync, once there's real progress
      to lose, and no backup (or reminder) in the last month. */
   function backupDue() {
@@ -675,6 +723,29 @@ var Store = (function () {
     emit('import');
     return null;
   }
+  /* Combine a backup with what's here: the newer of the two for ratings and such, every lesson, game, saved mistake
+     and practice day from both; preferences stay as they are. Returns null, or what went wrong (then nothing changes). */
+  function mergeJson(text) {
+    var b = readBackup(text);
+    if (b.error) return b.error;
+    var prev = JSON.parse(JSON.stringify(state)), other = b.state;
+    other.settings = state.settings;
+    try { mergeProfile(other); mergeGames(other.games); } catch (e) { console.error(e); state = prev; return SAVE_FAILED.error; }
+    var now = Date.now();
+    SECTIONS.forEach(function (k) { state[k].rev = now; });
+    state.current = prev.current;
+    var code = tryWrite();
+    if (code && !remote) { state = prev; return SAVE_FAILED[code] || SAVE_FAILED.error; }
+    setSaveError(code);
+    scheduleRemote('profile'); scheduleRemote('games');
+    if (code) flush();
+    emit('import');
+    return null;
+  }
+  /* true once there's progress here that a restore would replace */
+  function hasProgress() {
+    return !!(state.play.hist.length || state.puzzles.count || Object.keys(state.learn.done).length || state.games.list.length || state.mistakes.items.length);
+  }
   function reset() {
     var keepSettings = state.settings;
     state = defaults();
@@ -691,7 +762,8 @@ var Store = (function () {
     init: init, on: on, touch: touch, activity: activity, streak: streak,
     get state() { return state; },
     seenBits: seenBits, saveBits: saveBits,
-    exportJson: exportJson, importJson: importJson, reset: reset, synced: synced, backupDue: backupDue,
+    exportJson: exportJson, importJson: importJson, mergeJson: mergeJson, reset: reset, synced: synced, backupDue: backupDue,
+    exportCode: exportCode, unpack: unpack, isCode: isCode, hasProgress: hasProgress,
     /* a backup was copied or saved just now */
     backedUp: function () { state.settings.backedUp = Date.now(); touch('settings'); },
     /* null when text is a backup that can be restored, otherwise the reason it can't */

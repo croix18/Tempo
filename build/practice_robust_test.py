@@ -207,7 +207,7 @@ async def t_mistakes(b):
         opt = await P.ev("document.querySelector('.view .board').__board.opts.autoQueen")
         check('bug 3: the mistakes board always asks which piece to promote to', opt is False, opt)
         text = await P.panel()
-        check('mistakes: names the game it came from', 'From your loss to ' in text and 'On move 4 you played Ne2, a blunder.' in text, text[:300])
+        check('mistakes: names the game it came from', 'From your loss to ' in text and 'On move 4 you played Ne2, and it cost you.' in text, text[:300])
         # bug 4: a wrong move, then "Show the answer" while the engine is still checking it
         await P.move('a2a3'); await P.wait(250)
         await P.pg.locator('.view button', has_text='Show the answer').click()
@@ -226,7 +226,7 @@ async def t_mistakes(b):
         check('mistakes: a right move says why', 'That’s it. Qxf7# is checkmate.' in text, text[:300])
         await P.pg.locator('.view button', has_text='Next').click(); await P.movable()
         text = await P.panel()
-        check('mistakes: no game line when the game isn’t stored', 'From your' not in text and 'let your opponent off the hook' in text, text[:300])
+        check('mistakes: no game line when the game isn’t stored', 'From your' not in text and 'and missed a winning move' in text, text[:300])
         # hint: the piece, then the move
         await P.pg.locator('.view button', has_text='Hint').click(); await P.wait(600)
         t1 = await P.panel()

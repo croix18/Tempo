@@ -82,7 +82,7 @@ module.exports = {
       steps: [
         { t: 'read', fen: '7k/8/8/8/8/1PNBRQ2/8/4K3 w - - 0 1',
           marks: ['b3', 'c3', 'd3', 'e3', 'f3'],
-          text: 'Pieces have rough values: **pawn 1, knight 3, bishop 3, rook 5, queen 9**. The king can’t be traded at all. Use these numbers to judge every exchange.' },
+          text: 'Pieces have rough values: **pawn 1, knight 3, bishop 3, rook 5, queen 9**. The king can’t be traded at all. All your pieces and pawns added up are your **material**; winning material means coming out ahead in these points. Use the numbers to judge every exchange.' },
         { t: 'quiz',
           text: 'Your rook can capture a knight, but a pawn will then capture your rook. Is that a good trade?',
           choices: ['Yes, I win a knight', 'No, I give 5 points for 3'], answer: 1,
@@ -92,7 +92,7 @@ module.exports = {
           line: ['e4d5'], hint: 'Take with your least valuable piece.',
           done: 'Pawn takes knight: you give 1 and win 3. Taking with the bishop would only be an even trade.' },
         { t: 'quiz',
-          text: 'Your bishop can take a knight that is protected. What kind of trade is Bxn?',
+          text: 'Your bishop can take a knight that is protected. What kind of trade is bishop takes knight?',
           choices: ['Even: 3 for 3', 'Bad: I lose material', 'Great: I win material'], answer: 0,
           done: 'Bishop for knight is an even trade. Make it when it improves your position, not just because you can.' },
         { t: 'move', fen: '5rk1/pbq2ppp/1p2pn2/2pr4/8/2NB4/PPPQ1PPP/R4RK1 w - - 0 15',
@@ -126,7 +126,7 @@ module.exports = {
           text: 'Black’s knight attacks your queen. Move it to a safe square.',
           line: ['d4e3'], accept: [['d4a4']],
           hint: 'Check that the new square isn’t attacked by another black piece.',
-          wrong: { d4c3: 'Bb4 would pin your queen to your king and win it.', d4d1: 'Safe, but it undoes your development. Keep the queen active.', d4d3: 'Safe for now, but it blocks your bishop on f1.' },
+          wrong: { d4c3: 'On c3 your queen would be stuck in front of your king. Bb4 attacks it, and it couldn’t step away without leaving the king in check.', d4d1: 'Safe, but it undoes your development. Keep the queen active.', d4d3: 'Safe for now, but it blocks your bishop on f1.' },
           done: 'Qe3 is the usual square. Before you put a piece somewhere, make sure nothing can take it there.' },
         { t: 'pick', fen: 'r1bqkbnr/pp1p1ppp/2n5/2p5/3NP3/8/PPP2PPP/RNBQKB1R w KQkq - 0 5',
           text: 'Black just played c7-c5. Click the white piece that is now in danger.',
@@ -140,7 +140,7 @@ module.exports = {
         { t: 'move', fen: 'rnbqkb1r/pppppppp/5n2/4P3/8/8/PPPP1PPP/RNBQKBNR b KQkq - 0 2',
           text: 'You are Black. White’s pawn attacks your knight. Find it a safe square.',
           line: ['f6d5'], accept: [['f6g8']],
-          wrong: { f6e4: 'On e4 the knight has only one safe square after d3.' },
+          wrong: { f6e4: 'On e4, White plays d3 and the knight is attacked again, with almost nowhere good to go.' },
           hint: 'Look for a central square no pawn can attack right now.',
           done: 'Nd5 is safe and central. Going back to g8 also saves the knight but wastes time.' }
       ]

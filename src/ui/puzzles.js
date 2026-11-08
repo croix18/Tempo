@@ -57,7 +57,7 @@ var Puzzles = (function () {
     underPromotion: 'Promote a pawn to a knight, rook or bishop instead of a queen.',
     enPassant: 'Capture a pawn that has just moved two squares, as it passes yours.',
     zugzwang: 'Your opponent has to move, and every move makes things worse.',
-    smotheredMate: 'A knight checkmates a king hemmed in by its own pieces.',
+    smotheredMate: 'A knight checkmates a king boxed in by its own pieces.',
     anastasiaMate: 'A knight and a rook or queen trap the king on the edge of the board.',
     arabianMate: 'A rook and a knight checkmate the king in the corner.',
     bodenMate: 'Two bishops on crossing diagonals checkmate the king.',

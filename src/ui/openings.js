@@ -29,7 +29,7 @@ var Openings = (function () {
         var seen = Store.state.openings.lines['trap/' + t.id], victim = t.trapper && t.trapper !== t.side && t.keyPly != null;
         var who = t.side === 'w' ? 'White' : 'Black';
         // three kinds: a trap you set, one you must not fall into, and an attack you learn to stop
-        tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (victim ? 'Learn to avoid it as ' : t.defend ? 'Learn to stop it as ' : 'Learn to spring it as ') + who + '.' + (seen ? ' Done.' : ''), function () { App.go('openings', { trap: t.id }); }));
+        tl.appendChild(UI.menuRow(kingIcon(t.side), t.name, (victim ? 'Learn to avoid it as ' : t.defend ? 'Learn to stop it as ' : 'Learn to set it as ') + who + '.' + (seen ? ' Done.' : ''), function () { App.go('openings', { trap: t.id }); }));
       });
       root.appendChild(tl);
     }
@@ -100,7 +100,7 @@ var Openings = (function () {
       U.clear(noteBox);
       var text = notes[ply] != null ? notes[ply] : null;
       if (text) noteBox.appendChild(U.rich(text));
-      else if (mode === 'drill') noteBox.appendChild(h('p', { class: 'muted' }, st.ply < moves.length ? 'Play the repertoire move.' : ''));
+      else if (mode === 'drill') noteBox.appendChild(h('p', { class: 'muted' }, st.ply < moves.length ? 'Play the next move from your line.' : ''));
     }
     function fb(kind, text) { U.clear(fbBox); if (text) fbBox.appendChild(h('div', { class: 'feedback ' + kind }, text)); }
     function ourTurn() { return st.pos.side === you; }

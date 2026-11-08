@@ -101,7 +101,7 @@ module.exports = {
       summary: 'Key squares, the king in front, the rook-pawn draw and the stalemate trap.',
       steps: [
         { t: 'read', fen: '4k3/8/4K3/8/4P3/8/8/8 w - - 0 1', marks: ['d6', 'e6', 'f6'],
-          text: 'For a pawn on e4, the **key squares** are d6, e6 and f6. If your king reaches one of them, the pawn promotes whoever is to move. Lead with the king, not the pawn.' },
+          text: 'For a pawn on e4, the **key squares** are d6, e6 and f6. If your king reaches one of them, the pawn will promote no matter whose turn it is. Lead with the king, not the pawn.' },
         { t: 'pick', fen: '4k3/8/8/8/3P4/3K4/8/8 w - - 0 1',
           text: 'Your pawn is on d4. Click its three key squares.',
           squares: ['c6', 'd6', 'e6'],
@@ -165,7 +165,7 @@ module.exports = {
           line: ['e6d5', 'e1d1', 'f4d4'], hint: 'Your king goes to d5, where the rook can shield it.',
           done: 'Rd4 is the bridge. Black has no more safe checks, and the pawn promotes.' },
         { t: 'read', fen: '4k3/1R6/7r/3KP3/8/8/8/8 b - - 0 1', marks: ['d6', 'e6', 'f6'],
-          text: 'The **Philidor position** is the key draw. Your rook holds your third rank, here the sixth, so White’s king can’t come forward. Wait there until the pawn advances.' },
+          text: 'The **Philidor position** is the key draw. Your rook sits on the sixth rank, three rows in front of your king, so White’s king can’t come forward. Wait there until the pawn advances.' },
         { t: 'move', fen: '4k3/1R6/4P2r/3K4/8/8/8/8 b - - 0 1',
           text: 'You are Black. The pawn moved to e6, so White’s king has no shelter in front of it any more. Drop your rook down the h-file.',
           line: ['h6h1'], accept: [['h6h2', 'h6h3', 'h6h4']],
@@ -173,7 +173,7 @@ module.exports = {
           done: 'Next come checks on the d- or e-file. White’s king has nowhere to hide, and the game is drawn.' },
         { t: 'play', fen: '4k3/1R6/7r/3KP3/8/8/8/8 b - - 0 1', goal: 'draw', limit: 15,
           text: 'You are Black. Hold the Philidor draw for 15 moves. Keep your rook on the sixth rank until the pawn moves, then check from behind.',
-          done: 'Third rank first, checks from behind second. That simple plan saves many rook endgames.' },
+          done: 'Hold the sixth rank first, then check from behind. That simple plan saves many rook endgames.' },
         { t: 'play', fen: '3K4/3P2k1/8/8/8/2r5/8/5R2 w - - 0 1', goal: 'promote',
           text: 'Now win the Lucena yourself. Build the bridge and promote your pawn.',
           done: 'Rook to the fourth rank, king out, block the last check. That wins the most important rook endgame to know.' }

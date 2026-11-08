@@ -4,7 +4,7 @@
 cd "$(dirname "$0")/.." || exit 1
 export TEMPO_URL="${1:-file://$PWD/dist/Tempo.html}"
 mkdir -p build/logs
-for t in ui_test game_test fullgame_test flow_test openings_test trap_avoid_test openings_qa csp_test sync_test dark_test caps_test data_robust_test practice_robust_test review_robust_test motion_test clock_test loop_test tiers_test talk_test portraits_test endgame_test; do
+for t in ui_test game_test fullgame_test flow_test openings_test trap_avoid_test openings_qa csp_test sync_test dark_test caps_test data_robust_test practice_robust_test review_robust_test motion_test clock_test loop_test tiers_test talk_test portraits_test endgame_test keyboard_test; do
   [ -f "build/$t.py" ] || { echo "=== $t: missing"; continue; }
   start=$(date +%s)
   timeout 1800 python3 "build/$t.py" > "build/logs/$t.log" 2>&1

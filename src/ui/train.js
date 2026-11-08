@@ -235,7 +235,7 @@ var Train = (function () {
     var word = g.result === '1/2-1/2' ? 'draw with ' : g.result === '1-0' || g.result === '0-1' ? (((g.result === '1-0') === (g.color === 'w')) ? 'win over ' : 'loss to ') : 'game against ';
     return 'From your ' + word + who + (g.ts ? ' on ' + U.dateShort(g.ts) : '') + '.';
   }
-  var KIND_WORDS = { blunder: ', a blunder', mistake: ', a mistake', miss: ' and let your opponent off the hook' };
+  var KIND_WORDS = { blunder: ', and it cost you', mistake: ', and there was better', miss: ', and missed a winning move' };
   /* Explain's sentence about a move, in the present tense, for a move just played */
   function nowTense(t, playedSan) {
     return t.replace(/ was checkmate\.$/, ' is checkmate.').replace(/ started a forced checkmate\.$/, ' starts a forced checkmate.').replace(/ was stronger\.$/, ' is stronger than ' + playedSan + '.');
