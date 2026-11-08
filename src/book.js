@@ -298,7 +298,7 @@ var FAM = {
     'c4 Nf6 d4 c5 d5 e6 Nc3 exd5 cxd5 d6', 'Nf3 c5 c4 Nf6 Nc3 e6 g3 b6 Bg2 Bb7 O-O Be7', 'Nf3 c5 e4', 'Nf3 c5 d4 cxd4 Nxd4 Nf6', 'Nf3 Nf6 d4 c5 d5 e6 c4 exd5 cxd5 d6',
     'Nf3 Nf6 c4 c5 Nc3 Nc6 d4', 'g3 c5 Bg2 Nc6 Nf3 g6', 'b3 c5 Bb2 Nc6 e3 Nf6', 'e3 c5 d4 Nf6', 'f4 d5']],
 
-  /* ---------- fill-ins: answers a White repertoire needs to the defences its families don't cover ---------- */
+  /* ---------- fill-ins: answers a White repertoire needs to the defenses its families don't cover ---------- */
   'vs-sicilian-open': ['=', ['open-sicilian']],
   'vs-sicilian-alapin': [W, ['e4 c5 c3 d5', 'e4 c5 c3 d5 exd5 Qxd5 d4 Nf6 Nf3 Bg4 Be2 e6 O-O Nc6 h3 Bh5 Be3 cxd4 cxd4', 'e4 c5 c3 e6 d4 d5 exd5 exd5 Nf3 Nc6 Bb5 Bd6 dxc5 Bxc5 O-O',
     'e4 c5 c3 d6 d4 Nf6 Bd3 Nc6 Nf3 Bg4 d5 Ne5', 'e4 c5 c3 Nc6 d4 d5 exd5 Qxd5 Nf3 Bg4 Be2 cxd4 cxd4 e6 Nc3', 'e4 c5 c3 g6 d4 cxd4 cxd4 d5 e5 Nc6 Nc3 Bg7',

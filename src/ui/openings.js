@@ -345,7 +345,7 @@ var Openings = (function () {
 
   /* ---------- your games against your repertoire ---------- */
 
-  /* How far a game from the normal start followed a line you've learned, for your colour.
+  /* How far a game from the normal start followed a line you've learned, for your color.
      Returns null when no learned line applies, or { rep, line, key, k, len, expected, agree, options }:
      k plies of the game matched the line position by position, len is the line's length, expected is the
      move the line plays at ply k (null past its end), and agree is false when other lines that matched as far

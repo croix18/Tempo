@@ -1,5 +1,5 @@
 /* Tempo portraits.
-   The characters each get an original badge, never a drawing of the character: their initials on their tier's colour,
+   The characters each get an original badge, never a drawing of the character: their initials on their tier's color,
    with a small mark for how they play (a flame for a gambiteer, a shield for a defender, a crown for the champion).
    The original ladder bots keep their small drawn portraits, so old games still show who they were against. */
 var TempoAvatars = (function () {

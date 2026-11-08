@@ -1,5 +1,5 @@
 // Ladder sanity check: every original ladder bot (the yardsticks) should beat the one below it.
-// Plays each neighbouring pair (half the games with each colour) and compares the result with the rating gap.
+// Plays each neighboring pair (half the games with each color) and compares the result with the rating gap.
 // Usage: node tests/ladder.js [gamesPerPair] [seed]
 const C = require('../src/core.js'); global.TempoCore = C;
 const E = require('../src/engine.js');

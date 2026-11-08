@@ -33,7 +33,7 @@ var Learn = (function () {
   }
   function open(id, from) { App.go('learn', from ? { lesson: id, from: from } : { lesson: id }); }
   function sans(x) { return Array.isArray(x) ? x.slice() : String(x || '').trim().split(/\s+/).filter(Boolean); }
-  function colour(c) { return c === 'w' ? 'White' : 'Black'; }
+  function colorName(c) { return c === 'w' ? 'White' : 'Black'; }
   function other(c) { return c === 'w' ? 'b' : 'w'; }
   function sideNum(c) { return c === 'w' ? 1 : -1; }
   function sideOf(pos) { return pos.side === 1 ? 'w' : 'b'; }
@@ -80,7 +80,7 @@ var Learn = (function () {
         if (s.t === 'walk') r = { t: 'walk', moves: moves, notes: t.notes || {}, orient: t.side, text: t.summary, end: t.lesson };
         else if (s.t === 'line') {
           var defend = s.role === 'defend' || (!!t.noSet && s.role !== 'set');
-          var side = defend ? t.side : setter, who = colour(side);
+          var side = defend ? t.side : setter, who = colorName(side);
           r = { t: 'line', moves: moves, side: side, guide: !!s.guide, done: t.lesson,
             text: s.text || (defend
               ? (s.guide ? '**Defend it.** You’re ' + who + '. Play ' + who + '’s moves. The arrows show the way.' : '**From memory.** Play ' + who + '’s moves again, with no arrows.')
@@ -93,7 +93,7 @@ var Learn = (function () {
             // the trap's notes speak to the side the lesson is told from: shown while the trap plays out only when that side is you
             r = { t: 'safe', moves: moves.slice(0, key), side: victim, bait: t.bait || moves[key], punish: custom ? sans(t.punish) : moves.slice(key + 1),
               baitAt: key, notes: custom || t.side !== victim ? {} : (t.notes || {}), aim: t.safe ? [t.safe] : null, note: t.safeNote || '', baitNote: t.baitNote || '',
-              text: s.text || ('**Dodge it.** Now you’re ' + colour(victim) + ', and the computer sets the trap. When it’s your move, don’t take the bait.') };
+              text: s.text || ('**Dodge it.** Now you’re ' + colorName(victim) + ', and the computer sets the trap. When it’s your move, don’t take the bait.') };
           }
         } else r = { t: 'read', text: t.summary };
         r.trap = t.id;
@@ -157,7 +157,7 @@ var Learn = (function () {
   }
 
   /* ---------- practice puzzles ---------- */
-  /* the puzzle theme that practises each lesson */
+  /* the puzzle theme that practices each lesson */
   var PRACTICE = { 'fork': 'fork', 'pin': 'pin', 'skewer': 'skewer', 'discovered-attack': 'discoveredAttack', 'remove-defender': 'capturingDefender',
     'deflection-decoy': 'deflection', 'trapped-piece': 'trappedPiece', 'back-rank': 'backRankMate', 'smothered-mate': 'smotheredMate', 'mating-patterns': 'mateIn2',
     'free-pieces': 'hangingPiece', 'check-mate-stalemate': 'mateIn1', 'passed-pawns': 'advancedPawn', 'rook-endgames': 'rookEndgame', 'king-pawn': 'pawnEndgame', 'overload': 'deflection' };
@@ -812,7 +812,7 @@ var Learn = (function () {
     }
     /* what the bait cost, once its punishment has played out: checkmate, or the material lost (trades cancel out) */
     function baitCost(pos, you, lost, won, s, last, takeBack) {
-      if (pos.status().reason === 'checkmate') return 'That lets ' + colour(you === 1 ? 'b' : 'w') + ' give checkmate.';
+      if (pos.status().reason === 'checkmate') return 'That lets ' + colorName(you === 1 ? 'b' : 'w') + ' give checkmate.';
       if (s.baitNote) return s.baitNote;
       var VAL = [0, 1, 3, 3, 5, 9, 0], gave = lost.slice(), got = won.slice();
       // if the last move took something and you can take that piece back for free, count it
@@ -897,7 +897,7 @@ var Learn = (function () {
       st.inBook = true; st.bookLeft = null; st.yourMoves = 0;
       navRow(false);
       tool(h('button', { class: 'btn small quiet', type: 'button', onclick: function () { show(st.i); } }, U.icon('refresh'), 'Restart'));
-      fb('info', 'You’re ' + colour(s.side) + '. Follow your lines while the game stays in them, then keep playing good moves until move ' + s.until + '.');
+      fb('info', 'You’re ' + colorName(s.side) + '. Follow your lines while the game stays in them, then keep playing good moves until move ' + s.until + '.');
       paintMoves(s);
       gameStep();
     }
@@ -1115,7 +1115,7 @@ var Learn = (function () {
     var l = d.lesson, k = d.rec.k || 0, tag = function (s) {
       var r = Object.assign({}, s, { from: l.id, fromTitle: l.title, resolved: null });
       // a review is recall: a line that had arrows in the lesson comes back without them
-      if (s.t === 'line' && s.guide && !s.trap) { r.guide = false; r.text = '**From memory.** Play ' + colour(s.side || 'w') + '’s moves in this line, with no arrows.'; }
+      if (s.t === 'line' && s.guide && !s.trap) { r.guide = false; r.text = '**From memory.** Play ' + colorName(s.side || 'w') + '’s moves in this line, with no arrows.'; }
       return r;
     };
     if (l.trap) {

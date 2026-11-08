@@ -270,11 +270,11 @@ var Engines = (function () {
   /* opts: fen (start), moves (uci list), depth, movetime, multipv. Scores are from the side to move. */
   function analyse(opts) {
     if (sfReady()) {
-      // newGame clears Stockfish's memory first, so one review isn't coloured by the searches before it
+      // newGame clears Stockfish's memory first, so one review isn't colored by the searches before it
       var job = { fen: opts.fen, moves: opts.moves, depth: opts.depth || 0, movetime: opts.movetime || 0, multipv: opts.multipv || 1, skill: 20, onInfo: opts.onInfo, newGame: !!opts.newGame };
       return sfRun(job).then(function (r) {
         if (r) return r;
-        // a search cancelled because you left the screen has no one waiting for it: don't redo it on the built-in engine
+        // a search canceled because you left the screen has no one waiting for it: don't redo it on the built-in engine
         if (job.cancelled) return { best: null, lines: [], engine: 'none', cancelled: true };
         return tempoAnalyse(opts);
       });
@@ -315,7 +315,7 @@ var Engines = (function () {
       return { uci: r.move, via: 'tempo', kind: r.kind, score: r.score, best: r.best, top: r.top || null };
     });
   }
-  /* Stockfish analyses several moves at full skill; TempoBots.sfPick chooses among them for the character */
+  /* Stockfish analyzes several moves at full skill; TempoBots.sfPick chooses among them for the character */
   function sfChoose(bot, game, st, ctx) {
     var t0 = Date.now();
     return sfRun({ fen: game.fen, moves: game.moves, depth: st.depth || 0, movetime: st.movetime, skill: 20, multipv: st.multipv }).then(function (r) {

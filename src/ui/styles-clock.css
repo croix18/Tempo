@@ -1,5 +1,5 @@
 /* ---------- chess clock: the whole screen is the clock ---------- */
-/* its own colours in light and dark alike: navy while you wait, gold while your time runs, coral when it's nearly gone */
+/* its own colors in light and dark alike: navy while you wait, gold while your time runs, coral when it's nearly gone */
 .clock-app {
   --ck-wait: #1B2A4A; --ck-wait-ink: rgba(251, 246, 234, 0.9);
   --ck-run: #D4AF37; --ck-run-ink: #16223D;

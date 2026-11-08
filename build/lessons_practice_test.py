@@ -1,4 +1,4 @@
-"""Lessons that make you practise: the practice round of puzzles at the end of a tactics lesson, trap lessons (watch it, set it,
+"""Lessons that make you practice: the practice round of puzzles at the end of a tactics lesson, trap lessons (watch it, set it,
 dodge it, set it from memory), the line, safe and game steps, and the spaced review that brings every finished lesson back
 (boxes of 1, 3, 7, 16 and 35 days; a miss means tomorrow), with its entry points on Learn, Home, Trainers and Openings.
     python3 build/lessons_practice_test.py
@@ -114,7 +114,7 @@ async def main():
         for i in range(base): await solve_step(pg); await next_btn(pg)
         c = await pg.evaluate(CUR)
         label = await pg.locator('.view .card .faint.small').first.inner_text()
-        check('the first practice puzzle is labelled Practice 1 of 5 and starts with the other side’s move', c['i'] == base and label.startswith('Practice 1 of 5'), [c, label])
+        check('the first practice puzzle is labeled Practice 1 of 5 and starts with the other side’s move', c['i'] == base and label.startswith('Practice 1 of 5'), [c, label])
         await movable(pg)
         moved = await pg.evaluate("document.querySelector('.view .board').__board.pos.fen() !== Learn._steps()[Learn._cur().i].fen")
         check('the opponent’s move was played before your turn', moved)

@@ -1,5 +1,5 @@
 /* ---------- the characters and their tiers ---------- */
-/* a tier's letter, in the colours of its badges */
+/* a tier's letter, in the colors of its badges */
 .tier-badge { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 30px; height: 30px; border-radius: 9px; font-family: var(--serif); font-size: 18px; line-height: 1; box-shadow: inset 0 0 0 1px rgba(27, 42, 74, 0.18); }
 .tier-badge.lg { width: 46px; height: 46px; border-radius: 13px; font-size: 27px; }
 .tier-badge.t-F { background: #F3E9CF; color: #1B2A4A; box-shadow: inset 0 0 0 1.5px #C9A227; }

@@ -239,7 +239,7 @@ async def test_reduced_motion(browser):
     ctx, pg = await page(browser, PHONE, errors, reduced=True)
     await pg.evaluate("App.go('clock')"); await pg.wait_for_timeout(200)
     d = await pg.evaluate("getComputedStyle(document.querySelector('.ck-side')).transitionDuration")
-    check('reduced motion: the halves change colour at once', d in ('0s', '0s, 0s'), d)
+    check('reduced motion: the halves change color at once', d in ('0s', '0s, 0s'), d)
     await ctx.close()
 
 

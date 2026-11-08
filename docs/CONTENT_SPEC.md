@@ -77,7 +77,7 @@ strings (`e2e4`, `e7e8q`, castling as king move `e1g1`). Squares are lowercase (
    `aim` names the moves the lesson recommends (praised as "Yes."); a `bait` move is always refused and `punish`
    plays out what happens after it; `note` follows a good move. With `aim`, a Hint button marks the piece of `aim[0]`,
    then draws the move, so put the clearest good move first. When the bait has played out, the player says what it cost
-   ("That lets White give checkmate.", "You lost a knight for a pawn.", trades cancelling out); when nothing was lost
+   ("That lets White give checkmate.", "You lost a knight for a pawn.", trades canceling out); when nothing was lost
    on the board, give the reason in `baitNote`.
 
 9. **game** — a practice game from move 1.

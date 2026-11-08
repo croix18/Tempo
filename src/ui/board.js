@@ -168,7 +168,7 @@ var Board = (function () {
         var from = freeOld[best], el = old[from]; freeOld[best] = -1;
         if (dur) {
           /* Lifted, carried in a straight line, set down: one animation of the piece's own transform, its lift (a slight
-             scale) about the piece's own centre. (Scaling with the separate scale property also scaled the piece's
+             scale) about the piece's own center. (Scaling with the separate scale property also scaled the piece's
              distance from the board's corner, so it swung round its square as it landed.) */
           var A = this.xy(from), Z = this.xy(sq);
           var at = function (x, y, k) { return 'translate(' + (x * 100) + '%,' + (y * 100) + '%) scale(' + k + ')'; };
@@ -443,7 +443,7 @@ var Board = (function () {
   };
   B.cancelDrag = function () {
     var d = this.drag; this.drag = null; this.hover = -1;
-    if (d && d.el) { d.el.classList.remove('dragging'); if (d.started) this.el.classList.add('anim'); this.place(d.el, d.sq); } // a cancelled drag glides home like a refused one
+    if (d && d.el) { d.el.classList.remove('dragging'); if (d.started) this.el.classList.add('anim'); this.place(d.el, d.sq); } // a canceled drag glides home like a refused one
     this.paint();
   };
 

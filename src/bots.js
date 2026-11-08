@@ -153,7 +153,7 @@ function strength(r, base) {
   c.qs = c.qs !== false;
   return c;
 }
-/* Stockfish for the Masters and Legends: it analyses several moves at full skill, and the character chooses among
+/* Stockfish for the Masters and Legends: it analyzes several moves at full skill, and the character chooses among
    the ones within `margin` centipawns of the best. `err` is how often it allows itself a wider margin (`errMargin`),
    the slips a strong human still makes; stronger characters slip less and see further. The Masters search to a set
    depth (with a time cap for slow devices), one ply more every 100 points: against Celeste, the original 2000,
@@ -288,7 +288,7 @@ var NUDGE = {
 /* random moves and oversights shift a little with the archetype, inside the strength they were tuned for */
 var EXTRA = { chaos: { random: 0.06, jitter: 20 }, surprise: { random: 0.03 }, reckless: { blunder: 0.04 }, retreater: { random: -0.02 } };
 
-/* ---------- opening books: families from the profile, plus fill-ins for the defences they don't cover ---------- */
+/* ---------- opening books: families from the profile, plus fill-ins for the defenses they don't cover ---------- */
 function bookFor(p, style) {
   var w = p.book.white.slice(), e4 = p.book.black_vs_e4.slice(), d4 = p.book.black_vs_d4.slice();
   var sharp = (p.behavior_traits_0_to_100 || {}).aggression >= 60;

@@ -16,7 +16,7 @@ def check(what, cond, extra=None):
     print(('PASS ' if cond else 'FAIL ') + what + ('' if cond or extra is None else '  ' + json.dumps(extra)[:400]))
     if not cond: fails.append(what)
 
-# made-up pictures: a coloured head above a grey body, one tall and one square
+# made-up pictures: a colored head above a gray body, one tall and one square
 def pic(color, tall):
     w, h = (60, 120) if tall else (80, 80)
     rows = []

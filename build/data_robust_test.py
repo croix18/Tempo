@@ -697,7 +697,7 @@ async def positions(browser):
 
 async def calendar(browser):
     for vp in [DESK, PHONE]:
-        name = 'practice calendar fits the card at %dpx, today ringed, days labelled' % vp['width']
+        name = 'practice calendar fits the card at %dpx, today ringed, days labeled' % vp['width']
         if not wanted(name): continue
         async with Run(browser, name, init_script(seed_obj("var t = new Date(); d.days.map[t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0')] = { g: 1, p: 3, l: 0 }")), vp) as r:
             await r.boot()
