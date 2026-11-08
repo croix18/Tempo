@@ -233,7 +233,7 @@ var Train = (function () {
     var m = /^g(.+)-(\d+)$/.exec(it.id || ''); if (!m) return null;
     var g = Store.state.games.list.filter(function (x) { return x.id === m[1]; })[0];
     if (!g) return null;
-    var bot = TempoBots.find(g.bot), who = bot ? bot.short || bot.name : 'your opponent';
+    var bot = TempoBots.find(g.bot), who = bot ? bot.short || bot.name : (g.opp || 'your opponent') + (g.src === 'chesscom' ? ' on Chess.com' : '');
     var word = g.result === '1/2-1/2' ? 'draw with ' : g.result === '1-0' || g.result === '0-1' ? (((g.result === '1-0') === (g.color === 'w')) ? 'win over ' : 'loss to ') : 'game against ';
     return 'From your ' + word + who + (g.ts ? ' on ' + U.dateShort(g.ts) : '') + '.';
   }

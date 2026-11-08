@@ -23,7 +23,7 @@ var Store = (function () {
       v: 1,
       settings: { rev: 0, theme: 'system', board: 'tempo', sound: true, coords: true, dots: true, animate: true,
         autoQueen: false, coach: true, coachAsk: false, hanging: true, takebacks: true, unlockAll: false, clock: 'none', botChat: true, color: 'w', placed: false,
-        otb: '10+0', backedUp: 0, backupAsked: 0, chat: 'some' },
+        otb: '10+0', backedUp: 0, backupAsked: 0, chat: 'some', chessName: '' },
       play: { rev: 0, rating: 600, hist: [], bots: {}, tier: 0, champ: false, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
       learn: { rev: 0, done: {}, last: null, mem: {} },
@@ -86,6 +86,8 @@ var Store = (function () {
     // how much the opponents talk; older saves only have the on/off switch
     out.chat = s.botChat === false ? 'off' : oneOf(s.chat === 'off' ? d.chat : s.chat, CHATS, d.chat);
     out.botChat = out.chat !== 'off';
+    // your Chess.com username, for adding your games from there and telling which side you played
+    out.chessName = typeof s.chessName === 'string' && /^[A-Za-z0-9_-]{1,40}$/.test(s.chessName.trim()) ? s.chessName.trim() : '';
     return out;
   }
   /* The highest tier open. Saves from before the tiers have `unlocked` instead, the index of the next bot on the original
@@ -216,7 +218,11 @@ var Store = (function () {
     });
     return out;
   }
-  var GAME_KEYS = ['id', 'ts', 'pgn', 'bot', 'color', 'result', 'reason', 'plies', 'rated', 'before', 'after', 'reviewed', 'acc', 'counts', 'rv', 'rvx'];
+  var GAME_KEYS = ['id', 'ts', 'pgn', 'bot', 'color', 'result', 'reason', 'plies', 'rated', 'before', 'after', 'reviewed', 'acc', 'counts', 'rv', 'rvx',
+    'src', 'opp', 'oppElo', 'myElo', 'tc', 'tcl', 'link', 'key'];
+  var SOURCES = ['chesscom', 'pgn'], TIME_CLASSES = ['bullet', 'blitz', 'rapid', 'daily', 'classical'];
+  function shortText(x, n) { return typeof x === 'string' && x.trim() ? x.trim().slice(0, n) : null; }
+  function elo(x) { return finite(x) && x >= 0 && x <= 4000 ? Math.round(x) : null; }
   function cleanGame(x) {
     if (!isObj(x) || typeof x.id !== 'string' || !x.id || !finite(x.ts) || typeof x.pgn !== 'string' || !x.pgn.trim()) return null;
     var C = TempoCore, parsed = C.parsePgn(x.pgn);
@@ -237,6 +243,14 @@ var Store = (function () {
     if (rv) { out.rv = rv; if (out.acc == null) out.acc = rv.acc[out.color]; }
     if (rvx) out.rvx = rvx; // only worth keeping beside a usable rv
     out.reviewed = x.reviewed === true && out.acc != null;
+    var opp = shortText(x.opp, 60); if (opp) out.opp = opp;   // who you played, when it wasn't one of Tempo's characters
+    // a game you played somewhere else, added from Chess.com or a PGN: the ratings, the time control, its address there
+    if (SOURCES.indexOf(x.src) >= 0 && !out.bot) {
+      out.src = x.src; out.oppElo = elo(x.oppElo); out.myElo = elo(x.myElo);
+      out.tc = shortText(x.tc, 20); out.tcl = TIME_CLASSES.indexOf(x.tcl) >= 0 ? x.tcl : null;
+      out.link = typeof x.link === 'string' && /^https:\/\/[^\s"<>]{1,200}$/.test(x.link) ? x.link : null;
+      out.key = shortText(x.key, 240);
+    }
     return out;
   }
   function cleanGames(g) {
@@ -456,8 +470,8 @@ var Store = (function () {
     writeLocalSoon();
     if (section && (SYNC.indexOf(section) >= 0 || section === 'games')) scheduleRemote(section === 'games' ? 'games' : 'profile');
   }
-  function activity(kind) {
-    var k = U.dayKey(), d = state.days.map[k] || (state.days.map[k] = { g: 0, p: 0, l: 0 });
+  function activity(kind, ts) {
+    var k = U.dayKey(ts ? new Date(ts) : undefined), d = state.days.map[k] || (state.days.map[k] = { g: 0, p: 0, l: 0 });
     d[kind] = (d[kind] || 0) + 1;
     var keys = Object.keys(state.days.map).sort();
     while (keys.length > LIMIT.days) delete state.days.map[keys.shift()];
@@ -770,10 +784,28 @@ var Store = (function () {
     scheduleRemote('profile'); scheduleRemote('games');
     emit('reset');
   }
+  /* Games played somewhere else (records from Imports): each goes in at its place by date, and one already here (the same
+     key) isn't added twice. Returns { added: [records], dupes: [the records already here], dropped: [too old to fit] }. */
+  function addGames(list) {
+    var games = state.games.list, out = { added: [], dupes: [], dropped: [] };
+    (list || []).forEach(function (rec) {
+      var x = cleanGame(rec); if (!x) return;
+      var have = x.key ? games.filter(function (g) { return g.key === x.key; })[0] : null;
+      if (have) { out.dupes.push(have); return; }
+      var at = 0; while (at < games.length && games[at].ts > x.ts) at++;
+      if (at >= LIMIT.games) { out.dropped.push(x); return; }
+      games.splice(at, 0, x);
+      if (games.length > LIMIT.games) games.length = LIMIT.games;
+      out.added.push(x);
+      activity('g', x.ts);
+    });
+    if (out.added.length) touch('games');
+    return out;
+  }
   function synced() { return !!remote; }
 
   return {
-    init: init, on: on, touch: touch, activity: activity, streak: streak,
+    init: init, on: on, touch: touch, activity: activity, streak: streak, addGames: addGames,
     get state() { return state; },
     seenBits: seenBits, saveBits: saveBits,
     exportJson: exportJson, importJson: importJson, mergeJson: mergeJson, reset: reset, synced: synced, backupDue: backupDue,

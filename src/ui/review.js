@@ -375,6 +375,61 @@ var Review = (function () {
   var SAVE_VERSION = 2;
 
   var R = null; // current review state
+  var B = null; // the batch of games being reviewed one after another (renderBatch)
+
+  /* ---------- saving a finished review with its game ---------- */
+  function packEval(e) { if (e.mate === 0) return e.mateWinner === 1 ? 20000 : -20000; if (e.mate != null) return e.mate > 0 ? 10000 - e.mate : -10000 - e.mate; return Math.max(-9000, Math.min(9000, Math.round(e.cp || 0))); }
+  /* the engine lines around each flagged move, so a saved review can explain itself without the engine */
+  function savedLinesOf(evals, cls) {
+    var out = {};
+    cls.forEach(function (k, i) {
+      if (FLAGGED.indexOf(k) < 0 && k !== 'good') return;
+      [i, i + 1].forEach(function (j) { var e = evals[j]; if (e && e.pv && e.pv.length) out[j] = e.pv.slice(0, 8).join(' '); });
+    });
+    return out;
+  }
+  /* A review of game g (a saved game) is done: its accuracy and counts go on the game, the whole review too while the game
+     is among the 30 newest, and your mistakes go into the practice queue, where they also make up Your pattern. */
+  function saveReview(g, startFen, moves, evals, res, isMine) {
+    var mineAcc = res.acc[g.color];
+    if (mineAcc != null) { g.reviewed = true; g.acc = mineAcc; g.counts = res.counts[g.color]; }
+    var idx = Store.state.games.list.indexOf(g);
+    if (idx >= 0 && idx < 30 && mineAcc != null) {
+      var acc = res.acc;
+      g.rv = { ev: evals.map(packEval), best: evals.map(function (e) { return e.best || ''; }), cls: res.cls.map(function (k) { return CODE[k]; }).join(''),
+        acc: { w: acc.w == null ? 100 : acc.w, b: acc.b == null ? 100 : acc.b }, counts: res.counts };
+      g.rvx = { v: SAVE_VERSION, pv: savedLinesOf(evals, res.cls) };
+    }
+    Store.touch('games');
+    Mistakes.addFromReview(g.id, startFen, moves, evals, res.cls, isMine);
+  }
+  /* the game's start, moves and sides, from its PGN; null when it doesn't replay */
+  function gameMoves(g) {
+    var parsed = C.parsePgn(g.pgn), fen = parsed.headers.FEN || C.START_FEN;
+    if (C.validFen(fen)) return null;
+    var r = C.replay(fen, parsed.sans); if (r.error || !r.moves.length) return null;
+    var side = new C.Pos(fen).side;
+    return { fen: fen, moves: r.moves.map(C.uci), isMine: function (i) { return ((i % 2 === 0) === (side === 1)) === (g.color === 'w'); } };
+  }
+  /* Review a saved game without showing it (a batch of games added at once): the same analysis and the same save as the
+     review screen, and the opening line you left goes back in your drills. hooks: { cancelled(), progress(done, total) } */
+  function reviewQuietly(g, hooks) {
+    var gm = gameMoves(g); if (!gm) return Promise.resolve(null);
+    var map = null;
+    return Promise.all([Data.openings(), Engines.sfReady()]).then(function (res) {
+      if (hooks.cancelled()) return null;
+      map = res[0];
+      return analyseAll({ startFen: gm.fen, moves: gm.moves, map: map, mine: gm.isMine, cancelled: hooks.cancelled,
+        progress: function (done) { if (done != null) hooks.progress(done, gm.moves.length + 1); } });
+    }).then(function (evals) {
+      if (!evals || hooks.cancelled()) return null;
+      var res = classify(gm.fen, gm.moves, evals, map);
+      saveReview(g, gm.fen, gm.moves, evals, res, gm.isMine);
+      var rep = typeof Openings !== 'undefined' && Openings.followed ? Openings.followed(gm.fen, gm.moves, g.color) : null;
+      if (rep && rep.k > 0 && rep.k < rep.len && rep.k < gm.moves.length && gm.isMine(rep.k)) Openings.queueLine(rep.key);
+      return res;
+    });
+  }
 
   /* the quick look every position gets, and the longer one before a move is called a mistake */
   function quickOpts() { return Engines.strong ? { depth: 13, movetime: 650, multipv: 2 } : { depth: 9, movetime: 600, multipv: 1 }; }
@@ -555,6 +610,7 @@ var Review = (function () {
   /* ---------- entry points ---------- */
   function openGame(id) { App.go('review', { gameId: id }); }
   function openPgn(pgn, color, label) { App.go('review', { pgn: pgn, color: color || 'w', label: label }); }
+  function openBatch(ids) { App.go('review', { batch: ids }); }
 
   function gameById(id) { return Store.state.games.list.filter(function (g) { return g.id === id; })[0]; }
 
@@ -568,43 +624,53 @@ var Review = (function () {
     return name.slice(0, 24) + '…';
   }
 
+  /* ---------- a game in a list: the opponent's badge, the result, and a line under it ---------- */
+  var TCL = { bullet: 'bullet', blitz: 'blitz', rapid: 'rapid', daily: 'daily', classical: 'classical' };
+  function oppNameOf(g) { var bot = TempoBots.find(g.bot); return bot ? bot.short || bot.name : (g.opp || 'opponent'); }
+  function gameAvatar(g) {
+    var bot = TempoBots.find(g.bot);
+    return bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm ' + (g.src === 'chesscom' ? 'tone-cc' : 'tone-you'), 'aria-hidden': 'true' }, (g.opp || '?').charAt(0).toUpperCase());
+  }
+  /* "Win over tjtj253 (598)" */
+  function gameTitle(g) { return resultPhrase(g, oppNameOf(g)) + (g.oppElo ? ' (' + g.oppElo + ')' : ''); }
+  /* "Chess.com rapid, Nov 8, 34 moves, 89% accuracy" */
+  function gameSub(g) {
+    var bits = [];
+    if (g.src === 'chesscom') bits.push('Chess.com' + (g.tcl ? ' ' + TCL[g.tcl] : ''));
+    bits.push(U.dateShort(g.ts), U.plural(Math.ceil((g.plies || 0) / 2), 'move'));
+    if (g.reviewed && g.acc != null) bits.push(Math.round(g.acc) + '% accuracy');
+    return bits.join(', ');
+  }
+  /* games added from somewhere else that haven't been reviewed yet, newest first */
+  function waiting() { return Store.state.games.list.filter(function (g) { return g.src && !g.reviewed; }); }
+
   function renderList(root) {
     var S = Store.state;
     root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Review'))));
     var grid = h('div', { class: 'grid two' });
     var games = h('div', { class: 'card' }, h('h3', { style: { marginBottom: '8px' } }, 'Your games'));
     if (!S.games.list.length) games.appendChild(h('div', { class: 'empty' }, 'Finished games show up here.', h('div', { style: { marginTop: '10px' } }, h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('play'); } }, 'Play a game'))));
-    var list = h('div', { class: 'list' });
-    S.games.list.slice(0, 30).forEach(function (g) {
-      var bot = TempoBots.find(g.bot);
-      list.appendChild(h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
-        bot ? UI.avatar(bot, 'sm') : h('span', { class: 'avatar sm tone-you' }, '?'),
-        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, resultPhrase(g, bot ? bot.short || bot.name : (g.opp || 'opponent'))),
-          h('div', { class: 'muted small' }, U.dateShort(g.ts) + ', ' + U.plural(Math.ceil((g.plies || 0) / 2), 'move') + (g.reviewed && g.acc != null ? ', ' + Math.round(g.acc) + '% accuracy' : ''))),
-        g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next')));
-    });
+    var wait = waiting();
+    if (wait.length) games.appendChild(h('div', { class: 'resume rv-waiting' },
+      h('p', { class: 'grow' }, h('b', null, wait.length === 1 ? '1 added game is waiting for its review.' : wait.length + ' added games are waiting for their review.')),
+      h('button', { class: 'btn small', type: 'button', onclick: function () { openBatch(wait.map(function (g) { return g.id; })); } }, wait.length === 1 ? 'Review it' : 'Review them')));
+    var list = h('div', { class: 'list' }), shown = 30;
+    function row(g) {
+      return h('button', { class: 'list-row', type: 'button', onclick: function () { openGame(g.id); } },
+        gameAvatar(g),
+        h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, gameTitle(g)), h('div', { class: 'muted small' }, gameSub(g))),
+        g.reviewed ? h('span', { class: 'chip green' }, 'Reviewed') : null, U.icon('next'));
+    }
+    S.games.list.slice(0, shown).forEach(function (g) { list.appendChild(row(g)); });
     games.appendChild(list);
+    if (S.games.list.length > shown) {
+      var more = h('button', { class: 'btn quiet small', type: 'button', onclick: function () {
+        S.games.list.slice(shown).forEach(function (g) { list.appendChild(row(g)); }); more.remove();
+      } }, 'Show all ' + S.games.list.length + ' games');
+      games.appendChild(more);
+    }
     grid.appendChild(games);
-    var paste = h('div', { class: 'card stack' }, h('h3', null, 'Review any game'),
-      h('p', { class: 'muted small' }, 'Paste the PGN of a game you played somewhere else, like Chess.com or Lichess. You’ll find it under Share or Download on the game page.'));
-    var ta = h('textarea', { id: 'pgn-in', placeholder: '[Event "..."]\n1. e4 e5 2. Nf3 ...', 'aria-label': 'PGN' });
-    var color = 'w';
-    var segEl = Play.seg([['w', 'I played White'], ['b', 'I played Black']], 'w', function (v) { color = v; });
-    var err = h('div', { class: 'feedback no', hidden: true });
-    paste.appendChild(ta); paste.appendChild(segEl); paste.appendChild(err);
-    paste.appendChild(h('div', { class: 'row' },
-      h('button', { class: 'btn primary', type: 'button', onclick: function () {
-        var text = ta.value.trim();
-        if (!text) { err.textContent = 'Paste a PGN first.'; err.hidden = false; return; }
-        var parsed = C.parsePgn(text);
-        var fen = parsed.headers.FEN || C.START_FEN;
-        var bad = C.validFen(fen); if (bad) { err.textContent = 'The FEN in this PGN isn’t valid: ' + bad + '.'; err.hidden = false; return; }
-        var r = C.replay(fen, parsed.sans);
-        if (r.error) { err.textContent = r.error; err.hidden = false; return; }
-        if (!r.moves.length) { err.textContent = 'No moves found in that PGN.'; err.hidden = false; return; }
-        openPgn(text, color, (parsed.headers.White || 'White') + ' vs ' + (parsed.headers.Black || 'Black'));
-      } }, U.icon('analyze'), 'Review'),
-      h('button', { class: 'btn quiet', type: 'button', onclick: function () { U.readFile('.pgn,.txt').then(function (t) { if (t) ta.value = t; }); } }, U.icon('upload'), 'Open file')));
+    var paste = Imports.card();
     grid.appendChild(paste);
     root.appendChild(grid);
   }
@@ -1674,28 +1740,8 @@ var Review = (function () {
     function save() {
       if (!src.gameId) return;
       var g = gameById(src.gameId); if (!g) return;
-      var mineAcc = st.res.acc[you];
-      if (mineAcc != null) { g.reviewed = true; g.acc = mineAcc; g.counts = st.res.counts[you]; }
-      var idx = Store.state.games.list.indexOf(g);
-      if (idx < 30 && mineAcc != null) {
-        var acc = st.res.acc;
-        g.rv = { ev: st.evals.map(packEval), best: st.evals.map(function (e) { return e.best || ''; }), cls: st.res.cls.map(function (k) { return CODE[k]; }).join(''),
-          acc: { w: acc.w == null ? 100 : acc.w, b: acc.b == null ? 100 : acc.b }, counts: st.res.counts };
-        g.rvx = { v: SAVE_VERSION, pv: savedLines() };
-      }
-      Store.touch('games');
-      Mistakes.addFromReview(src.gameId, startFen, moves, st.evals, st.res.cls, isMine);
+      saveReview(g, startFen, moves, st.evals, st.res, isMine);
     }
-    /* the engine lines around each flagged move, so a saved review can explain itself without the engine */
-    function savedLines() {
-      var out = {};
-      st.res.cls.forEach(function (k, i) {
-        if (FLAGGED.indexOf(k) < 0 && k !== 'good') return;
-        [i, i + 1].forEach(function (j) { var e = st.evals[j]; if (e && e.pv && e.pv.length) out[j] = e.pv.slice(0, 8).join(' '); });
-      });
-      return out;
-    }
-    function packEval(e) { if (e.mate === 0) return e.mateWinner === 1 ? 20000 : -20000; if (e.mate != null) return e.mate > 0 ? 10000 - e.mate : -10000 - e.mate; return Math.max(-9000, Math.min(9000, Math.round(e.cp || 0))); }
     function unpackEval(v, best, pv, side) {
       if (v >= 20000) return { mate: 0, mateWinner: 1, best: null, pv: [], over: true };
       if (v <= -20000) return { mate: 0, mateWinner: -1, best: null, pv: [], over: true };
@@ -1707,8 +1753,60 @@ var Review = (function () {
     }
   }
 
+  /* ---------- several games added at once: reviewed one after another ---------- */
+  /* Each game shows where it stands: waiting, how far along, or its accuracy once done. Leaving stops the batch; the
+     games not reviewed yet stay in Your games, and the Review page and Home offer to finish them. */
+  function renderBatch(root, ids) {
+    var games = (ids || []).map(gameById).filter(function (g) { return g && !g.reviewed; });
+    root.appendChild(h('div', { class: 'rv-head' },
+      h('button', { class: 'back', type: 'button', onclick: function () { App.go('review'); } }, U.icon('back'), 'Games'),
+      h('div', { class: 'rv-label' }, 'Reviewing your games')));
+    var card = h('section', { class: 'card stack rv-batch', 'aria-live': 'polite' });
+    root.appendChild(card);
+    if (!games.length) {
+      card.appendChild(h('p', null, 'These games are reviewed already.'));
+      card.appendChild(h('div', { class: 'row' }, h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('review'); } }, 'Your games')));
+      return;
+    }
+    App.focus(true);
+    var head = h('p', { class: 'rv-batch-head' }), fill = h('i'), bar = h('div', { class: 'meter green' }, fill), list = h('div', { class: 'list' });
+    var marks = games.map(function (g) {
+      var mark = h('span', { class: 'muted small rv-batch-st' }, 'Waiting');
+      list.appendChild(h('div', { class: 'list-row' }, gameAvatar(g), h('div', { class: 'grow' }, h('div', { style: { fontWeight: 700 } }, gameTitle(g)), h('div', { class: 'muted small' }, gameSub(g))), mark));
+      return mark;
+    });
+    var actions = h('div', { class: 'row' }, h('button', { class: 'btn quiet', type: 'button', onclick: function () { App.go('review'); } }, 'Stop'));
+    card.appendChild(head); card.appendChild(bar); card.appendChild(list); card.appendChild(actions);
+    var me = B = { cancelled: false, i: 0, n: games.length, done: 0 };
+    function live() { return B === me && !me.cancelled; }
+    function setBar(f) { fill.style.width = Math.round(Math.max(0, Math.min(1, f)) * 100) + '%'; }
+    function next() {
+      if (!live()) return;
+      if (me.i >= games.length) return finish();
+      var g = games[me.i], mark = marks[me.i];
+      head.textContent = 'Reviewing game ' + (me.i + 1) + ' of ' + games.length + '. Each one takes about half a minute.';
+      mark.textContent = 'Reviewing';
+      reviewQuietly(g, { cancelled: function () { return !live(); }, progress: function (d, t) { if (!live()) return; setBar((me.i + d / t) / games.length); mark.textContent = Math.round(100 * Math.min(1, d / t)) + '%'; } })
+        .then(function () { if (!live()) return; mark.textContent = g.reviewed ? Math.round(g.acc) + '% accuracy' : 'Couldn’t review it'; if (g.reviewed) me.done++; },
+          function () { if (live()) mark.textContent = 'Couldn’t review it'; })
+        .then(function () { if (!live()) return; me.i++; setBar(me.i / games.length); next(); });
+    }
+    function finish() {
+      B = null; App.focus(false);
+      head.textContent = me.done === games.length ? (games.length === 1 ? 'Reviewed. ' : 'All ' + games.length + ' games reviewed. ') + 'Their mistakes are in your practice now.'
+        : me.done + ' of ' + games.length + ' games reviewed.';
+      U.clear(actions);
+      var pc = UI.patternCard({ label: 'Across your games' }); if (pc) card.insertBefore(pc, actions);
+      actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { App.go('review'); } }, 'Your games'));
+      actions.appendChild(h('button', { class: 'btn', type: 'button', onclick: function () { App.go('progress'); } }, U.icon('progress'), 'Your progress'));
+    }
+    setBar(0);
+    next();
+  }
+
   App.register('review', {
     render: function (root, params) {
+      if (params && params.batch) { renderBatch(root, params.batch); return; }
       if (params && params.gameId) {
         var g = gameById(params.gameId);
         if (!g) { renderList(root); return; }
@@ -1716,7 +1814,7 @@ var Review = (function () {
         if (C.validFen(fen)) { renderList(root); return; }
         var r = C.replay(fen, parsed.sans), bot = TempoBots.find(g.bot), bn = bot ? bot.short || bot.name : null;
         renderReview(root, { gameId: g.id, pgn: g.pgn, startFen: fen, moves: r.moves.map(C.uci), sans: sansOf(fen, r.moves), color: g.color,
-          label: resultPhrase(g, bn || 'opponent') + ', ' + U.dateShort(g.ts), oppName: bn || (g.opp || 'Opponent'), bot: bot || null, saved: g.rv, savedExtra: g.rvx });
+          label: resultPhrase(g, bn || g.opp || 'opponent') + ', ' + (g.src === 'chesscom' ? 'Chess.com, ' : '') + U.dateShort(g.ts), oppName: bn || (g.opp || 'Opponent'), bot: bot || null, saved: g.rv, savedExtra: g.rvx });
       } else if (params && params.pgn) {
         var p2 = C.parsePgn(params.pgn), fen2 = p2.headers.FEN || C.START_FEN;
         if (C.validFen(fen2)) { renderList(root); return; }
@@ -1725,8 +1823,8 @@ var Review = (function () {
           oppName: params.color === 'b' ? (p2.headers.White || 'White') : (p2.headers.Black || 'Black') });
       } else renderList(root);
     },
-    leave: function () { if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); clearTimeout(R.travelT); clearTimeout(R.playT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
-    busy: function () { return !!R; }
+    leave: function () { if (B) { B.cancelled = true; B = null; } if (R) { R.cancelled = true; R.token++; clearInterval(R.sillyT); clearTimeout(R.lineT); clearTimeout(R.travelT); clearTimeout(R.playT); document.removeEventListener('keydown', R.keydown); R = null; } Engines.stopAll(); },
+    busy: function () { return !!R || !!B; }
   });
   function sansOf(fen, ms) { var p = new C.Pos(fen), out = []; ms.forEach(function (m) { out.push(p.san(m)); p.make(m); }); return out; }
 
@@ -1739,7 +1837,8 @@ var Review = (function () {
       evals: R.evals ? R.evals.map(function (e) { return e ? { cp: e.cp, mate: e.mate, best: e.best, deep: !!e.deep, pv: (e.pv || []).slice(0, 8) } : null; }) : null };
   }
 
-  return { openGame: openGame, openPgn: openPgn, classify: classify, KINDS: KINDS, _state: testState };
+  return { openGame: openGame, openPgn: openPgn, openBatch: openBatch, waiting: waiting, gameTitle: gameTitle, gameSub: gameSub, gameAvatar: gameAvatar,
+    classify: classify, KINDS: KINDS, _state: testState, _batch: function () { return B ? { i: B.i, n: B.n, done: B.done } : null; } };
 })();
 
 /* Positions from your own games where you went wrong, replayed with spaced repetition. */
@@ -1785,7 +1884,9 @@ var Mistakes = (function () {
     safety: 'left a piece where it could be taken', fork: 'walked into a fork', threats: 'missed a checkmate threat against you',
     mates: 'missed a checkmate', free: 'missed a free piece'
   };
-  function patterns() {
+  /* Every kind of mistake in your last `last` games that had any (Tempo's games and the ones you added alike), the one in
+     the most games first: [{ topic, games, of, n, says }] */
+  function topics(last) {
     var items = Store.state.mistakes.items.filter(function (x) { return !x.gone && x.topic && SAYS[x.topic]; });
     var byGame = {}, order = [];
     items.forEach(function (it) {
@@ -1794,12 +1895,14 @@ var Mistakes = (function () {
       byGame[g].topics[it.topic] = (byGame[g].topics[it.topic] || 0) + 1;
     });
     order.sort(function (a, b) { return byGame[b].ts - byGame[a].ts; });
-    var recent = order.slice(0, 8), counts = {};
+    var recent = order.slice(0, last || 8), counts = {};
     recent.forEach(function (g) { Object.keys(byGame[g].topics).forEach(function (t) { counts[t] = counts[t] || { games: 0, n: 0 }; counts[t].games++; counts[t].n += byGame[g].topics[t]; }); });
-    var best = null;
-    Object.keys(counts).forEach(function (t) { if (!best || counts[t].games > counts[best].games || (counts[t].games === counts[best].games && counts[t].n > counts[best].n)) best = t; });
-    if (!best || counts[best].games < 2) return null;
-    return { topic: best, games: counts[best].games, of: recent.length, n: counts[best].n, says: SAYS[best] };
+    return Object.keys(counts).map(function (t) { return { topic: t, games: counts[t].games, of: recent.length, n: counts[t].n, says: SAYS[t] }; })
+      .sort(function (a, b) { return b.games - a.games || b.n - a.n; });
+  }
+  function patterns() {
+    var best = topics(8)[0];
+    return best && best.games >= 2 ? best : null;
   }
   /* "You left a piece where it could be taken in 4 of your last 6 games." */
   function patternText(pt) { return 'You ' + pt.says + ' in ' + pt.games + ' of your last ' + pt.of + ' games.'; }
@@ -1816,5 +1919,5 @@ var Mistakes = (function () {
     Store.touch('mistakes');
   }
   function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return !x.gone && x.due <= now; }); }
-  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, patternText: patternText, topicOf: topicOf };
+  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, topics: topics, patternText: patternText, topicOf: topicOf };
 })();

@@ -41,6 +41,58 @@
     return h('div', { class: 'cal-wrap' }, grid, legend);
   }
 
+  /* ---------- your games: how they've gone lately, and what keeps going wrong ---------- */
+  /* Every reviewed game counts, the ones against the characters and the ones you added from Chess.com alike: the average
+     accuracy and mistakes over the last ten, the accuracy game by game, the mistakes that keep coming back with the lesson
+     and puzzles that fix the first, and your Chess.com rating from the games you added. */
+  function mean(a) { return a.length ? a.reduce(function (s, x) { return s + x; }, 0) / a.length : 0; }
+  function gamesCard(S) {
+    var all = S.games.list.filter(function (g) { return g.reviewed && g.acc != null; }).sort(function (a, b) { return a.ts - b.ts; });
+    var fromCC = all.filter(function (g) { return g.src === 'chesscom'; }).length;
+    var card = h('section', { class: 'card stack games-card', style: { marginTop: '14px' }, 'aria-label': 'Your games' });
+    card.appendChild(h('div', { class: 'row between' }, h('h3', null, 'Your games'),
+      all.length ? h('span', { class: 'head-note' }, h('b', { class: 'num' }, String(all.length)), ' reviewed' + (fromCC ? ', ' + fromCC + ' from Chess.com' : '')) : null));
+    if (!all.length) {
+      card.appendChild(h('p', { class: 'muted' }, 'Review a game, or add your games from Chess.com, to see how your games are going and what to work on.'));
+      card.appendChild(h('div', null, h('button', { class: 'btn', type: 'button', onclick: function () { App.go('review'); } }, U.icon('review'), 'Go to Review')));
+      return card;
+    }
+    var last = all.slice(-10);
+    var acc = Math.round(mean(last.map(function (g) { return g.acc; })));
+    var errs = mean(last.map(function (g) { var c = g.counts || {}; return (c.mistake || 0) + (c.blunder || 0) + (c.miss || 0); }));
+    var over = last.length === all.length ? U.plural(all.length, 'game') : 'Last ' + last.length + ' games';
+    card.appendChild(h('div', { class: 'games-stats' },
+      h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Accuracy'), h('b', null, acc + '%'), h('span', { class: 'faint small' }, over)),
+      h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Mistakes a game'), h('b', null, errs.toFixed(1)), h('span', { class: 'faint small' }, 'Mistakes, misses and blunders'))));
+    card.appendChild(UI.lineChart(all.slice(-30).map(function (g) { return [g.ts, Math.round(g.acc)]; }),
+      { label: 'Accuracy, game by game', lo: 0, hi: 100, height: 150, empty: 'Review another game to see your accuracy over time' }));
+    var tops = Mistakes.topics(10).slice(0, 3);
+    var work = h('div', { class: 'stack games-work' }, h('div', { class: 'label' }, 'What to work on'));
+    if (tops.length) {
+      tops.forEach(function (t) {
+        work.appendChild(h('div', { class: 'games-topic' }, h('span', null, 'You ' + t.says), h('span', { class: 'faint num' }, U.plural(t.n, 'time') + ' in ' + U.plural(t.games, 'game'))));
+      });
+      var row = Explain.studyRow(tops[0].topic, ''); if (row) work.appendChild(row);
+    } else work.appendChild(h('p', { class: 'muted small' }, 'No mistake keeps coming back in your reviewed games.'));
+    var due = Mistakes.due().length, saved = S.mistakes.items.filter(function (x) { return !x.gone; }).length;
+    if (saved) work.appendChild(h('div', null, h('button', { class: 'btn small', type: 'button', onclick: function () { App.go('train', { mode: 'mistakes' }); } },
+      U.icon('target'), due ? 'Retry ' + U.plural(due, 'position') + ' from your games' : 'Your ' + U.plural(saved, 'saved position'))));
+    card.appendChild(work);
+    // your Chess.com rating, in the time control you play most, from the games you added
+    var cc = S.games.list.filter(function (g) { return g.src === 'chesscom' && g.myElo; });
+    if (cc.length) {
+      var by = {};
+      cc.forEach(function (g) { var k = g.tcl || 'rapid'; (by[k] = by[k] || []).push(g); });
+      var main = Object.keys(by).sort(function (a, b) { return by[b].length - by[a].length; })[0];
+      var pts = by[main].slice().sort(function (a, b) { return a.ts - b.ts; }).map(function (g) { return [g.ts, g.myElo]; });
+      card.appendChild(h('div', { class: 'stack games-cc' },
+        h('div', { class: 'row between' }, h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Chess.com ' + main + ' rating'), h('b', null, String(pts[pts.length - 1][1]))),
+          h('span', { class: 'faint small' }, 'From the games you added')),
+        pts.length >= 2 ? UI.lineChart(pts, { label: 'Chess.com ' + main + ' rating over time', height: 130 }) : null));
+    }
+    return card;
+  }
+
   App.register('progress', {
     render: function (root) {
       var S = Store.state;
@@ -53,6 +105,7 @@
         h('div', { class: 'row between' }, h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Puzzle rating'), h('b', null, String(S.puzzles.rating))), h('span', { class: 'faint small' }, S.puzzles.count ? Math.round(100 * S.puzzles.solved / S.puzzles.count) + '% solved' : 'no puzzles yet')),
         UI.lineChart(S.puzzles.hist, { label: 'Puzzle rating over time', empty: 'Solve rated puzzles to see your rating move' })));
       root.appendChild(grid);
+      root.appendChild(gamesCard(S));
 
       root.appendChild(h('div', { class: 'card stack', style: { marginTop: '14px' } },
         h('div', { class: 'row between' }, h('h3', null, 'Practice'), h('span', { class: 'head-note' }, Store.streak() ? h('b', { class: 'num' }, U.plural(Store.streak(), 'day')) : 'Practice today to start a streak', Store.streak() ? ' in a row' : null)),
