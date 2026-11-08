@@ -518,7 +518,8 @@ var Review = (function () {
       U.clear(el); txt = h('span', { class: 'bg-txt' }); sub = h('span', { class: 'bg-sub' }); fill = h('i');
       el.appendChild(txt); el.appendChild(sub); el.appendChild(h('span', { class: 'meter green' }, fill));
     }
-    txt.textContent = r.running ? 'Reviewing your games' : n === 1 ? 'Your game is reviewed' : 'Your ' + n + ' games are reviewed';
+    var ok = r.ids.filter(function (id) { return r.marks[id] === 'ok'; }).length;
+    txt.textContent = r.running ? 'Reviewing your games' : ok < n ? ok + ' of ' + n + ' games reviewed' : n === 1 ? 'Your game is reviewed' : 'Your ' + n + ' games are reviewed';
     sub.textContent = r.running ? 'Game ' + Math.min(r.at + 1, n) + ' of ' + n : 'See how ' + (n === 1 ? 'it' : 'they') + ' went';
     fill.style.width = Math.round(100 * (r.running ? (r.at + r.pct) / Math.max(1, n) : 1)) + '%';
   }
