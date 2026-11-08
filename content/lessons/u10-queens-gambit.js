@@ -183,7 +183,7 @@ module.exports = {
           done: 'e3, Bxc4, Nf3, castle and Bb3. Simple and safe.' },
         { t: 'safe', moves: 'd4 d5 c4 dxc4', side: 'w',
           text: 'Black took your pawn with 2...dxc4. Make a good move.',
-          aim: ['e3', 'Nf3', 'e4'], bait: 'b3', punish: ['cxb3', 'axb3', 'Nf6'],
+          aim: ['e3', 'Nf3', 'e4'], bait: 'b3', punish: ['cxb3', 'axb3', 'Nf6'], baitNote: 'After 3...cxb3 4.axb3, you are still a pawn down.',
           note: 'Don’t chase the pawn with 3.b3. After 3...cxb3 4.axb3 you are still a pawn down. 3.e3, 3.Nf3 and 3.e4 all win it back later, safely.' },
         { t: 'walk', moves: 'd4 d5 c4 dxc4 e3 b5 a4 c6 axb5 cxb5 Qf3', orient: 'w',
           text: 'Sometimes Black tries to keep the extra pawn with ...b5. Watch how White punishes it.',

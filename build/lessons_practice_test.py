@@ -158,8 +158,16 @@ async def main():
         await play(pg, bait); await pg.wait_for_timeout(9500)
         c = await pg.evaluate(CUR)
         check('taking the bait plays out the punishment and offers a retry', c['played'][-1] == 'Nf3#' and await pg.locator('button', has_text='Try again').count() == 1 and c['mistakes'] >= 1, c['played'])
+        fbt = await feedback(pg)
+        check('then it says what the bait cost', fbt.startswith('That lets Black give checkmate.'), fbt)
         await pg.locator('button', has_text='Try again').click()
         await movable(pg)
+        await pg.locator('.view button', has_text='Hint').click(); await pg.wait_for_timeout(200)
+        h1 = await feedback(pg)
+        await pg.locator('.view button', has_text='Hint').click(); await pg.wait_for_timeout(200)
+        h2 = await feedback(pg)
+        arrows2 = await pg.evaluate("document.querySelector('.view .board').__board.arrows ? document.querySelector('.view .board').__board.arrows.length : -1")
+        check('Hint: first the piece, then the move', h1 == 'Move your knight on f3.' and h2 == 'One good move here is Nxd4.' and arrows2 == 1, [h1, h2, arrows2])
         await play(pg, 'f3d4'); await pg.wait_for_timeout(300)
         for k in range(30):
             if (await pg.evaluate(CUR))['complete']: break
@@ -179,6 +187,21 @@ async def main():
         await solve_step(pg); await next_btn(pg)
         done = await pg.evaluate("Store.state.learn.done['trap-blackburne-shilling']")
         check('the trap lesson is done, with stars for the misses', done and done['stars'] < 3, done)
+        # a trap told from the setter's side: its notes don't talk to you while you dodge it
+        await pg.evaluate("App.go('learn', { lesson: 'trap-petrov-copycat', step: 2 })"); await pg.wait_for_timeout(300)
+        await movable(pg)
+        before = await pg.locator('.view .lesson-text').inner_text()
+        await play(pg, 'e4f6')
+        await pg.wait_for_selector('.view button:has-text("Try again")', timeout=20000)
+        after = await pg.locator('.view .lesson-text').inner_text(); fbt = await feedback(pg)
+        check('Dodge it, setter-side trap: the text stays yours, and the cost counts your recapture', after == before and before.startswith('Dodge it.') and fbt.startswith('You lost a queen for a knight.'), [after[:60], fbt])
+        # quiz choices come in a new order
+        seen = set()
+        for k in range(12):
+            await pg.evaluate("App.go('learn', { lesson: 'italian-first-moves', step: 2 })"); await pg.wait_for_timeout(120)
+            ks = await pg.evaluate("[...document.querySelectorAll('.view .choice')].map(b => b.dataset.k)")
+            seen.add(ks.index('0') if '0' in ks else -1)
+        check('quiz choices are shuffled each time', len(seen) >= 2 and -1 not in seen, seen)
         check('no page errors (trap lesson)', not errs, errs[:3])
         await pg.close()
 
@@ -208,6 +231,8 @@ async def main():
         check('safe: the planned move is praised with the note', (await feedback(pg)).startswith('Yes. d3 keeps the center solid.'), await feedback(pg))
         await next_btn(pg)
         await movable(pg)
+        stepno = await pg.locator('.view .panel .card > .faint.small').first.inner_text()
+        check('game: the step says which move you are on', stepno.endswith('· move 1 of 7'), stepno)
         await play(pg, 'a2a3'); await pg.wait_for_timeout(500)
         f = await feedback(pg)
         check('game: a move off your line is corrected while the game is in the lines', f.startswith('Your line plays e4 here.'), f)

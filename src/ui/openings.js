@@ -21,7 +21,7 @@ var Openings = (function () {
       var cl = h('nav', { class: 'menu-list', 'aria-label': 'Opening courses', style: { maxWidth: '640px', marginBottom: '28px' } });
       courses.forEach(function (u) {
         var n = u.lessons.filter(function (l) { return Store.state.learn.done[l.id]; }).length, lk = u.lessons.filter(function (l) { return Learn.lockedIn(l.id); }).length;
-        var sub = n ? n + ' of ' + u.lessons.length + ' lessons done' + (lk ? ' · ' + lk + ' locked in' : '') : u.summary;
+        var sub = n ? n + ' of ' + u.lessons.length + ' lessons done' + (lk ? ' · ' + lk + ' locked in' : '') : U.plural(u.lessons.length, 'lesson') + ', from the first moves to practice games';
         cl.appendChild(UI.menuRow('book', u.title, sub, function () { Learn.openUnit(u.id); }));
       });
       root.appendChild(h('h2', { style: { margin: '0 0 12px' } }, 'Courses'));

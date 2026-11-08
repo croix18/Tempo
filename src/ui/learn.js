@@ -90,8 +90,9 @@ var Learn = (function () {
           if (key == null) r = { t: 'read', text: t.lesson };
           else {
             var custom = !!t.bait;
+            // the trap's notes speak to the side the lesson is told from: shown while the trap plays out only when that side is you
             r = { t: 'safe', moves: moves.slice(0, key), side: victim, bait: t.bait || moves[key], punish: custom ? sans(t.punish) : moves.slice(key + 1),
-              baitAt: key, notes: custom ? {} : (t.notes || {}), aim: t.safe ? [t.safe] : null, note: t.safeNote || '',
+              baitAt: key, notes: custom || t.side !== victim ? {} : (t.notes || {}), aim: t.safe ? [t.safe] : null, note: t.safeNote || '', baitNote: t.baitNote || '',
               text: s.text || ('**Dodge it.** Now you’re ' + colour(victim) + ', and the computer sets the trap. When it’s your move, don’t take the bait.') };
           }
         } else r = { t: 'read', text: t.summary };
@@ -809,6 +810,26 @@ var Learn = (function () {
         }, st.ply === 0 ? 650 : 520);
       })();
     }
+    /* what the bait cost, once its punishment has played out: checkmate, or the material lost (trades cancel out) */
+    function baitCost(pos, you, lost, won, s, last, takeBack) {
+      if (pos.status().reason === 'checkmate') return 'That lets ' + colour(you === 1 ? 'b' : 'w') + ' give checkmate.';
+      if (s.baitNote) return s.baitNote;
+      var VAL = [0, 1, 3, 3, 5, 9, 0], gave = lost.slice(), got = won.slice();
+      // if the last move took something and you can take that piece back for free, count it
+      var to = last ? (last >> 7) & 127 : -1, there = to >= 0 ? Math.abs(pos.b[to]) : 0;
+      if (there && takeBack && pos.side === you && pos.legalMoves().some(function (mv) { return ((mv >> 7) & 127) === to && pos.see(mv) >= C.SEE_VAL[there]; })) got.push(there);
+      gave = gave.filter(function (p) { var j = got.indexOf(p); if (j >= 0) { got.splice(j, 1); return false; } return true; });
+      var sum = function (a) { return a.reduce(function (n, p) { return n + VAL[p]; }, 0); };
+      if (gave.length && sum(gave) > sum(got)) return 'You lost ' + pieceWords(gave) + (got.length ? ' for ' + pieceWords(got) : '') + '.';
+      return 'That doesn’t work here.';
+    }
+    /* [4, 1, 1] → "a rook and two pawns" */
+    function pieceWords(list) {
+      var count = {}, NUM = ['', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight'];
+      list.forEach(function (p) { count[p] = (count[p] || 0) + 1; });
+      var parts = [5, 4, 3, 2, 1].filter(function (p) { return count[p]; }).map(function (p) { return count[p] === 1 ? 'a ' + PIECE_NAME[p] : NUM[count[p]] + ' ' + PIECE_NAME[p] + 's'; });
+      return parts.length > 1 ? parts.slice(0, -1).join(', ') + ' and ' + parts[parts.length - 1] : parts[0];
+    }
     /* the first hint marks the piece that one good move uses, the second draws the move */
     function safeHint() {
       var s = cur();
@@ -827,11 +848,13 @@ var Learn = (function () {
       if (bait && m === bait) {
         miss(); U.sound.bad();
         board.setMovable(null);
-        fb('no', 'That’s the move the trap is waiting for. Watch what happens.');
+        fb('no', s.trap ? 'That’s the move the trap is waiting for. Watch what happens.' : 'That’s the tempting move, and here it’s a mistake. Watch what happens.');
         var tok = st.token, list = [s.bait].concat(s.punish || []), k = 0, notes = s.notes || {}, base = s.baitAt != null ? s.baitAt : -1;
+        var you = sideNum(s.side), lost = [], won = [], lastMm = 0, lastCap = false;
         (function rest() {
           if (tok !== st.token) return;
           if (k >= list.length) {
+            fb('no', baitCost(st.pos, you, lost, won, s, lastMm, lastCap) + ' Try again.');
             U.clear(actions);
             actions.appendChild(h('span', { class: 'grow' }));
             actions.appendChild(h('button', { class: 'btn primary', type: 'button', onclick: function () { safeStart(); } }, U.icon('refresh'), 'Try again'));
@@ -840,7 +863,9 @@ var Learn = (function () {
           setTimeout(function () {
             if (tok !== st.token) return;
             var mm = st.pos.parseMove(list[k]); if (!mm) { k = list.length; rest(); return; }
-            var san = st.pos.san(mm);
+            var san = st.pos.san(mm), cap = Math.abs(st.pos.moveCaptured(mm));
+            if (cap) (st.pos.side === you ? won : lost).push(cap);
+            lastMm = mm; lastCap = !!cap && st.pos.side !== you;
             st.pos.make(mm); st.played.push(san);
             var at = st.pos.clone();
             board.setPosition(st.pos, { last: mm, animate: true, natural: k > 0, landed: function () { soundFor(at, mm); } });
@@ -895,6 +920,7 @@ var Learn = (function () {
       }
       if (st.pos.side === you) {
         if (st.yourMoves >= s.until) return gameJudge();
+        paintStepper(); stepNo.textContent += ' · move ' + (st.yourMoves + 1) + ' of ' + s.until;
         board.setMovable(s.side);
         return;
       }
