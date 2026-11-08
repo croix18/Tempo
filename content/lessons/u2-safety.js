@@ -126,7 +126,7 @@ module.exports = {
           text: 'Black’s knight attacks your queen. Move it to a safe square.',
           line: ['d4e3'], accept: [['d4a4']],
           hint: 'Check that the new square isn’t attacked by another black piece.',
-          wrong: { d4c3: 'On c3 your queen would be stuck in front of your king. Bb4 attacks it, and it couldn’t step away without leaving the king in check.', d4d1: 'Safe, but it undoes your development. Keep the queen active.', d4d3: 'Safe for now, but it blocks your bishop on f1.' },
+          wrong: { d4c3: 'On c3 your queen would stand in front of your king, and Bb4 would pin it there: it couldn’t step away without leaving the king in check.', d4d1: 'Safe, but it undoes your development. Keep the queen active.', d4d3: 'Safe for now, but it blocks your bishop on f1.' },
           done: 'Qe3 is the usual square. Before you put a piece somewhere, make sure nothing can take it there.' },
         { t: 'pick', fen: 'r1bqkbnr/pp1p1ppp/2n5/2p5/3NP3/8/PPP2PPP/RNBQKB1R w KQkq - 0 5',
           text: 'Black just played c7-c5. Click the white piece that is now in danger.',

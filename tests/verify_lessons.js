@@ -96,6 +96,94 @@ async function checkMove(step, where) {
   }
 }
 
+/* SAN moves (a string or a list) from a position; returns the positions before each move, or null after an error */
+function sanList(x) { return Array.isArray(x) ? x.slice() : String(x || '').trim().split(/\s+/).filter(Boolean); }
+function playSans(p0, list, where) {
+  const p = p0.clone(), seen = [];
+  for (let k = 0; k < list.length; k++) {
+    seen.push(p.clone());
+    const m = p.parseMove(list[k]);
+    if (!m) { err(where + ' move ' + (k + 1) + ' (' + list[k] + ')', 'illegal or unreadable SAN in ' + p.fen()); return null; }
+    p.make(m);
+  }
+  seen.push(p.clone());
+  return seen;
+}
+/* how much worse a move is than the engine's best, in centipawns, for the side that plays it */
+async function loss(p, mv, depth) {
+  const a = await eng.analyse(p.fen(), { depth, multipv: 3 });
+  const best = a.lines[0]; if (!best) return { loss: 0, best: null };
+  const m = p.parseMove(mv); const u = C.uci(m);
+  const inList = a.lines.find(l => l.pv[0] === u);
+  const v = inList ? val(inList) : await evalAfter(p, u, depth - 1);
+  return { loss: Math.max(0, val(best) - v), best, v };
+}
+const sanOf = (p, mv) => { const m = p.parseMove(mv); return m ? p.san(m) : mv; };
+async function checkLine(step, where, kind) {
+  const p0 = step.fen ? posOf(step.fen, where) : new C.Pos(); if (!p0) return;
+  const moves = sanList(step.moves);
+  if (!moves.length) { err(where, kind + ' needs moves'); return; }
+  const seen = playSans(p0, moves, where); if (!seen) return;
+  if (kind === 'walk') {
+    if (!['w', 'b'].includes(step.orient)) err(where, 'walk needs orient w or b');
+    for (const k of Object.keys(step.notes || {})) {
+      if (!(+k >= 0 && +k < moves.length)) err(where, 'note key ' + k + ' is not a ply of the line');
+      if (words(step.notes[k]) > 60) err(where, 'note ' + k + ' too long (' + words(step.notes[k]) + ' words)');
+      else if (words(step.notes[k]) > 45) warn(where, 'note ' + k + ' is long');
+    }
+    return;
+  }
+  if (!['w', 'b'].includes(step.side)) { err(where, kind + ' needs side w or b'); return; }
+  const you = step.side === 'w' ? 1 : -1;
+  for (let k = 0; k < moves.length; k++) {
+    const p = seen[k];
+    const r = await loss(p, moves[k], 14);
+    const w = where + ' move ' + (k + 1) + ' (' + moves[k] + ')';
+    if (p.side === you) {
+      if (r.loss > 100) err(w, 'the learner is taught a mistake: best is ' + sanOf(p, r.best.pv[0]) + ' (' + fmt(r.best) + '), this loses ' + (r.loss / 100).toFixed(2));
+      else if (r.loss > 40) warn(w, 'the learner is taught an inaccuracy (' + (r.loss / 100).toFixed(2) + ' worse than ' + sanOf(p, r.best.pv[0]) + ')');
+    } else if (r.loss > 150) warn(w, 'the opponent’s move is a blunder (' + (r.loss / 100).toFixed(2) + ' worse than ' + sanOf(p, r.best.pv[0]) + '): fine only if the lesson is about punishing it');
+  }
+}
+async function checkSafe(step, where) {
+  const p0 = step.fen ? posOf(step.fen, where) : new C.Pos(); if (!p0) return;
+  const seen = playSans(p0, sanList(step.moves), where); if (!seen) return;
+  const p = seen[seen.length - 1];
+  if (!['w', 'b'].includes(step.side) || (p.side === 1 ? 'w' : 'b') !== step.side) { err(where, 'safe side must be the side to move after the moves'); return; }
+  for (const a of [].concat(step.aim || [])) {
+    if (!p.parseMove(a)) { err(where, 'aim move ' + a + ' is illegal'); continue; }
+    const r = await loss(p, a, 16);
+    if (r.loss > 100) err(where, 'aim move ' + a + ' is not good: best is ' + sanOf(p, r.best.pv[0]) + ' (' + fmt(r.best) + ')');
+    else if (r.loss > 40) warn(where, 'aim move ' + a + ' is ' + (r.loss / 100).toFixed(2) + ' worse than ' + sanOf(p, r.best.pv[0]));
+  }
+  if (step.bait) {
+    if (!p.parseMove(step.bait)) { err(where, 'bait ' + step.bait + ' is illegal'); return; }
+    const r = await loss(p, step.bait, 16);
+    if (r.loss < 150) warn(where, 'bait ' + step.bait + ' only loses ' + (r.loss / 100).toFixed(2));
+    const after = p.clone(); after.make(after.parseMove(step.bait));
+    playSans(after, sanList(step.punish), where + ' punish');
+  }
+}
+async function checkGame(step, where) {
+  if (!['w', 'b'].includes(step.side)) { err(where, 'game needs side w or b'); return; }
+  if (!(step.until > 0)) err(where, 'game needs until (a full-move number)');
+  const lines = (step.lines || []).map(sanList);
+  if (!lines.length) { err(where, 'game needs lines'); return; }
+  const you = step.side === 'w' ? 1 : -1, theirs = {};
+  const norm = x => x.replace(/[+#!?]/g, '');
+  for (let i = 0; i < lines.length; i++) {
+    const seen = playSans(new C.Pos(), lines[i], where + ' line ' + (i + 1)); if (!seen) continue;
+    for (let k = 0; k < lines[i].length; k++) {
+      if (seen[k].side !== you) continue;
+      const key = lines[i].slice(0, k).map(norm).join(' ');
+      const mv = norm(lines[i][k]);
+      if (theirs[key] && theirs[key] !== mv) warn(where, 'the lines disagree on your move after "' + key + '": ' + theirs[key] + ' or ' + mv);
+      theirs[key] = theirs[key] || mv;
+    }
+  }
+  await checkLine({ moves: lines[0], side: step.side }, where + ' line 1', 'line');
+}
+
 async function checkPlay(step, where) {
   const p = posOf(step.fen, where); if (!p) return;
   const goals = ['mate', 'promote', 'draw', 'win'];
@@ -126,10 +214,16 @@ async function checkPlay(step, where) {
       if (!les.id || !les.title || !les.summary || !Array.isArray(les.steps)) { err(lw, 'lesson needs id, title, summary, steps[]'); continue; }
       if (seenIds.has(les.id)) err(lw, 'duplicate lesson id'); seenIds.add(les.id);
       if (les.steps.length < 4) warn(lw, 'only ' + les.steps.length + ' steps');
-      if (les.steps.length > 11) warn(lw, les.steps.length + ' steps is long');
+      if (les.steps.length > 12) warn(lw, les.steps.length + ' steps is long');
       let practice = 0;
       for (let i = 0; i < les.steps.length; i++) {
         const s = les.steps[i], w = lw + ' step ' + (i + 1) + ' [' + s.t + ']';
+        if (s.trap) {   // a trap lesson's steps are filled in from the trap (tests/verify_traps.js checks those)
+          const traps = (require('../content/openings.js').traps || []);
+          if (!traps.some(t => t.id === s.trap)) err(w, 'no trap with id ' + s.trap);
+          if (['line', 'safe', 'game'].includes(s.t)) practice++;
+          continue;
+        }
         if (!s.text) err(w, 'missing text');
         if (words(s.text) > 60) err(w, 'text too long (' + words(s.text) + ' words)');
         else if (words(s.text) > 45) warn(w, 'text is long (' + words(s.text) + ' words)');
@@ -138,8 +232,7 @@ async function checkPlay(step, where) {
         for (const a of s.arrows || []) if (!MV.test(a)) err(w, 'bad arrow ' + a);
         for (const m of s.marks || []) if (!SQ.test(m)) err(w, 'bad mark ' + m);
         if (s.t === 'read') {
-          if (!s.fen) { err(w, 'read needs fen'); continue; }
-          const p = posOf(s.fen, w); if (!p) continue;
+          const p = s.fen ? posOf(s.fen, w) : new C.Pos(); if (!p) continue;   // no fen: the starting position
           for (const mv of s.play || []) if (!playUci(p, mv, w + ' play')) break;
         } else if (s.t === 'move') { practice++; await checkMove(s, w); }
         else if (s.t === 'pick') {
@@ -156,6 +249,10 @@ async function checkPlay(step, where) {
           if (!(s.answer >= 0 && s.answer < (s.choices || []).length)) err(w, 'quiz answer index out of range');
           if (!s.done) warn(w, 'missing done text');
         } else if (s.t === 'play') { practice++; await checkPlay(s, w); }
+        else if (s.t === 'walk') await checkLine(s, w, 'walk');
+        else if (s.t === 'line') { practice++; await checkLine(s, w, 'line'); if (!s.done) warn(w, 'missing done text'); }
+        else if (s.t === 'safe') { practice++; await checkSafe(s, w); if (!s.note) warn(w, 'missing note'); }
+        else if (s.t === 'game') { practice++; await checkGame(s, w); }
         else err(w, 'unknown step type ' + s.t);
       }
       if (practice < 2) warn(lw, 'fewer than 2 practice steps');

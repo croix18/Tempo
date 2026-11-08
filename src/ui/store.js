@@ -26,7 +26,7 @@ var Store = (function () {
         otb: '10+0', backedUp: 0, backupAsked: 0, chat: 'some' },
       play: { rev: 0, rating: 600, hist: [], bots: {}, tier: 0, champ: false, lastBot: null },
       puzzles: { rev: 0, rating: 600, count: 0, solved: 0, hist: [], seen: '', themes: {}, streakBest: 0, rushBest: 0, daily: null },
-      learn: { rev: 0, done: {}, last: null },
+      learn: { rev: 0, done: {}, last: null, mem: {} },
       openings: { rev: 0, srs: {}, lines: {} },
       mistakes: { rev: 0, items: [] },
       games: { rev: 0, list: [] },
@@ -140,7 +140,7 @@ var Store = (function () {
     return out;
   }
   function cleanLearn(l) {
-    var out = extras(l, ['rev', 'done', 'last']);
+    var out = extras(l, ['rev', 'done', 'last', 'mem']);
     out.rev = count(l.rev);
     out.done = {};
     if (isObj(l.done)) keysOf(l.done).forEach(function (id) {
@@ -151,6 +151,14 @@ var Store = (function () {
       out.done[id] = rec;
     });
     out.last = typeof l.last === 'string' ? l.last : null;
+    // when each finished lesson comes back for review: its box (0-5), when it's due, reviews done and right, and a counter that rotates what it shows
+    out.mem = {};
+    if (isObj(l.mem)) keysOf(l.mem).forEach(function (id) {
+      var x = l.mem[id];
+      if (!isObj(x) || !out.done[id]) return;
+      var n = count(x.n);
+      out.mem[id] = { box: within(x.box, 0, 5, 1), due: finite(x.due) && x.due > 0 ? x.due : 0, n: n, ok: Math.min(count(x.ok), n), k: count(x.k) };
+    });
     return out;
   }
   function cleanOpenings(o) {
@@ -535,9 +543,15 @@ var Store = (function () {
           var a = lv.done[id], b = done[id];
           if (!b || a.stars > b.stars) done[id] = a;
         });
-        var merged = Object.assign({}, base, { rev: Math.max(rRev, lRev), done: done, last: base.last });
-        if (JSON.stringify(merged.done) !== JSON.stringify(lv.done) || merged.last !== lv.last) changed = true;
-        if (JSON.stringify(merged.done) !== JSON.stringify(rv.done)) localNewer = true;
+        // a lesson's review record: the one with more reviews behind it wins, then the one due later
+        var mem = Object.assign({}, rv.mem || {}), lm = lv.mem || {};
+        Object.keys(lm).forEach(function (id) {
+          var a = lm[id], b = mem[id];
+          if (!b || a.n > b.n || (a.n === b.n && a.due > b.due)) mem[id] = a;
+        });
+        var merged = Object.assign({}, base, { rev: Math.max(rRev, lRev), done: done, last: base.last, mem: mem });
+        if (JSON.stringify(merged.done) !== JSON.stringify(lv.done) || merged.last !== lv.last || JSON.stringify(mem) !== JSON.stringify(lm)) changed = true;
+        if (JSON.stringify(merged.done) !== JSON.stringify(rv.done) || JSON.stringify(mem) !== JSON.stringify(rv.mem || {})) localNewer = true;
         state.learn = merged;
         return;
       }

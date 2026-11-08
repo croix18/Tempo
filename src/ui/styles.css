@@ -695,3 +695,26 @@ body.focus .tabs { display: none; }
 /* the narrowest phones: one list, so no name is cut short */
 @media (max-width: 370px) { .rv-kinds { grid-template-columns: 1fr; } .rv-kind-col + .rv-kind-col .rv-kind-head { display: none; } }
 
+
+/* ---------- lessons: practice rounds, lines and review ---------- */
+.stepper i.pr { background: var(--gold-wash); }
+.stepper i.pr.on { background: var(--gold-fill); }
+.stepper i.pr.done { background: var(--gold); }
+.line-moves { font-variant-numeric: tabular-nums; line-height: 1.5; min-height: 0; }
+.line-moves:empty { display: none; }
+.lesson-row .lesson-end { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.mem { font-size: 12px; font-weight: 600; letter-spacing: 0.01em; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.mem.due { color: var(--gold); background: var(--gold-wash); }
+.mem.locked { color: var(--green); background: var(--green-wash); }
+.review-due { border-color: var(--gold-fill); background: linear-gradient(0deg, var(--gold-wash), var(--gold-wash)), var(--surface); }
+.review-due .rv-ic { width: 34px; height: 34px; border-radius: 10px; background: var(--gold-fill); color: var(--navy); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.review-due .rv-ic .ic { width: 18px; height: 18px; }
+.review-note { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--ink-2); font-size: 14.5px; margin: 6px 0 0; }
+.review-note .ic { width: 16px; height: 16px; color: var(--gold); flex: none; }
+.review-list { margin-top: 10px; }
+.review-list .list-row { cursor: default; }
+.review-list .tick.miss { border-color: var(--gold-fill); color: var(--gold); }
+.review-list .tick.miss .ic { width: 14px; height: 14px; }
+.review-list .tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.review-list .tick.done { background: var(--green); border-color: var(--green); color: #fff; }
+.review-list .tick .ic { width: 15px; height: 15px; }

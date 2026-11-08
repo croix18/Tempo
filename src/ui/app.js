@@ -622,6 +622,8 @@ App.register('home', {
     if (pattern) todo.parentNode.insertBefore(pattern, todo);
     var mistakes = Mistakes.due().length;
     if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); }, Math.min(10, Math.ceil(mistakes * 0.75)));
+    var rv = Learn.due();
+    if (rv.count) item('refresh', 'Review ' + U.plural(rv.count, 'lesson') + ' so they stick', function () { Learn.review(); }, rv.minutes);
     var last = S.games.list[0], lastBot = last && TempoBots.find(last.bot);
     if (last && !last.reviewed && lastBot) {
       item('review', 'Review your ' + resultPhrase(last, lastBot.short || lastBot.name).replace(/^./, function (c) { return c.toLowerCase(); }), function () { Review.openGame(last.id); }, 3);
