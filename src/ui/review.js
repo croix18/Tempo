@@ -1482,7 +1482,8 @@ var Review = (function () {
     }
 
     /* ---------- while the engine reads the game ----------
-       The board runs back to the start and replays the game as the engine reads it, under a gold scanner, while the pieces hop about nervously;
+       The board runs back to the start and replays the game as the engine reads it, under a gold scanner; when the engine
+       stops to double-check a move, the pieces fidget while they wait;
        the eval bar and the graph fill in as it goes; Tempo's mark spins; and silly lines keep you company. A move the
        engine wants a closer look at gets a gold ring and a suspicious remark. Tap a move and the board is yours again.
        With reduced motion: no scanner, no hopping, no spinning. */
@@ -1519,8 +1520,8 @@ var Review = (function () {
       st.silly.textContent = text; st.silly.classList.add('in');
     }
     function stopScan() {
-      clearInterval(st.sillyT); clearTimeout(st.followT); st.followT = null; st.follow = false;
-      arena.classList.remove('rv-scanning');
+      clearInterval(st.sillyT); clearTimeout(st.followT); clearTimeout(st.idleT); st.followT = null; st.follow = false;
+      arena.classList.remove('rv-scanning'); arena.classList.remove('rv-idle');
       if (st.beam) { st.beam.remove(); st.beam = null; }
     }
     function progress(done, j, deep) {
@@ -1542,23 +1543,29 @@ var Review = (function () {
       else if (st.follow && deep && st.at === j + 1) board.setMarks([{ sq: moves[j].slice(2, 4), kind: 'ring' }]);
       liveGraph();
     }
-    /* The engine has read up to position k: the board plays the moves there one at a time, at a natural pace when it's
-       close behind and briskly when the engine has raced ahead, so you watch the game again as it's checked. */
+    /* The engine has read up to position k: the board plays the moves there one at a time at a steady pace, a little
+       quicker when the engine has raced ahead, so you watch the game again as it's checked. */
     function follow(k) {
       if (k == null || k < 0 || k > moves.length || k <= (st.followTo || 0)) return;
       st.followTo = k;
       if (!st.followT) followStep();
     }
     function followStep() {
-      st.followT = null;
-      if (!st.follow || st.cancelled || st.at == null || st.at >= st.followTo) return;
-      var k = st.at + 1, behind = st.followTo - k, a = posAt(k), calm = U.calm();
-      var ms = board.setPosition(a.pos, { last: a.last, animate: !calm, natural: !calm && behind < 3 }) || 0;
-      st.at = k;
+      st.followT = null; clearTimeout(st.idleT);
+      if (!st.follow || st.cancelled || st.at == null) return;
+      if (st.at >= st.followTo) {
+        // caught up with the engine: if it's taking its time (double-checking a move), the pieces start to fidget
+        st.idleT = setTimeout(function () { if (st.follow && !st.cancelled) arena.classList.add('rv-idle'); }, 900);
+        return;
+      }
+      arena.classList.remove('rv-idle');
+      var k = st.at + 1, behind = st.followTo - k, calm = U.calm();
+      put(k, !calm);
       board.setMarks([]);
       var e = st.liveEvals && st.liveEvals[k];
       if (e) { var w = whiteWin(e), flip = board.orient !== 'w'; evalBar.classList.toggle('flip', flip); evalFill.style.height = (flip ? 100 - w : w) + '%'; }
-      st.followT = setTimeout(followStep, calm ? 120 : behind < 3 ? ms + 160 : behind < 8 ? 220 : 130);
+      // a steady film-like rhythm: a little quicker the further the engine has got ahead
+      st.followT = setTimeout(followStep, calm ? 150 : Math.max(260, 520 - behind * 35));
     }
     /* the graph, drawn as far as the engine has read */
     function liveGraph() {

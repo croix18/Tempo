@@ -88,11 +88,12 @@ div.rv-verdict { font-weight: 600; }
 @keyframes rv-beam { from { top: -18%; } to { top: 100%; } }
 /* the pieces fidget nervously while they're judged: a few at a time hop, then wait their turn (translate, so it never
    fights the board's own moves) */
-.rv-scanning .b-pcs .pc { animation: rv-hop 2.2s ease-in-out infinite; }
-.rv-scanning .b-pcs .pc:nth-child(2n) { animation-delay: -0.55s; }
-.rv-scanning .b-pcs .pc:nth-child(3n) { animation-delay: -1.1s; }
-.rv-scanning .b-pcs .pc:nth-child(5n) { animation-delay: -1.65s; animation-duration: 1.9s; }
-.rv-scanning .b-pcs .pc:nth-child(7n) { animation-delay: -0.3s; animation-duration: 2.6s; }
+/* the pieces fidget only while the replay waits for the engine (rv-idle); while the game is playing through they hold still */
+.rv-scanning.rv-idle .b-pcs .pc { animation: rv-hop 2.2s ease-in-out infinite; }
+.rv-scanning.rv-idle .b-pcs .pc:nth-child(2n) { animation-delay: -0.55s; }
+.rv-scanning.rv-idle .b-pcs .pc:nth-child(3n) { animation-delay: -1.1s; }
+.rv-scanning.rv-idle .b-pcs .pc:nth-child(5n) { animation-delay: -1.65s; animation-duration: 1.9s; }
+.rv-scanning.rv-idle .b-pcs .pc:nth-child(7n) { animation-delay: -0.3s; animation-duration: 2.6s; }
 @keyframes rv-hop { 0%, 20%, 100% { translate: 0 0; } 8% { translate: 0 -8%; } 14% { translate: 0 1%; } }
 /* when it's done, everyone jumps at once: ta-da */
 .rv-tada .b-pcs .pc { animation: rv-tada 0.7s cubic-bezier(.3, 1.5, .5, 1) both; }

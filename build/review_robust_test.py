@@ -321,12 +321,14 @@ async def test_loading(browser):
         await pg.wait_for_function("() => { const g = document.querySelector('.rv-live path.eg-white'); return g && g.getAttribute('d').split('L').length > 4; }", timeout=60000)
         r = await pg.evaluate("""() => ({ beam: !!document.querySelector('.rv-beam'), beamShown: !!document.querySelector('.rv-beam') && getComputedStyle(document.querySelector('.rv-beam')).display !== 'none',
           hop: getComputedStyle(document.querySelector('.v-review .b-pcs .pc')).animationName, silly: (document.querySelector('.rv-silly') || {}).textContent || '',
+          idle: !!document.querySelector('.rv-scanning.rv-idle'), at: Review._state().at,
           prog: (document.querySelector('#rv-progress') || {}).textContent || '', fen: document.querySelector('.v-review .board').__board.pos.fen() })""")
         start = await pg.evaluate("new TempoCore.Pos().fen()")
         if not reduce:
-            check(tag + 'a gold scanner sweeps the board and the pieces hop', r['beamShown'] and r['hop'] == 'rv-hop', r)
+            check(tag + 'a gold scanner sweeps the board; the pieces hold still while the game plays through and fidget only while waiting on the engine',
+                  r['beamShown'] and r['hop'] == ('rv-hop' if r['idle'] else 'none'), r)
             check(tag + 'a silly line and the real progress', len(r['silly']) > 8 and 'move' in r['prog'], (r['silly'], r['prog']))
-            check(tag + 'the board follows the engine through the game', r['fen'] != start, r['fen'])
+            check(tag + 'the board ran back to the start and is playing the game through behind the engine', r['fen'] != start and r['at'] is not None and 0 < r['at'] <= int(re.search(r'move (\d+)', r['prog']).group(1)) * 2, (r['at'], r['prog'], r['fen']))
         else:
             check(tag + 'no scanner and no hopping', not r['beamShown'] and r['hop'] == 'none', r)
             check(tag + 'the silly line and the progress still show', len(r['silly']) > 8 and 'move' in r['prog'], (r['silly'], r['prog']))
