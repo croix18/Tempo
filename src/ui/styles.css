@@ -718,3 +718,27 @@ body.focus .tabs { display: none; }
 .review-list .tick { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .review-list .tick.done { background: var(--green); border-color: var(--green); color: #fff; }
 .review-list .tick .ic { width: 15px; height: 15px; }
+
+/* ---------- games you played somewhere else ---------- */
+/* the Review page's card: your Chess.com username and Get my games, or a PGN */
+.imp-get { display: flex; gap: 8px; }
+.imp-get input { flex: 1; min-width: 0; }
+.imp-get .btn { flex: none; }
+.imp-or { margin: 6px 0 -4px; }
+.imp-side { margin: 0; }
+.imp-keep { display: flex; align-items: center; gap: 10px; font-size: 14.5px; cursor: pointer; width: fit-content; }
+.imp-keep input { width: 18px; height: 18px; margin: 0; accent-color: var(--ink); }
+.imp-title { margin: 0 0 6px; }
+.imp-list { margin-top: 8px; }
+.tone-cc { background: var(--surface-2); color: var(--ink-2); box-shadow: inset 0 0 0 1.5px var(--line); }
+.rv-waiting { margin: 0 0 10px; max-width: none; }
+.rv-batch { max-width: 720px; }
+.rv-batch-head { margin: 0; font-weight: 600; }
+.rv-batch .list-row { cursor: default; }
+.rv-batch-st { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+/* Progress: your games */
+.games-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
+.games-work { gap: 8px; }
+.games-topic { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; font-size: 14.5px; }
+.games-topic > :last-child { white-space: nowrap; font-size: 13.5px; }
+.games-cc { gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }

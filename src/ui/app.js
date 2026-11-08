@@ -373,6 +373,7 @@ var UI = (function () {
     var vals = points.map(function (p) { return p[1]; });
     var lo = Math.min.apply(null, vals), hi = Math.max.apply(null, vals);
     var pad = Math.max(20, (hi - lo) * 0.15); lo = Math.floor((lo - pad) / 50) * 50; hi = Math.ceil((hi + pad) / 50) * 50;
+    if (opts.lo != null) lo = opts.lo; if (opts.hi != null) hi = opts.hi;   // a fixed scale, like 0 to 100 for accuracy
     var x = function (i) { return P.l + (W - P.l - P.r) * i / (points.length - 1); };
     var y = function (v) { return P.t + (H - P.t - P.b) * (1 - (v - lo) / (hi - lo)); };
     var steps = 4;
@@ -622,6 +623,8 @@ App.register('home', {
     if (pattern) todo.parentNode.insertBefore(pattern, todo);
     var mistakes = Mistakes.due().length;
     if (mistakes) item('target', 'Retry ' + U.plural(mistakes, 'mistake') + ' from your games', function () { App.go('train', { mode: 'mistakes' }); }, Math.min(10, Math.ceil(mistakes * 0.75)));
+    var added = Review.waiting();
+    if (added.length) item('review', 'Review ' + U.plural(added.length, 'game') + ' you added', function () { Review.openBatch(added.map(function (g) { return g.id; })); }, Math.min(15, added.length));
     var rv = Learn.due();
     if (rv.count) item('refresh', 'Review ' + U.plural(rv.count, 'lesson') + ' so they stick', function () { Learn.review(); }, rv.minutes);
     var last = S.games.list[0], lastBot = last && TempoBots.find(last.bot);
