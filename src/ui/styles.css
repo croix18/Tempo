@@ -42,6 +42,13 @@
   --gutter-l: max(16px, env(safe-area-inset-left, 0px));
   --gutter-r: max(16px, env(safe-area-inset-right, 0px));
   --tabbar: 0px;
+  /* Trends' charts. Each set was checked with the dataviz palette validator against its theme's card surface:
+     severity is one hue, darker for worse (inaccuracy, mistake, blunder); results are a deeper green for wins, gray for
+     draws, coral for losses (they also carry their counts in text, so color never works alone) */
+  --tr-accent: #2B3D66; --tr-muted: rgba(22, 34, 61, 0.28); --tr-peak: #DE5A3E;
+  --sev-i: #F0A08C; --sev-m: #DE5A3E; --sev-x: #A83420;
+  --res-w: #1A6B41; --res-d: #A3A9B5; --res-l: #E8735A;
+  --res-w-ink: #FFFFFF; --res-d-ink: #16223D; --res-l-ink: #16223D; --tr-good-ink: #1F6E43; --tr-bad-ink: #B53F29;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -57,6 +64,10 @@
     --dot: rgba(10, 18, 34, 0.38);
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.28);
     --seg-on: #31426A;
+    --tr-accent: #D9B64A; --tr-muted: rgba(241, 233, 216, 0.30); --tr-peak: #D45B42;
+    --sev-i: #9A4030; --sev-m: #D45B42; --sev-x: #F7957C;
+    --res-w: #08773F; --res-d: #5B6680; --res-l: #E36B52;
+    --res-w-ink: #FFFFFF; --res-d-ink: #FFFFFF; --res-l-ink: #10192D; --tr-good-ink: #6FCB95; --tr-bad-ink: #F59A86;
     color-scheme: dark;
   }
 }
@@ -73,6 +84,10 @@
   --dot: rgba(10, 18, 34, 0.38);
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.28);
   --seg-on: #31426A;
+  --tr-accent: #D9B64A; --tr-muted: rgba(241, 233, 216, 0.30); --tr-peak: #D45B42;
+  --sev-i: #9A4030; --sev-m: #D45B42; --sev-x: #F7957C;
+  --res-w: #08773F; --res-d: #5B6680; --res-l: #E36B52;
+  --res-w-ink: #FFFFFF; --res-d-ink: #FFFFFF; --res-l-ink: #10192D; --tr-good-ink: #6FCB95; --tr-bad-ink: #F59A86;
   color-scheme: dark;
 }
 /* board color themes */
@@ -755,3 +770,118 @@ body.focus .tabs { display: none; }
 .games-topic { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: baseline; gap: 12px; font-size: 14.5px; }
 .games-topic > :last-child { white-space: nowrap; font-size: 13.5px; }
 .games-cc { gap: 8px; padding-top: 4px; border-top: 1px solid var(--line); }
+
+/* ---------- Trends (Progress's second page) ---------- */
+.page-head .progress-tabs { margin-bottom: 2px; }
+.tr-body { display: flex; flex-direction: column; gap: 14px; }
+.tr-filters { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: center; }
+.tr-scope { margin: -4px 0 0; }
+.tr-card { min-width: 0; }
+.tr-card-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.tr-insight { margin: 0; font-weight: 600; color: var(--ink); }
+.tr-pair { margin: 0; }
+/* at a glance: a value, how it moved, and over which games */
+.tr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 18px 22px; }
+.tr-stat { gap: 4px; }
+.tr-delta { font-size: 13px; font-weight: 600; line-height: 1.3; }
+.tr-delta.good { color: var(--tr-good-ink); }
+.tr-delta.bad { color: var(--tr-bad-ink); }
+.tr-delta.same { color: var(--ink-3); font-weight: 500; }
+.tr-arrow { font-size: 9px; margin-right: 5px; vertical-align: 1px; }
+/* charts */
+.tr-plot { position: relative; border-radius: 10px; outline: none; touch-action: pan-y; }
+.tr-plot:focus-visible { box-shadow: 0 0 0 1px var(--gold), 0 0 0 4px var(--gold-wash); }
+.tr-chart { overflow: visible; cursor: pointer; }
+.tr-chart .tr-dot { fill: var(--tr-muted); stroke: var(--surface); stroke-width: 2; }
+.tr-chart .tr-dot.on { fill: var(--tr-accent); }
+.tr-chart .tr-line { fill: none; stroke: var(--tr-accent); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+.tr-chart .tr-end { fill: var(--tr-accent); stroke: var(--surface); stroke-width: 2; }
+.tr-chart .tr-endlabel { fill: var(--ink); font: 600 12px var(--sans); }
+.tr-chart .tr-cross { stroke: var(--ink-3); stroke-width: 1; }
+.tr-chart .tr-band { fill: var(--surface-2); }
+.tr-chart .tr-col { transition: opacity 0.15s ease; }
+.tr-chart .tr-col.dim { opacity: 0.4; }
+.tr-chart .sev-x { fill: var(--sev-x); }
+.tr-chart .sev-m { fill: var(--sev-m); }
+.tr-chart .sev-i { fill: var(--sev-i); }
+.tr-chart .tr-bar { fill: var(--tr-muted); }
+.tr-chart .tr-peak { fill: var(--tr-peak); }
+.tr-chart .tr-cap { fill: var(--ink); font: 700 12px var(--sans); }
+/* keys: a dot, a line or a block, shaped like the mark */
+.tr-legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--ink-2); }
+.tr-legend span { display: inline-flex; align-items: center; gap: 7px; }
+.tr-legend i, .tr-tip i { display: inline-block; flex: none; width: 10px; height: 10px; border-radius: 3px; }
+.tr-legend i.tr-dot-key { width: 9px; height: 9px; border-radius: 50%; background: var(--tr-muted); }
+.tr-legend i.tr-line-key { width: 16px; height: 2px; border-radius: 1px; background: var(--tr-accent); }
+.tr-tip i { width: 12px; height: 3px; border-radius: 2px; }
+.tr-tip i.tr-dot-key { background: var(--tr-muted); }
+.tr-tip i.tr-line-key { background: var(--tr-accent); }
+.tr-legend .sev-x, .tr-tip .sev-x { background: var(--sev-x); }
+.tr-legend .sev-m, .tr-tip .sev-m { background: var(--sev-m); }
+.tr-legend .sev-i, .tr-tip .sev-i { background: var(--sev-i); }
+.tr-legend .res-w { background: var(--res-w); }
+.tr-legend .res-d { background: var(--res-d); }
+.tr-legend .res-l { background: var(--res-l); }
+/* the readout beside a chart's mark */
+.tr-tip { position: absolute; z-index: 5; min-width: 150px; max-width: 250px; padding: 8px 11px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--raise); box-shadow: var(--shadow); pointer-events: none; font-size: 13px; line-height: 1.35; }
+.tr-tip[hidden] { display: none; }
+.tr-tip-head { font-weight: 700; color: var(--ink); }
+.tr-tip-sub { color: var(--ink-3); font-size: 12px; }
+.tr-tip-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.tr-tip-row b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.tr-tip-row span { color: var(--ink-2); }
+/* every chart's numbers, in a table */
+.tr-numbers summary { cursor: pointer; width: fit-content; color: var(--ink-2); font-size: 13px; font-weight: 600; }
+.tr-numbers summary:hover { color: var(--ink); }
+.tr-table-wrap { margin-top: 8px; max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.tr-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tr-table th, .tr-table td { padding: 7px 10px; border-bottom: 1px solid var(--line); text-align: left; white-space: nowrap; }
+.tr-table tbody tr:last-child th, .tr-table tbody tr:last-child td { border-bottom: 0; }
+.tr-table td { font-variant-numeric: tabular-nums; }
+.tr-table tbody th { font-weight: 500; }
+.tr-table thead th { position: sticky; top: 0; background: var(--surface); color: var(--ink-2); font-weight: 600; }
+/* the parts of a game */
+.tr-phase-grid { display: grid; grid-template-columns: 1fr; gap: 22px; }
+@media (min-width: 760px) { .tr-phase-grid { grid-template-columns: 1.05fr 1fr; align-items: start; } }
+.tr-phase { display: flex; flex-direction: column; gap: 6px; padding: 11px 0; border-bottom: 1px solid var(--line); }
+.tr-phase:first-child { padding-top: 0; }
+.tr-phase:last-child { border-bottom: 0; }
+.tr-def { display: block; font-weight: 400; }
+.meter.tr-meter > i { background: var(--tr-accent); }
+.tr-hist { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+/* winning and saving */
+.tr-close-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+.tr-close { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.tr-close .row { align-items: baseline; }
+.tr-big { font-family: var(--serif); font-weight: 400; font-size: 30px; line-height: 1; }
+/* results: wins, draws and losses as one bar; thin ones beside their figures */
+.tr-wdl { display: flex; gap: 2px; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-2); min-width: 40px; }
+.tr-wdl i { display: block; min-width: 3px; }
+.tr-wdl i.res-w { background: var(--res-w); }
+.tr-wdl i.res-d { background: var(--res-d); }
+.tr-wdl i.res-l { background: var(--res-l); }
+.tr-wdl.tall { height: 28px; border-radius: 0; overflow: visible; background: none; }
+.tr-wdl.tall i { display: flex; align-items: center; border-radius: 4px; padding: 0 8px; font-size: 13px; font-weight: 700; font-style: normal; font-variant-numeric: tabular-nums; }
+.tr-wdl.tall i.res-w { color: var(--res-w-ink); }
+.tr-wdl.tall i.res-d { color: var(--res-d-ink); }
+.tr-wdl.tall i.res-l { color: var(--res-l-ink); }
+.tr-rows, .tr-open { display: flex; flex-direction: column; gap: 10px; }
+.tr-row { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(56px, 1fr) auto; grid-template-areas: "label bar fig"; align-items: center; gap: 12px; font-size: 14px; }
+.tr-row-label { grid-area: label; min-width: 0; }
+.tr-row > .tr-wdl { grid-area: bar; }
+.tr-row-fig { grid-area: fig; }
+.tr-row-sub { display: block; }
+/* a narrow card: the name and its figure on one line, the bar under them */
+@media (max-width: 560px) { .tr-row { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "label fig" "bar bar"; row-gap: 6px; } }
+.tr-row-fig { color: var(--ink-2); font-size: 13px; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.tr-ends { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px 18px; }
+.tr-end-list { list-style: none; margin: 4px 0 0; padding: 0; font-size: 14px; }
+.tr-end-list li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.tr-end-list li:last-child { border-bottom: 0; }
+/* the kinds of mistakes that keep coming back */
+.tr-themes { display: flex; flex-direction: column; }
+.tr-theme { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.tr-theme:first-child { padding-top: 0; }
+.tr-theme:last-child { border-bottom: 0; }
+.tr-theme .tr-delta { flex: none; text-align: right; }

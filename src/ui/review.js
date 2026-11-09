@@ -399,8 +399,10 @@ var Review = (function () {
         acc: { w: acc.w == null ? 100 : acc.w, b: acc.b == null ? 100 : acc.b }, counts: res.counts };
       g.rvx = { v: SAVE_VERSION, pv: savedLinesOf(evals, res.cls) };
     }
-    Store.touch('games');
     Mistakes.addFromReview(g.id, startFen, moves, evals, res.cls, isMine);
+    // what Trends keeps of the review, for every game (the mistakes are in the queue by now, kinds and all)
+    if (mineAcc != null) { g.tr = factsOf(startFen, moves, evals, res.cls, isMine, g.color); g.tr.tp = topicsOfGame(g.id); }
+    Store.touch('games');
   }
   /* the game's start, moves and sides, from its PGN; null when it doesn't replay */
   function gameMoves(g) {
@@ -688,16 +690,90 @@ var Review = (function () {
     cls.forEach(function (k, i) {
       var side = ((i % 2 === 0) === (startSide === 1)) ? 'w' : 'b';
       counts[side][k] = (counts[side][k] || 0) + 1;
-      var a = 103.1668 * Math.exp(-0.04354 * losses[i]) - 3.1669;
-      acc[side].push(Math.max(0, Math.min(100, a)));
+      acc[side].push(moveAcc(losses[i]));
     });
-    function avg(xs) {
-      if (!xs.length) return null;
-      var mean = xs.reduce(function (s, x) { return s + x; }, 0) / xs.length;
-      var harm = xs.length / xs.reduce(function (s, x) { return s + 1 / Math.max(x, 5); }, 0);
-      return (mean + harm) / 2;
+    return { cls: cls, loss: losses, acc: { w: blendAcc(acc.w), b: blendAcc(acc.b) }, counts: counts };
+  }
+  /* a move's accuracy from the winning chances it gave away (0 to 100) */
+  function moveAcc(loss) { return Math.max(0, Math.min(100, 103.1668 * Math.exp(-0.04354 * loss) - 3.1669)); }
+  /* a game's accuracy from its moves': the average, pulled toward the worst moves (half the harmonic mean) */
+  function blendAcc(xs) {
+    if (!xs.length) return null;
+    var mean = xs.reduce(function (s, x) { return s + x; }, 0) / xs.length;
+    var harm = xs.length / xs.reduce(function (s, x) { return s + 1 / Math.max(x, 5); }, 0);
+    return (mean + harm) / 2;
+  }
+
+  /* ---------- what a review leaves behind for Trends ----------
+     A few numbers kept with every reviewed game, since the whole review is kept only for a game among the 30 newest
+     when it was reviewed: your accuracy and serious mistakes in each phase of the game, the best and the worst the game
+     got for you, the moves where your serious mistakes came, and what kind of mistakes they were. The opening is the
+     first ten moves (unless an endgame comes sooner); the endgame starts once six or fewer pieces besides kings and pawns
+     are left; the middlegame is between.
+     { v, ph: { o, m, e: [accuracy, your moves, serious mistakes] or null }, hi, lo: centipawns for you at your best and
+       worst (a forced mate counts as 2000), mm: [the move numbers of your serious mistakes], tp: { topic: count } } */
+  var FACTS_V = 1;
+  function phaseOf(pos, ply) {
+    var n = 0;
+    for (var s = 0; s < 128; s++) {
+      if (s & 0x88) { s += 7; continue; }
+      var p = Math.abs(pos.b[s]); if (p >= 2 && p <= 5) n++;
     }
-    return { cls: cls, loss: losses, acc: { w: avg(acc.w), b: avg(acc.b) }, counts: counts };
+    return n <= 6 ? 'e' : ply < 20 ? 'o' : 'm';
+  }
+  /* evals: from White's view, one per position; cls: the moves' kinds; isMine(i); color: yours */
+  function factsOf(startFen, moves, evals, cls, isMine, color) {
+    var pos = new C.Pos(startFen), me = color === 'b' ? -1 : 1;
+    var acc = { o: [], m: [], e: [] }, err = { o: 0, m: 0, e: 0 }, mm = [], hi = -2000, lo = 2000;
+    function forMe(e) {
+      if (!e) return 0;
+      if (e.mate === 0) return e.mateWinner === me ? 2000 : -2000;
+      if (e.mate != null) return (e.mate > 0 ? 2000 : -2000) * me;
+      return Math.max(-2000, Math.min(2000, Math.round((e.cp || 0) * me)));
+    }
+    for (var i = 0; i < moves.length && i < cls.length; i++) {
+      var m = pos.parseMove(moves[i]); if (!m) break;
+      var ph = phaseOf(pos, i), mover = pos.side;
+      if (isMine(i)) {
+        // the loss the review counted: none for a book move or the engine's first choice
+        var e0 = evals[i], loss = cls[i] === 'book' || (e0 && e0.best && e0.best === moves[i]) ? 0 : Math.max(0, winFor(e0, mover) - winFor(evals[i + 1], mover));
+        acc[ph].push(moveAcc(loss));
+        if (SERIOUS.indexOf(cls[i]) >= 0) { err[ph]++; if (mm.length < 40) mm.push((i >> 1) + 1); }
+      }
+      pos.make(m);
+      var v = forMe(evals[i + 1]); if (v > hi) hi = v; if (v < lo) lo = v;
+    }
+    function one(k) { return acc[k].length ? [Math.round(10 * blendAcc(acc[k])) / 10, acc[k].length, err[k]] : null; }
+    return { v: FACTS_V, ph: { o: one('o'), m: one('m'), e: one('e') }, hi: hi, lo: lo, mm: mm, tp: {} };
+  }
+  /* the kinds of your mistakes in game id, from the practice queue */
+  function topicsOfGame(id) {
+    var prefix = 'g' + id + '-', out = {};
+    Store.state.mistakes.items.forEach(function (x) { if (!x.gone && x.topic && Mistakes.SAYS[x.topic] && x.id.indexOf(prefix) === 0) out[x.topic] = (out[x.topic] || 0) + 1; });
+    return out;
+  }
+  /* a saved review's evals back as objects factsOf can read */
+  function evalFromSaved(v, best) {
+    if (v >= 20000) return { mate: 0, mateWinner: 1, best: best || null };
+    if (v <= -20000) return { mate: 0, mateWinner: -1, best: best || null };
+    if (v > 9000) return { cp: null, mate: 10000 - v, best: best || null };
+    if (v < -9000) return { cp: null, mate: -10000 - v, best: best || null };
+    return { cp: v, mate: null, best: best || null };
+  }
+  /* Games reviewed before these numbers were kept: worked out from their saved review, where there is one. Returns how
+     many games got them (Trends saves the games when it's more than none). */
+  function backfillFacts() {
+    var n = 0;
+    Store.state.games.list.forEach(function (g) {
+      if (!g.reviewed || !g.rv || (g.tr && g.tr.v >= FACTS_V)) return;
+      var gm = gameMoves(g); if (!gm || g.rv.ev.length !== gm.moves.length + 1) return;
+      var evals = g.rv.ev.map(function (v, i) { return evalFromSaved(v, g.rv.best[i]); });
+      var cls = g.rv.cls.split('').map(function (c) { return FROM_CODE[c]; });
+      g.tr = factsOf(gm.fen, gm.moves, evals, cls, gm.isMine, g.color);
+      g.tr.tp = topicsOfGame(g.id);
+      n++;
+    });
+    return n;
   }
 
   /* ---------- entry points ---------- */
@@ -1993,6 +2069,8 @@ var Review = (function () {
     /* the reviews of the games you added: going now ({ at, n, done, pct }) or not (null); and stopping them */
     reviewing: function () { return reviewing() ? { at: RUN.at, n: RUN.ids.length, done: RUN.done, pct: RUN.pct } : null; },
     stopReviews: stopReviews,
+    /* for Trends: work out the numbers it keeps for games reviewed before they were kept; a game's start and moves */
+    backfillFacts: backfillFacts, gameMoves: gameMoves, FACTS_V: FACTS_V,
     _batch: function () { return reviewing() ? { i: RUN.at, n: RUN.ids.length, done: RUN.done } : null; },
     _run: function () { return RUN ? { ids: RUN.ids.slice(), at: RUN.at, done: RUN.done, failed: RUN.failed, running: RUN.running, stopped: RUN.stopped, seen: RUN.seen, marks: Object.assign({}, RUN.marks) } : null; } };
 })();
@@ -2075,5 +2153,5 @@ var Mistakes = (function () {
     Store.touch('mistakes');
   }
   function due() { var now = Date.now(); return Store.state.mistakes.items.filter(function (x) { return !x.gone && x.due <= now; }); }
-  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, topics: topics, patternText: patternText, topicOf: topicOf };
+  return { addFromReview: addFromReview, solved: solved, grade: grade, due: due, patterns: patterns, topics: topics, patternText: patternText, topicOf: topicOf, SAYS: SAYS };
 })();

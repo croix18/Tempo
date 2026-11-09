@@ -75,8 +75,12 @@
       var row = Explain.studyRow(tops[0].topic, ''); if (row) work.appendChild(row);
     } else work.appendChild(h('p', { class: 'muted small' }, 'No mistake keeps coming back in your reviewed games.'));
     var due = Mistakes.due().length, saved = S.mistakes.items.filter(function (x) { return !x.gone; }).length;
-    if (saved) work.appendChild(h('div', null, h('button', { class: 'btn small', type: 'button', onclick: function () { App.go('train', { mode: 'mistakes' }); } },
-      U.icon('target'), due ? 'Retry ' + U.plural(due, 'position') + ' from your games' : 'Your ' + U.plural(saved, 'saved position'))));
+    var acts = h('div', { class: 'row' });
+    if (saved) acts.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { App.go('train', { mode: 'mistakes' }); } },
+      U.icon('target'), due ? 'Retry ' + U.plural(due, 'position') + ' from your games' : 'Your ' + U.plural(saved, 'saved position')));
+    // the whole picture: Trends, Progress's second page
+    acts.appendChild(h('button', { class: 'btn small', type: 'button', onclick: function () { App.go('trends'); } }, U.icon('progress'), 'See your trends'));
+    work.appendChild(acts);
     card.appendChild(work);
     // your Chess.com rating, in the time control you play most, from the games you added
     var cc = S.games.list.filter(function (g) { return g.src === 'chesscom' && g.myElo; });
@@ -96,7 +100,7 @@
   App.register('progress', {
     render: function (root) {
       var S = Store.state;
-      root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Progress'))));
+      root.appendChild(h('div', { class: 'page-head' }, h('div', null, h('h1', null, 'Progress')), App.progressTabs('progress')));
       var grid = h('div', { class: 'grid two' });
       grid.appendChild(h('div', { class: 'card stack' },
         h('div', { class: 'row between' }, h('div', { class: 'stat' }, h('span', { class: 'label' }, 'Game rating'), h('b', null, String(S.play.rating))), h('span', { class: 'faint small' }, U.plural(S.play.hist.length, 'rated game'))),
