@@ -46,7 +46,7 @@ voices_json = json.dumps(voices, ensure_ascii=True, separators=(',', ':'))
 core = rd('src/core.js'); book = rd('src/book.js'); engine = rd('src/engine.js')
 bots = 'var TEMPO_PROFILES = ' + safe_json(profiles) + ';\n' + rd('src/bots.js')
 ui_order = ['inflate.js', 'ui/pieces.js', 'ui/avatars.js', 'ui/util.js', 'ui/store.js', 'ui/engines.js', 'talk.js', 'ui/board.js', 'ui/app.js', 'ui/review.js', 'ui/imports.js', 'ui/play.js',
-            'ui/clock.js', 'ui/puzzles.js', 'ui/learn.js', 'ui/openings.js', 'ui/train.js', 'ui/progress.js']
+            'ui/clock.js', 'ui/puzzles.js', 'ui/learn.js', 'ui/openings.js', 'ui/train.js', 'ui/progress.js', 'ui/trends.js']
 ui = '\n;\n'.join(rd('src/' + f) for f in ui_order)
 boot = """
 (function () {

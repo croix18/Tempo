@@ -219,8 +219,28 @@ var Store = (function () {
     return out;
   }
   var GAME_KEYS = ['id', 'ts', 'pgn', 'bot', 'color', 'result', 'reason', 'plies', 'rated', 'before', 'after', 'reviewed', 'acc', 'counts', 'rv', 'rvx',
-    'src', 'opp', 'oppElo', 'myElo', 'tc', 'tcl', 'link', 'key'];
+    'src', 'opp', 'oppElo', 'myElo', 'tc', 'tcl', 'link', 'key', 'tr'];
   var SOURCES = ['chesscom', 'pgn'], TIME_CLASSES = ['bullet', 'blitz', 'rapid', 'daily', 'classical'];
+  /* what Review keeps of a game's review for Trends (see factsOf there): { v, ph: { o, m, e: [accuracy, moves, serious
+     mistakes] or null }, hi, lo: centipawns for you (±2000), mm: [move numbers], tp: { kind: count } }; anything off, none */
+  function cleanFacts(t) {
+    if (!isObj(t) || !finite(t.v) || !isObj(t.ph) || !finite(t.hi) || !finite(t.lo) || !Array.isArray(t.mm)) return null;
+    var ph = {}, ok = true;
+    ['o', 'm', 'e'].forEach(function (k) {
+      var x = t.ph[k];
+      if (x == null) ph[k] = null;
+      else if (Array.isArray(x) && x.length === 3 && finite(x[0]) && x[0] >= 0 && x[0] <= 100 && finite(x[1]) && x[1] >= 1 && finite(x[2]) && x[2] >= 0) ph[k] = [x[0], Math.round(x[1]), Math.round(x[2])];
+      else ok = false;
+    });
+    if (!ok) return null;
+    var out = extras(t, ['v', 'ph', 'hi', 'lo', 'mm', 'tp'], true);
+    out.v = t.v; out.ph = ph;
+    out.hi = Math.max(-2000, Math.min(2000, Math.round(t.hi))); out.lo = Math.max(-2000, Math.min(2000, Math.round(t.lo)));
+    out.mm = t.mm.filter(function (n) { return finite(n) && n >= 1 && n <= 999; }).slice(0, 40).map(Math.round);
+    out.tp = {};
+    if (isObj(t.tp)) keysOf(t.tp).forEach(function (k) { if (/^[a-z]{1,20}$/.test(k) && finite(t.tp[k]) && t.tp[k] > 0) out.tp[k] = Math.min(99, Math.round(t.tp[k])); });
+    return out;
+  }
   function shortText(x, n) { return typeof x === 'string' && x.trim() ? x.trim().slice(0, n) : null; }
   function elo(x) { return finite(x) && x >= 0 && x <= 4000 ? Math.round(x) : null; }
   function cleanGame(x) {
@@ -243,6 +263,7 @@ var Store = (function () {
     if (rv) { out.rv = rv; if (out.acc == null) out.acc = rv.acc[out.color]; }
     if (rvx) out.rvx = rvx; // only worth keeping beside a usable rv
     out.reviewed = x.reviewed === true && out.acc != null;
+    var tr = out.reviewed ? cleanFacts(x.tr) : null; if (tr) out.tr = tr;
     var opp = shortText(x.opp, 60); if (opp) out.opp = opp;   // who you played, when it wasn't one of Tempo's characters
     // a game you played somewhere else, added from Chess.com or a PGN: the ratings, the time control, its address there
     if (SOURCES.indexOf(x.src) >= 0 && !out.bot) {

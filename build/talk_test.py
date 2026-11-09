@@ -69,21 +69,24 @@ async def test_game(browser):
     b = await wait_bubble(pg)
     check('a new game opens with the character’s hello', b and lines['greeting'] in b['text'], b)
     check('the line is beside the board, not on it (desk)', b and not b['overlaps'], b)
-    # four moves in (her hello well behind her), you hang your queen: she calls it before she takes it
-    await pg.evaluate(crafted('velma-dinkley', START, 'w', ['e2e4', 'e7e5', 'b1c3', 'g8f6'], ['e4', 'e5', 'Nc3', 'Nf6'], '{ log: [[0, "greeting"]], heard: { greeting: 1 } }'))
-    await pg.wait_for_timeout(1500)
-    await play(pg, 'd1h5')
-    said, seen_at = None, None
-    for _ in range(60):
-        await pg.wait_for_timeout(150)
-        b = await bubble(pg)
-        if b and lines['opponent_blunder'] in b['text']:
-            said = b; seen_at = await pg.evaluate("Store.state.current && Store.state.current.moves.length"); break
-    for _ in range(40):
-        if await pg.evaluate("Store.state.current && Store.state.current.moves.length >= 6"): break
-        await pg.wait_for_timeout(150)
-    took = await pg.evaluate("Store.state.current && Store.state.current.moves[5]")
-    log = await pg.evaluate("Store.state.current && Store.state.current.talk && Store.state.current.talk.log")
+    # four moves in (her hello well behind her), you hang your queen: she calls it before she takes it. Velma (1000) makes
+    # the odd oversight on purpose, so she gets three tries at the queen: one that never takes it still fails
+    for attempt in range(3):
+        await pg.evaluate(crafted('velma-dinkley', START, 'w', ['e2e4', 'e7e5', 'b1c3', 'g8f6'], ['e4', 'e5', 'Nc3', 'Nf6'], '{ log: [[0, "greeting"]], heard: { greeting: 1 } }'))
+        await pg.wait_for_timeout(1500)
+        await play(pg, 'd1h5')
+        said, seen_at = None, None
+        for _ in range(60):
+            await pg.wait_for_timeout(150)
+            b = await bubble(pg)
+            if b and lines['opponent_blunder'] in b['text']:
+                said = b; seen_at = await pg.evaluate("Store.state.current && Store.state.current.moves.length"); break
+        for _ in range(40):
+            if await pg.evaluate("Store.state.current && Store.state.current.moves.length >= 6"): break
+            await pg.wait_for_timeout(150)
+        took = await pg.evaluate("Store.state.current && Store.state.current.moves[5]")
+        log = await pg.evaluate("Store.state.current && Store.state.current.talk && Store.state.current.talk.log")
+        if took == 'f6h5': break
     check('your blunder, called once the referee agrees', said is not None, {'log': log})
     check('before she answers it', seen_at == 5, seen_at)
     check('she takes the queen', took == 'f6h5', took)

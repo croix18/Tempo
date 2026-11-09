@@ -64,6 +64,7 @@ var App = (function () {
   var TABS = ['home', 'play', 'puzzles', 'learn', 'more'];
   var MORE_OF = ['review', 'progress', 'prefs', 'more'];
   var LEARN_OF = ['openings', 'train'];
+  var SUB = { trends: 'progress' };   // pages without a menu item of their own: the item they belong to
   var PLAY_OF = ['clock'];
 
   /* The way back to the site that hosts this copy, when the page says where that is: window.TEMPO_HOME = { href, label,
@@ -106,6 +107,7 @@ var App = (function () {
   }
 
   function markNav(name) {
+    name = SUB[name] || name;
     Array.prototype.forEach.call(sideNav.querySelectorAll('.nav-item'), function (b) { b.classList.toggle('on', b.dataset.go === name); });
     var tabName = TABS.indexOf(name) >= 0 ? name : LEARN_OF.indexOf(name) >= 0 ? 'learn' : PLAY_OF.indexOf(name) >= 0 ? 'play' : MORE_OF.indexOf(name) >= 0 ? 'more' : name;
     Array.prototype.forEach.call(tabNav.querySelectorAll('.tab'), function (b) { b.classList.toggle('on', b.dataset.go === tabName); });
@@ -161,6 +163,15 @@ var App = (function () {
     if (!reps.repertoires.length && !reps.traps.length) items.splice(1, 1);
     var nav = h('nav', { class: 'seg learn-tabs', 'aria-label': 'Learn sections' });
     items.forEach(function (it) {
+      nav.appendChild(h('button', { type: 'button', class: it[0] === active ? 'on' : '', 'aria-current': it[0] === active ? 'page' : null,
+        onclick: function () { if (it[0] !== active) go(it[0], {}, { replace: true }); } }, it[1]));
+    });
+    return nav;
+  }
+  /* Progress's two pages, Overview and Trends, at every width (Trends has no menu item of its own) */
+  function progressTabs(active) {
+    var nav = h('nav', { class: 'seg progress-tabs', 'aria-label': 'Progress pages' });
+    [['progress', 'Overview'], ['trends', 'Trends']].forEach(function (it) {
       nav.appendChild(h('button', { type: 'button', class: it[0] === active ? 'on' : '', 'aria-current': it[0] === active ? 'page' : null,
         onclick: function () { if (it[0] !== active) go(it[0], {}, { replace: true }); } }, it[1]));
     });
@@ -294,7 +305,7 @@ var App = (function () {
   }
 
   return { register: register, go: go, refresh: refresh, sheet: sheet, closeSheet: closeSheet, confirm: confirm, toast: toast,
-    applySettings: applySettings, boot: boot, focus: focus, get name() { return currentName; }, NAV: NAV, homeOut: HOME_OUT,
+    applySettings: applySettings, boot: boot, focus: focus, get name() { return currentName; }, NAV: NAV, homeOut: HOME_OUT, progressTabs: progressTabs,
     /* the screen has something to lose right now (a timed round, a running clock): its guard would ask before leaving */
     get guarded() { try { return !!(current && current.guard && current.guard()); } catch (e) { return false; } } };
 })();
